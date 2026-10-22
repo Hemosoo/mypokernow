@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "PokerNow Customizer",
+  "version": "0.1.1",
+  "description": "Cinematic card animations and local visual themes. Includes a dedicated Animation Studio.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_title": "Open PokerNow Animation Studio",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.pokernow.com/games/*",
+        "https://pokernow.com/games/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self'"
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}

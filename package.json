@@ -1,0 +1,37 @@
+{
+  "name": "pokernow-customizer",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "description": "Local presentation and cinematic card animation studio for PokerNow",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "test": "node scripts/test.mjs",
+    "check": "npm run typecheck && npm test && npm run build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test:browser": "node scripts/browser-test.mjs"
+  },
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.6",
+    "@types/react": "19.1.0",
+    "@types/react-dom": "19.1.1",
+    "esbuild": "0.25.2",
+    "vite": "6.2.5",
+    "typescript": "5.8.3",
+    "tailwindcss": "3.4.17",
+    "postcss": "8.5.3",
+    "autoprefixer": "10.4.21",
+    "jsdom": "16.7.0"
+  },
+  "overrides": {
+    "form-data": "3.0.3"
+  }
+}
