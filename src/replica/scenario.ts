@@ -88,8 +88,8 @@ export class Scenario {
   }
 
   /** Reveal one street exactly as the site does: cards arrive face down, then turn 150 ms apart. */
-  async reveal(street: Street): Promise<void> {
-    const token = ++this.token;
+  async reveal(street: Street, runningToken?: number): Promise<void> {
+    const token = runningToken ?? ++this.token;
     if (street === 'deal') { this.giveCards(); this.render(); return; }
     const range = street === 'flop' ? [0, 3] : street === 'turn' ? [3, 4] : [4, 5];
     const added: ReplicaCard[] = BOARD.slice(range[0], range[1]).map((value) => ({ value, flipped: false }));
@@ -153,7 +153,7 @@ export class Scenario {
     if (!await wait(380) || !await sweep()) return false;
 
     // Flop.
-    await this.reveal('flop');
+    await this.reveal('flop', token);
     if (token !== this.token || !await wait(2100)) return false;
     const live = (): number[] => order.filter((index) => !this.seat(index).folded);
     for (const index of live()) {
@@ -165,7 +165,7 @@ export class Scenario {
     if (!await wait(320) || !await sweep()) return false;
 
     // Turn.
-    await this.reveal('turn');
+    await this.reveal('turn', token);
     if (token !== this.token || !await wait(1500)) return false;
     for (const index of live()) {
       const seat = this.seat(index), isVillain = index % n === villain % n;
@@ -174,7 +174,7 @@ export class Scenario {
     if (!await wait(320) || !await sweep()) return false;
 
     // River: the villain shoves, the hero calls.
-    await this.reveal('river');
+    await this.reveal('river', token);
     if (token !== this.token || !await wait(2300)) return false;
     const villainSeat = this.seat(villain), hero = state.seats[0]!;
     if (!await act(villain, 900, (target) => { target.bet = target.stack; })) return false;

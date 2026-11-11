@@ -22,12 +22,14 @@ test('actual content entry applies pregame appearance, survives a missing upload
  const dispatch=async(next:Library)=>{library=next;for(const listener of storageListeners)listener({'pokernow-customizer.library.v1':{newValue:next}},'local');await flush();};
  try {
   await import('../src/content/index');await flush();
-  assert.equal(table.style.backgroundColor,'rgb(35, 75, 67)','Basic table colors must not require seats or a full hand');
+  assert.equal(document.documentElement.getAttribute('data-pnc-skin'),'on');
+  assert.ok(document.querySelector('[data-pnc-owned=skin]')?.textContent?.includes('--pnc-back'));
+  assert.equal(table.style.backgroundColor,'rgb(17, 34, 51)','Skin must preserve native inline styles');
   assert.equal(table.style.getPropertyPriority('background-color'),'important');
   assert.ok(reports.at(-1)?.reason.includes('Table appearance is active'));
   assert.ok(reports.at(-1)?.reason.includes('uploaded image could not load'),'Missing assets should be visible diagnostics, not stop the adapter');
-  const edited=createDefaultLibrary();edited.themes[0].table.feltColor='#123456';await dispatch(edited);assert.equal(table.style.backgroundColor,'rgb(18, 52, 86)');
-  edited.settings.enabled=false;await dispatch(edited);assert.equal(table.style.backgroundColor,'rgb(17, 34, 51)');assert.equal(table.style.getPropertyPriority('background-color'),'important');assert.equal(reports.at(-1)?.state,'disabled');
+  const edited=createDefaultLibrary();edited.themes[0].table.feltColor='#123456';await dispatch(edited);assert.ok(document.querySelector('[data-pnc-owned=skin]')?.textContent?.includes('--pnc-back'));
+  edited.settings.enabled=false;await dispatch(edited);assert.equal(document.querySelector('[data-pnc-owned=skin]'),null);assert.equal(table.style.backgroundColor,'rgb(17, 34, 51)');assert.equal(table.style.getPropertyPriority('background-color'),'important');assert.equal(reports.at(-1)?.state,'disabled');
   let probed:unknown;for(const listener of messageListeners)listener({type:'pnc.runtime.probe'},{id:'fixture'},response=>{probed=response;});assert.equal((probed as RuntimeStatus).state,'disabled');
  }finally{
   (globalThis as typeof globalThis&{__pncCleanup?:()=>void}).__pncCleanup?.();assert.equal(storageListeners.size,0);assert.equal(messageListeners.size,0);dom.window.close();

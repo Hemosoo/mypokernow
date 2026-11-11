@@ -25,7 +25,7 @@ export function constructionOrder(fragments: ArtworkFragment[], card: VisualCard
       const p = { x: (column + 0.5) / 12, y: (row + 0.5) / 16 };
       if (!inside(p, fragment.polygon)) continue;
       samples++;
-      if (regions.some(region => p.x * 100 >= region.x && p.x * 100 <= region.x + region.width && p.y * 140 >= region.y && p.y * 140 <= region.y + region.height)) marked++;
+      if (regions.some(region => p.x >= region.x && p.x <= region.x + region.width && p.y >= region.y && p.y <= region.y + region.height)) marked++;
     }
     return (samples ? marked / samples : 0) * 1.8 + (fragment.edge ? 0 : 0.4) + noise(Number(fragment.id.split('-')[1]), 12) * 0.08;
   };

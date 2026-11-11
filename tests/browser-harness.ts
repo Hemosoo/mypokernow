@@ -14,7 +14,7 @@ async function leased(input:VisualEvent):Promise<void>{
   await wait(10);
  }
 }
-const theme=createDefaultTheme();
+const theme=createDefaultTheme();theme.animations.flop={preset:'flop.triple-spread',parameters:{}};
 const scene=document.createElement('main');
 scene.style.cssText='position:fixed;inset:40px;background:#183c35;border-radius:180px;border:18px solid #292a35';
 document.body.style.cssText='background:#101219;color:#fff;margin:0';

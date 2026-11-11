@@ -66,10 +66,14 @@ export class Stage {
   private lastRules = '';
   private readonly art = new Map<string, ChipArt>();
   private disposed = false;
+  private readonly animations = new Set<Animation>();
+  private readonly timers = new Set<number>();
+  private style: HTMLStyleElement;
 
   constructor(surface: HTMLElement, private readonly skin: Skin, private readonly document: Document) {
     const style = document.createElement('style');
     style.textContent = STAGE_CSS;
+    this.style = style;
     this.root = document.createElement('div');
     this.root.className = 'pnc-stage';
     this.root.setAttribute('data-pnc-overlay', 'stage');
@@ -87,6 +91,7 @@ export class Stage {
     this.theme = theme;
     this.effects = effects;
     this.reduced = reducedMotion;
+    if (themeChanged || !this.moving) this.clearSprites();
     if (themeChanged) { this.art.clear(); this.motesKey = ''; }
     if (!theme) this.reset();
     else if (this.previous) this.writeRules(this.previous);
@@ -134,7 +139,7 @@ export class Stage {
     const pot = this.potAwarded ? 0 : state.pot ?? 0;
     clearTimeout(this.potTimer);
     if (collecting && this.moving && this.effects.chips && pot > this.potShown) {
-      this.potTimer = (this.document.defaultView ?? window).setTimeout(() => { this.potShown = pot; if (this.previous) this.writeRules(this.previous); }, 430);
+      this.potTimer = (this.document.defaultView ?? window).setTimeout(() => { this.potShown = pot; if (this.previous) this.writeRules(this.previous); }, 460 + Math.max(0, state.seats.length - 1) * 38);
     } else this.potShown = pot;
     this.writeRules(state);
     this.updateAmbience(state);
@@ -145,6 +150,8 @@ export class Stage {
   dispose(): void {
     this.disposed = true;
     clearTimeout(this.potTimer);
+    this.clearSprites();
+    this.style.remove();
     this.root.remove();
     this.skin.setLiveRules('');
   }
@@ -197,7 +204,7 @@ export class Stage {
       }
       if (this.potShown > 0) {
         const art = this.cached('pot', this.potShown);
-        if (art.url) rules += `${SKIN_ROOT} .table-pot-size{--pnc-chips:url("${art.url}");--pnc-chips-w:${(art.width * CHIP_REM).toFixed(3)}rem;--pnc-chips-h:${(art.height * CHIP_REM).toFixed(3)}rem;--pnc-pot-pad:${(art.width * CHIP_REM * 0.94).toFixed(3)}rem}\n`;
+        if (art.url) rules += `${SKIN_ROOT} .table-pot-size{--pnc-chips:url("${art.url}");--pnc-chips-w:${(art.width * CHIP_REM).toFixed(3)}rem;--pnc-chips-h:${(art.height * CHIP_REM).toFixed(3)}rem;--pnc-pot-pad:${(art.width * CHIP_REM + 0.75).toFixed(3)}rem}\n`;
       }
     }
     if (rules === this.lastRules) return;
@@ -234,12 +241,20 @@ export class Stage {
     if (typeof element.animate !== 'function') { remove(); return; }
     try {
       const animation = element.animate(frames, { duration, delay, fill: 'both', easing: 'linear' });
-      animation.finished.then(remove, remove);
-      (this.document.defaultView ?? window).setTimeout(remove, duration + delay + 400);
+      this.animations.add(animation);
+      let timer = 0;
+      const done = (): void => { this.animations.delete(animation); clearTimeout(timer); this.timers.delete(timer); remove(); };
+      animation.finished.then(done, done);
+      timer = (this.document.defaultView ?? window).setTimeout(done, duration + delay + 400);
+      this.timers.add(timer);
     } catch { remove(); }
   }
 
   private clearSprites(): void {
+    for (const animation of this.animations) animation.cancel();
+    this.animations.clear();
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers.clear();
     for (const child of Array.from(this.root.children)) {
       if (child !== this.veil && child !== this.pressure && child !== this.motes) child.remove();
     }
@@ -282,7 +297,7 @@ export class Stage {
     const element = this.sprite(art.url, width, height);
     if (!element) return;
     this.play(element, this.frames(18, (t) => {
-      const travel = spring(t * 0.92);
+      const travel = spring(t) / spring(1);
       return { x: lerp(from.x, to.x, travel) - width / 2, y: lerp(from.y, to.y, travel) - height / 2 - Math.sin(Math.PI * clamp(t * 1.4)) * rem * 0.22,
         scale: lerp(0.62, 1, easeOut(clamp(t * 1.6))), opacity: t < 0.12 ? t / 0.12 : t > 0.86 ? (1 - t) / 0.14 : 1 };
     }), 340);
@@ -340,7 +355,7 @@ export class Stage {
           return { x: lerp(from.x, end.x, travel) + (-dy / length) * bend * arc - width / 2,
             y: lerp(from.y, end.y, travel) + (dx / length) * bend * arc - arc * lift - height / 2,
             scale: 1 + arc * 0.32, rotate: (hash(index, 19) - 0.5) * 40 * arc, opacity: t < 0.08 ? t / 0.08 : t > 0.88 ? (1 - t) / 0.12 : 1 };
-        }), duration, index * (tier === 'big' ? 34 : 30));
+        }), duration, (before.seats.some(seat => (seat.bet ?? 0) > 0) ? 500 : 80) + index * (tier === 'big' ? 34 : 30));
       }
     }
     if (!this.effects.celebrations) return;

@@ -46,7 +46,7 @@ export const selectorProfiles: readonly SelectorProfile[] = [
     card: '.card-container', rank: '.value', suit: '.suit:not(.sub-suit)',
     faceDown: '.card-container:not(.flipped)', faceUp: '.flipped',
     unpainted: '.not-visible', hiddenHand: '.table-player-cards.hide-cards',
-    trustFaceText: true, boardIsPublic: true,
+    trustFaceText: true, boardIsPublic: false,
   },
 ];
 

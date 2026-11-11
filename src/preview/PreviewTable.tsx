@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
 import { AnimationCoordinator } from '../animation/core/coordinator';
 import { getPreset } from '../animation/registry';
-import { cardDataUrl } from '../rendering/cards';
+import { artOptions, cardDataUrl } from '../rendering/cards';
 import type { CardIdentity, Rect, Settings, Street, Theme, VisualCard, VisualEvent } from '../types';
 
 const BOARD: CardIdentity[] = [
@@ -194,7 +194,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
     <div className="scene-vignette" />
     <div className="table-felt" style={{ '--felt': theme.table.feltColor, '--rail': theme.table.railColor } as CSSProperties}>
       <div className="felt-inner-line" />
-      <div className="table-wordmark"><span>POKERNOW</span><small>CUSTOMIZER</small></div>
+      <div className="table-wordmark"><span>{theme.table.inscription || theme.name}</span><small>PRIVATE TABLE</small></div>
       <div className="deck-marker" aria-hidden="true"><i /><i /><i /></div>
       <div className="preview-board" style={{ gap: `${theme.board.spacing}px`, background: theme.board.color,
         boxShadow: theme.board.highlight ? `0 0 35px ${theme.board.highlight}18` : undefined }}>
@@ -202,7 +202,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
           style={index < boardCount ? { boxShadow: `0 ${theme.board.shadow * 6}px ${theme.board.shadow * 18}px #0007` } : undefined}>
           <span className="slot-number">{index + 1}</span>
           {index < boardCount && <div className="canonical-card" style={cardStyle} data-board={index}>
-            <img src={cardDataUrl(identity, theme.card)} alt={`${identity.rank} of ${identity.suit}`} draggable={false} />
+            <img src={cardDataUrl(identity, theme.card, artOptions(theme))} alt={`${identity.rank} of ${identity.suit}`} draggable={false} />
           </div>}
         </div>)}
       </div>
@@ -215,7 +215,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
       return <div className={`player-seat ${index === 0 ? 'hero-seat' : ''}`} key={index} style={{ left: `${left}%`, top: `${top}%` }}>
         <div className="seat-cards">{[0, 1].map((round) => <div className="hole-slot" key={round}>
           {dealt && <div className="canonical-card" style={cardStyle} data-hole={`${index}-${round}`}>
-            <img src={cardDataUrl(index === 0 ? HERO[round] : undefined, theme.card)}
+            <img src={cardDataUrl(index === 0 ? HERO[round] : undefined, theme.card, artOptions(theme))}
               alt={index === 0 ? `${HERO[round].rank} of hearts` : 'Face-down opponent card'} draggable={false} />
           </div>}
         </div>)}</div>

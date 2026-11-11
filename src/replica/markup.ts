@@ -205,7 +205,8 @@ export function fitReplica(root: HTMLElement): void {
   const canvas = root.querySelector<HTMLElement>('#canvas');
   if (!canvas) return;
   const box = canvas.getBoundingClientRect();
-  const stage = Math.min(box.height, 1.8 * box.width);
+  // Reserve room around the felt for seats and controls in the local fixture.
+  const stage = Math.min(box.height * 0.72, box.width / 2.25);
   const html = root.ownerDocument.documentElement;
   html.style.fontSize = `${0.032 * stage}px`;
   html.style.setProperty('--table-stage-offset', `${(box.height - stage) / 2}px`);

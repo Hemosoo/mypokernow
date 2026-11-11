@@ -7,3 +7,5 @@ await build({entryPoints: ['src/content/index.ts'], bundle: true, format: 'iife'
 await build({entryPoints: ['src/background/index.ts'], bundle: true, format: 'esm', target: 'chrome120', outfile: 'dist/background.js', sourcemap: true, minify: true});
 await mkdir('dist', {recursive:true});
 await copyFile('manifest.json','dist/manifest.json');
+
+await copyFile('THIRD_PARTY_NOTICES.md','dist/THIRD_PARTY_NOTICES.md');

@@ -1,6 +1,6 @@
 {
   "name": "pokernow-customizer",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Local presentation and cinematic card animation studio for PokerNow",

@@ -4,10 +4,10 @@ const timestamp = '2026-11-11T00:00:00.000Z';
 
 /** The house choreography: quick where the game is quick, slow where it matters. */
 export const signatureAnimations = (): Record<Street, AnimationAssignment> => ({
-  deal: { preset: 'deal.dealer-flick', parameters: {} },
-  flop: { preset: 'flop.triple-spread', parameters: {} },
-  turn: { preset: 'reveal.slam', parameters: {} },
-  river: { preset: 'reveal.slam', parameters: {} },
+  deal: { preset: 'deal.pitch', parameters: {} },
+  flop: { preset: 'flop.cascade', parameters: {} },
+  turn: { preset: 'reveal.turnover', parameters: {} },
+  river: { preset: 'reveal.squeeze', parameters: {} },
 });
 
 export const defaultEffects = (): EffectSettings => ({ chips: true, celebrations: true, moments: true, ambience: true });

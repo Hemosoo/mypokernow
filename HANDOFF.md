@@ -1,3 +1,22 @@
+# Codex continuation — 2026-11-11
+
+Original Claude handoff is preserved below. Work continues on `claude/gifted-galileo-kxrvbv`; main has not been merged or modified.
+
+Completed implementation:
+- Semantic layers use renderer `data-part` markers, preserve paint servers and normalized centers; physical shard ordering uses normalized regions. All three construction presets share corrected artwork.
+- Added House Pitch, Silk Cascade, Velvet Turnover and River Squeeze; new rooms use these assignments. Existing saved themes retain their presets.
+- Added standalone `preview.html` room rehearsal with authored structural CSS and shared Runtime. It deliberately keeps site class names isolated from the studio. Full-hand scenario token cancellation bug fixed.
+- Studio exposes trim, inscription, emblem and four independent effect controls; preview uses theme metal accents.
+- Stage chip landing/collection timing, pot-label clearance, cancellation and disposal improved. Motion disable cancels active sprite animations. Community identities wait for the site flip.
+- Font metadata verified: Inter 4.001/git-66647c0bb; Playfair Display 1.203 normal/italic. Copyright, SHA-256 and OFL notices are in THIRD_PARTY_NOTICES.md and copied into dist.
+- Updated outdated design assertions and added chip/state/migration/hidden-board tests. Browser fixtures use loopback HTTP because managed Chrome blocks file URLs. Corrected two broken selector-string escapes in the browser runner.
+
+Visual iteration: retained Claude’s materials; added the room rehearsal, restrained house choreography, then corrected fixture scaling/clipped seats and pot-chip overlap after screenshot inspection. Stage sprites remain bounded and use transform/opacity; no FPS guarantee is claimed.
+
+Validation is being finalized; see docs/VERIFICATION.md for the final results. Live PokerNow games, mobile layouts and real gameplay remain manual verification requirements. No claim of live certification. `src/content/presentation.ts` remains an offline fixture helper exercised by existing restoration tests; production uses Skin instead.
+
+---
+
 # Handoff: PokerNow Customizer visual overhaul
 
 Branch `claude/gifted-galileo-kxrvbv`, one work-in-progress commit on top of `c1f49c9`. No pull request is open; the owner has not asked for one.
