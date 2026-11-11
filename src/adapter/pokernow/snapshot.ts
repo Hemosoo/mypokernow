@@ -14,9 +14,14 @@ export interface TablePresentationSnapshot {
 export interface TableSnapshot extends TablePresentationSnapshot {
   boardElement: HTMLElement;
   seats: Rect[];
+  /** Where a dealt card should appear to come from, when the site shows a dealer button. */
+  dealer?: Rect;
 }
 
 export type IdentityCache = WeakMap<HTMLElement, { identity: CardIdentity | undefined }>;
+
+const isElement = (node: Node | null | undefined): node is HTMLElement => Boolean(node) && node!.nodeType === 1;
+const styleOf = (element: Element): CSSStyleDeclaration => (element.ownerDocument.defaultView ?? window).getComputedStyle(element);
 
 export function rectangle(element: Element): Rect {
   const rect = element.getBoundingClientRect();
@@ -27,14 +32,19 @@ export function validRectangle(rect: Rect): boolean {
   return Object.values(rect).every(Number.isFinite) && rect.width >= 5 && rect.height >= 5;
 }
 
-/** The override applies only to a previously observed source under our visibility lease. */
-export function isPainted(element: HTMLElement, leased = false, allowEmptyContainer = false): boolean {
+/**
+ * The override applies only to a previously observed source under our visibility lease.
+ * `ownOpacity` is skipped for profiles whose cards may be mid entrance: the element's
+ * ancestors must still be fully painted.
+ */
+export function isPainted(element: HTMLElement, leased = false, allowEmptyContainer = false, ownOpacity = true): boolean {
   if (!element.isConnected || (!allowEmptyContainer && !validRectangle(rectangle(element)))) return false;
   let current: HTMLElement | null = element;
   while (current) {
-    const style = getComputedStyle(current);
+    const style = styleOf(current);
+    const transparent = Number(style.opacity || 1) === 0 && (ownOpacity || current !== element);
     if (current.hidden || current.getAttribute('aria-hidden') === 'true' ||
-      style.display === 'none' || style.contentVisibility === 'hidden' || Number(style.opacity || 1) === 0 ||
+      style.display === 'none' || style.contentVisibility === 'hidden' || transparent ||
       ((style.visibility === 'hidden' || style.visibility === 'collapse') && !(leased && current === element))) return false;
     if (/opacity\(\s*(?:0|0%)\s*\)/.test(style.filter)) return false;
     current = current.parentElement;
@@ -45,8 +55,7 @@ export function isPainted(element: HTMLElement, leased = false, allowEmptyContai
 function hasVisibleFront(element: HTMLElement, requireOpaqueText = true): boolean {
   let current: HTMLElement | null = element;
   while (current) {
-    const style = getComputedStyle(current);
-    const transform = style.transform;
+    const transform = styleOf(current).transform;
     if (transform.startsWith('matrix3d(')) {
       const matrix = transform.slice(9, -1).split(',').map(Number);
       // A back-facing/front-edge-on transform is not proof its rank is visible.
@@ -58,11 +67,13 @@ function hasVisibleFront(element: HTMLElement, requireOpaqueText = true): boolea
     current = current.parentElement;
   }
   if (!requireOpaqueText) return true;
-  const color = getComputedStyle(element).color;
+  const color = styleOf(element).color;
   return color !== 'transparent' && !/^rgba\([^)]*,\s*0\s*\)$/.test(color);
 }
 
 function hasVisibleBack(element: HTMLElement, profile: SelectorProfile): boolean {
+  // Where the site states which side is up, anything not face-up shows its back.
+  if (profile.faceUp) return !element.matches(profile.faceUp);
   if (element.matches(profile.faceDown) && hasVisibleFront(element, false)) return true;
   // Wrapper markup may place the explicit back surface on the inner .card.
   // Do not accept a hidden or back-facing back surface as proof of its display.
@@ -79,49 +90,70 @@ const suits: Record<string, Suit> = {
 
 function visibleText(element: HTMLElement): string {
   // textContent includes display:none descendants. Never consume their contents.
-  if (!hasVisibleFront(element) || Number.parseFloat(getComputedStyle(element).fontSize) === 0) return '';
+  if (!hasVisibleFront(element) || Number.parseFloat(styleOf(element).fontSize) === 0) return '';
   let result = '';
-  for (const child of element.childNodes) {
-    if (child.nodeType === Node.TEXT_NODE) result += child.textContent ?? '';
-    else if (child instanceof HTMLElement && isPainted(child)) result += visibleText(child);
+  for (const child of Array.from(element.childNodes)) {
+    if (child.nodeType === 3) result += child.textContent ?? '';
+    else if (isElement(child) && isPainted(child)) result += visibleText(child);
   }
   return result.trim();
 }
 
-export function readVisibleIdentity(element: HTMLElement, profile: SelectorProfile): CardIdentity | undefined {
+function parseIdentity(rankText: string, suitText: string): CardIdentity | undefined {
+  const upper = rankText.trim().toUpperCase();
+  const rank = upper === 'T' ? '10' : upper;
+  if (!/^(?:[2-9]|10|J|Q|K|A)$/.test(rank)) return undefined;
+  const suit = suits[suitText.trim().toLowerCase()];
+  return suit ? { rank: rank as Rank, suit } : undefined;
+}
+
+/**
+ * Identity of a card the player can already see.
+ *
+ * A card is read only when its face is showing, or (`publicCard`) when it is a
+ * community card the site has just placed on the board and is turning over.
+ * A face-down hole card carries no rank or suit in the page; nothing is guessed.
+ */
+export function readVisibleIdentity(element: HTMLElement, profile: SelectorProfile, publicCard = false): CardIdentity | undefined {
+  if (profile.faceUp) {
+    if (!element.matches(profile.faceUp) && !(publicCard && profile.boardIsPublic)) return undefined;
+    const rankElement = element.querySelector<HTMLElement>(profile.rank);
+    const suitElement = element.querySelector<HTMLElement>(profile.suit);
+    if (!rankElement || !suitElement) return undefined;
+    return parseIdentity(rankElement.textContent ?? '', suitElement.textContent ?? '');
+  }
   if (element.matches(profile.faceDown)) return undefined;
   const rankElement = element.querySelector<HTMLElement>(profile.rank);
   const suitElement = element.querySelector<HTMLElement>(profile.suit);
   if (!rankElement || !suitElement || !isPainted(rankElement) || !isPainted(suitElement) ||
     rankElement.closest(profile.faceDown) || suitElement.closest(profile.faceDown) ||
     !hasVisibleFront(rankElement) || !hasVisibleFront(suitElement)) return undefined;
-  const rankText = visibleText(rankElement).toUpperCase();
-  const rank = rankText === 'T' ? '10' : rankText;
-  if (!/^(?:[2-9]|10|J|Q|K|A)$/.test(rank)) return undefined;
-  let suit = suits[visibleText(suitElement).toLowerCase()];
+  let suitText = visibleText(suitElement);
   // A generated, visibly painted glyph is presentation too. Read its text, never hidden classes/data.
-  if (!suit) {
-    const generated = getComputedStyle(suitElement, '::before').content;
-    if (generated && generated !== 'none' && generated !== 'normal') suit = suits[generated.replace(/^["']|["']$/g, '').trim()];
+  if (!suits[suitText.toLowerCase()]) {
+    const generated = (suitElement.ownerDocument.defaultView ?? window).getComputedStyle(suitElement, '::before').content;
+    if (generated && generated !== 'none' && generated !== 'normal') suitText = generated.replace(/^["']|["']$/g, '').trim();
   }
-  return suit ? { rank: rank as Rank, suit } : undefined;
+  return parseIdentity(visibleText(rankElement), suitText);
 }
 
 function visibleCards(container: HTMLElement, profile: SelectorProfile, cache: IdentityCache): HTMLElement[] {
   const candidates = Array.from(container.querySelectorAll<HTMLElement>(profile.card)).filter((element) => {
     if (element.closest(OWNED_SELECTOR)) return false;
+    if (profile.unpainted && element.matches(profile.unpainted)) return false;
+    if (profile.hiddenHand && element.closest(profile.hiddenHand)) return false;
     const leased = element.getAttribute('data-pnc-concealed') === 'true' && cache.has(element);
-    return isPainted(element, leased);
+    return isPainted(element, leased, false, !profile.trustFaceText);
   });
   // A .card-container and its inner .card are one logical card. Lease the
   // painted wrapper when available so both its front and back are concealed.
   return candidates.filter((element) => !candidates.some((other) => other !== element && other.contains(element)));
 }
 
-function describe(element: HTMLElement, id: string, profile: SelectorProfile, cache: IdentityCache, seatId?: string, round?: number): VisualCard {
+function describe(element: HTMLElement, id: string, profile: SelectorProfile, cache: IdentityCache, publicCard: boolean, seatId?: string, round?: number): VisualCard {
   const leased = element.getAttribute('data-pnc-concealed') === 'true' && cache.has(element);
   // Reusing only previously visible identity prevents a newer hidden value being inspected during a lease.
-  const identity = leased ? cache.get(element)?.identity : readVisibleIdentity(element, profile);
+  const identity = leased ? cache.get(element)?.identity : readVisibleIdentity(element, profile, publicCard);
   if (!leased) cache.set(element, { identity });
   return { id, identity, target: rectangle(element), source: element, seatId, round };
 }
@@ -134,6 +166,11 @@ function visibleBoards(table: HTMLElement, profile: SelectorProfile): HTMLElemen
   return candidates.filter((element) => !candidates.some((other) => other !== element && element.contains(other)));
 }
 
+export function visibleSeats(table: HTMLElement, profile: SelectorProfile): HTMLElement[] {
+  return Array.from(table.querySelectorAll<HTMLElement>(profile.seat))
+    .filter((element) => !element.closest(OWNED_SELECTOR) && isPainted(element));
+}
+
 /** Resolve nested #table/.table aliases without choosing between independent tables. */
 export function findTableCandidates(document: Document, profile: SelectorProfile): HTMLElement[] {
   const candidates = Array.from(document.querySelectorAll<HTMLElement>(profile.table))
@@ -141,11 +178,20 @@ export function findTableCandidates(document: Document, profile: SelectorProfile
   const roots = candidates.filter((element) => !candidates.some((other) => other !== element && other.contains(element)));
   return roots.flatMap((root) => {
     const aliases = candidates.filter((element) => element === root || root.contains(element));
-    const coherent = aliases.filter((element) => visibleBoards(element, profile).length > 0 &&
-      Array.from(element.querySelectorAll<HTMLElement>(profile.seat)).some((seat) => !seat.closest(OWNED_SELECTOR) && isPainted(seat)));
+    const coherent = aliases.filter((element) => visibleBoards(element, profile).length > 0 && visibleSeats(element, profile).length > 0);
     const choices = coherent.length ? coherent : aliases;
     return choices.filter((element) => !choices.some((other) => other !== element && element.contains(other)));
   });
+}
+
+/** The single supported table and the profile that recognised it, if any. */
+export function locateTable(document: Document, allowFixture = false): { table: HTMLElement; profile: SelectorProfile } | undefined {
+  for (const profile of selectorProfiles) {
+    if (profile.id === 'fixture' && !allowFixture) continue;
+    const tables = findTableCandidates(document, profile);
+    if (tables.length === 1) return { table: tables[0]!, profile };
+  }
+  return undefined;
 }
 
 /**
@@ -162,15 +208,14 @@ export function takePresentationSnapshot(document: Document, cache: IdentityCach
     const boards = visibleBoards(table, profile);
     // Multiple boards can keep their native layout and receive table appearance.
     const boardElement = boards.length === 1 ? boards[0] : undefined;
-    const seats = Array.from(table.querySelectorAll<HTMLElement>(profile.seat))
-      .filter((element) => !element.closest(OWNED_SELECTOR) && isPainted(element));
-    const describeSafeCards = (container: HTMLElement, prefix: string): VisualCard[] =>
-      visibleCards(container, profile, cache).map((element, index) => describe(element, `${prefix}-${index}`, profile, cache))
+    const seats = visibleSeats(table, profile);
+    const describeSafeCards = (container: HTMLElement, prefix: string, publicCard: boolean): VisualCard[] =>
+      visibleCards(container, profile, cache).map((element, index) => describe(element, `${prefix}-${index}`, profile, cache, publicCard))
         .filter((card) => Boolean(card.identity) || Boolean(card.source && hasVisibleBack(card.source, profile)));
     return {
       table, boardElement, profile: profile.id, bounds: rectangle(table),
-      board: boardElement ? describeSafeCards(boardElement, 'board') : [],
-      holes: seats.flatMap((seat, index) => describeSafeCards(seat, `seat-${index}-card`)
+      board: boardElement ? describeSafeCards(boardElement, 'board', true) : [],
+      holes: seats.flatMap((seat, index) => describeSafeCards(seat, `seat-${index}-card`, false)
         .filter((card) => !boards.some((board) => board.contains(card.source!)))),
     };
   }
@@ -189,11 +234,10 @@ export function takeSnapshot(document: Document, cache: IdentityCache = new Weak
     if (boards.length !== 1) continue;
     const boardElement = boards[0]!;
     const board = visibleCards(boardElement, profile, cache)
-      .map((element, index) => describe(element, `board-${index}`, profile, cache));
+      .map((element, index) => describe(element, `board-${index}`, profile, cache, true));
     // Unsupported multiple boards, partially rendered identities, and alternate street shapes fail open.
     if (![0, 3, 4, 5].includes(board.length) || board.some((card) => !card.identity)) continue;
-    const seatElements = Array.from(table.querySelectorAll<HTMLElement>(profile.seat))
-      .filter((element) => !element.closest(OWNED_SELECTOR) && isPainted(element));
+    const seatElements = visibleSeats(table, profile);
     if (seatElements.length < 2 || seatElements.length > 10) continue;
     const holes: VisualCard[] = [];
     let supported = true;
@@ -201,10 +245,12 @@ export function takeSnapshot(document: Document, cache: IdentityCache = new Weak
       const elements = visibleCards(seat, profile, cache).filter((card) => !boardElement.contains(card));
       // Omaha / partially observed seats are unsupported rather than coerced into two-card dealing.
       if (elements.length !== 0 && elements.length !== 2) supported = false;
-      elements.forEach((element, cardIndex) => holes.push(describe(element, `seat-${seatIndex}-card-${cardIndex}`, profile, cache, `seat-${seatIndex}`, cardIndex)));
+      elements.forEach((element, cardIndex) => holes.push(describe(element, `seat-${seatIndex}-card-${cardIndex}`, profile, cache, false, `seat-${seatIndex}`, cardIndex)));
     });
     if (!supported) continue;
-    return { table, boardElement, profile: profile.id, bounds: rectangle(table), board, holes, seats: seatElements.map(rectangle) };
+    const button = profile.id === 'pokernow' ? table.querySelector<HTMLElement>('.dealer-button-ctn:not(.live-straddle) .button') : null;
+    const dealer = button && isPainted(button) ? rectangle(button) : undefined;
+    return { table, boardElement, profile: profile.id, bounds: rectangle(table), board, holes, seats: seatElements.map(rectangle), ...(dealer ? { dealer } : {}) };
   }
   return undefined;
 }

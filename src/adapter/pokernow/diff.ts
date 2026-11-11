@@ -32,8 +32,11 @@ export class VisualDiffer {
       this.emitted.add(key);
       // Bound memory even on very long sessions; generation resets normally keep this tiny.
       if (this.emitted.size > 64) this.emitted.delete(this.emitted.values().next().value!);
-      return { id: key, type, cards, timestamp, seats: snapshot.seats,
-        origin: { x: snapshot.bounds.x + snapshot.bounds.width * 0.5, y: snapshot.bounds.y + snapshot.bounds.height * 0.34, z: 0 } };
+      // Cards come from the dealer button when the site shows one, otherwise from above the board.
+      const origin = snapshot.dealer
+        ? { x: snapshot.dealer.x + snapshot.dealer.width / 2, y: snapshot.dealer.y + snapshot.dealer.height / 2, z: 0 }
+        : { x: snapshot.bounds.x + snapshot.bounds.width * 0.5, y: snapshot.bounds.y + snapshot.bounds.height * 0.34, z: 0 };
+      return { id: key, type, cards, timestamp, seats: snapshot.seats, origin };
     };
     const result: VisualEvent[] = [];
     const push = (type: VisualEventType, cards: VisualCard[]) => {
@@ -62,8 +65,18 @@ export class VisualDiffer {
       push('HAND_VISUAL_RESET', []);
       return result;
     }
-    if (!this.dealsObserved && previous.holes.length === 0 && snapshot.holes.length >= 4 &&
-      snapshot.holes.length === snapshot.seats.length * 2 && snapshot.board.length === 0) {
+    // On the live table some seats sit out, so a deal is any even set of new hands;
+    // the offline fixture keeps the stricter "every seat" rule.
+    const complete = snapshot.profile === 'pokernow' ? snapshot.holes.length % 2 === 0 : snapshot.holes.length === snapshot.seats.length * 2;
+    // The site may reuse the same card elements for the next hand: a face that
+    // changes to a different face before any board card is a new deal.
+    const redealt = snapshot.profile === 'pokernow' && snapshot.board.length === 0 && previous.board.length === 0 && snapshot.holes.length >= 4 &&
+      snapshot.holes.some((card) => {
+        const before = previous.holes.find((candidate) => candidate.id === card.id);
+        return Boolean(before?.identity && card.identity) && cardSignature(before!) !== cardSignature(card);
+      });
+    if (redealt) { this.generation++; this.emitted.clear(); this.dealsObserved = false; }
+    if (!this.dealsObserved && (previous.holes.length === 0 || redealt) && snapshot.holes.length >= 4 && complete && snapshot.board.length === 0) {
       this.dealsObserved = true;
       push('HOLE_CARDS_APPEARED', [...snapshot.holes].sort((a, b) => (a.round ?? 0) - (b.round ?? 0)));
     }

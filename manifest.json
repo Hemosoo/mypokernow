@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PokerNow Customizer",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Cinematic card animations and local visual themes. Includes a dedicated Animation Studio.",
   "permissions": [
     "storage"
@@ -39,5 +39,16 @@
     "32": "icons/32.png",
     "48": "icons/48.png",
     "128": "icons/128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/*"
+      ],
+      "matches": [
+        "https://www.pokernow.com/*",
+        "https://pokernow.com/*"
+      ]
+    }
+  ]
 }

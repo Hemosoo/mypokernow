@@ -13,14 +13,33 @@ export interface CardAppearance {
   back: 'crosshatch' | 'diamonds' | 'solid' | 'image'; backColor: string; backImage?: string;
   faceColor: string; redColor: string; blackColor: string; borderColor: string; borderRadius: number; shadow: number;
 }
-export interface TableAppearance {feltColor: string; railColor: string; backgroundColor: string; backgroundImage?: string}
+export type TableEmblem = 'spade' | 'crown' | 'laurel' | 'none';
+export interface TableAppearance {
+  feltColor: string; railColor: string; backgroundColor: string; backgroundImage?: string;
+  /** Polished metal used for the table inlay, plates, chips and every accent. */
+  trimColor: string;
+  /** Optional words set into the felt beneath the board. */
+  inscription: string;
+  emblem: TableEmblem;
+}
 export interface BoardAppearance {color: string; highlight: string; spacing: number; shadow: number}
 export interface AnimationAssignment {preset: string; parameters: Record<string, number>}
 export interface Theme {
-  version: 1; id: string; name: string; createdAt: string; updatedAt: string;
+  version: 2; id: string; name: string; createdAt: string; updatedAt: string;
   card: CardAppearance; table: TableAppearance; board: BoardAppearance; animations: Record<Street, AnimationAssignment>;
 }
-export interface Settings {enabled: boolean; reducedMotion: boolean; speed: number; activeThemeId: string}
-export interface Library {version: 1; settings: Settings; themes: Theme[]}
+/** Live-table flourishes. Each can be switched off without affecting the skin itself. */
+export interface EffectSettings {
+  /** Chip stacks for bets and the pot, and the chip movement between them. */
+  chips: boolean;
+  /** Winner celebrations, scaled to the size of the pot. */
+  celebrations: boolean;
+  /** Turn light, all-in beat, fold muck and time-pressure cue. */
+  moments: boolean;
+  /** Drifting light motes above the felt. */
+  ambience: boolean;
+}
+export interface Settings {enabled: boolean; reducedMotion: boolean; speed: number; activeThemeId: string; effects: EffectSettings}
+export interface Library {version: 2; settings: Settings; themes: Theme[]}
 export const streetForEvent = (type: VisualEventType): Street | undefined => ({HOLE_CARDS_APPEARED: 'deal', FLOP_REVEALED: 'flop', TURN_REVEALED: 'turn', RIVER_REVEALED: 'river'} as Partial<Record<VisualEventType, Street>>)[type];
 export const eventForStreet: Record<Street, VisualEventType> = {deal: 'HOLE_CARDS_APPEARED', flop: 'FLOP_REVEALED', turn: 'TURN_REVEALED', river: 'RIVER_REVEALED'};
