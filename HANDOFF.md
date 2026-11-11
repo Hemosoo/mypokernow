@@ -13,7 +13,7 @@ Completed implementation:
 
 Visual iteration: retained Claude’s materials; added the room rehearsal, restrained house choreography, then corrected fixture scaling/clipped seats and pot-chip overlap after screenshot inspection. Stage sprites remain bounded and use transform/opacity; no FPS guarantee is claimed.
 
-Validation is being finalized; see docs/VERIFICATION.md for the final results. Live PokerNow games, mobile layouts and real gameplay remain manual verification requirements. No claim of live certification. `src/content/presentation.ts` remains an offline fixture helper exercised by existing restoration tests; production uses Skin instead.
+Validation: npm run check passed (52/52 tests, TypeScript, production build); Chromium browser suite passed for all 12 presets, four rooms, full hand, settings persistence, control clicks and cleanup. See docs/VERIFICATION.md. Managed Chrome blocks unpacked extension installation by policy; installation and live-game checks remain manual. Live PokerNow games, mobile layouts and real gameplay remain manual verification requirements. No claim of live certification. `src/content/presentation.ts` remains an offline fixture helper exercised by existing restoration tests; production uses Skin instead.
 
 ---
 
