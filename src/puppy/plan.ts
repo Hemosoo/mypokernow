@@ -118,8 +118,7 @@ function dealPlan(event: VisualEvent): Choreography {
   return {
     street: 'deal', cards,
     puppy: (p) => {
-      const firstGoal = order[0] ? centre(order[0].target) : L.middle;
-      if (p < approach) return approachCue(p, approach, add(L.deck, unit(firstGoal, L.deck), L.cardW * 0.55), firstGoal, 'paw');
+      if (p < approach) return approachCue(p, approach, add(L.deck, L.inward, -L.cardW * 0.55), L.middle, 'paw');
       if (p >= last) return { phase: 'after', approach: 1, part: 'paw', point: add(L.deck, L.inward, -L.cardW * 0.4), face: L.middle, look: hero ? centre(hero.target) : L.middle, action: 'proud', actionT: range(p, last, 1), excite: 0.8, mouth: 0.6 };
       // Which toss is underway: the paw winds up before each contact and follows through after.
       let i = 0;
@@ -127,8 +126,10 @@ function dealPlan(event: VisualEvent): Choreography {
       const card = order[i]!, c = contact(i), gap = n > 1 ? span / (n - 1) : 0.1;
       const actionT = range(p, c - gap * 0.5, c + gap * 0.5), goal = centre(card.target);
       // The paw meets the back edge of the deck, so the card is struck toward its player.
-      const edge = add(L.deck, unit(goal, L.deck), L.cardW * 0.55);
-      return { phase: 'act', approach: 1, part: 'paw', point: edge, face: goal, look: goal, action: 'paw-strike', actionT, excite: 0.55, mouth: 0.2 };
+      // A dealer faces the table and flicks each card out; only the head follows the card.
+      // The body holds one heading, so dealing around the table never spins the puppy.
+      const stance = add(L.deck, L.inward, -L.cardW * 0.55);
+      return { phase: 'act', approach: 1, part: 'paw', point: stance, face: L.middle, look: goal, action: 'paw-strike', actionT, excite: 0.55, mouth: 0.2 };
     },
   };
 }
@@ -166,8 +167,9 @@ function flopPlan(event: VisualEvent): Choreography {
       if (p < flips[0]!) {
         let k = 0;
         while (k < 2 && p > contacts[k]! + 0.035) k++;
-        const target = centre(slots[k]!.target);
-        return { phase: 'act', approach: 1, part: 'paw', point: add(meet, unit(target, meet), L.cardW * 0.55), face: target, look: target, action: 'paw-strike', actionT: range(p, contacts[k]! - 0.035, contacts[k]! + 0.035), excite: 0.6, mouth: 0.2 };
+        // Body faces along the board; the paw sweeps each card from the stack, the head follows it.
+        const target = centre(slots[k]!.target), along = centre(slots[1]!.target);
+        return { phase: 'act', approach: 1, part: 'paw', point: add(meet, toward, -L.cardW * 0.55), face: along, look: target, action: 'paw-strike', actionT: range(p, contacts[k]! - 0.035, contacts[k]! + 0.035), excite: 0.6, mouth: 0.2 };
       }
       const middle = centre(slots[1]!.target);
       return { phase: 'after', approach: 1, part: 'paw', point: add(meet, toward, -L.cardW * 0.6), face: middle, look: centre(slots[Math.min(2, Math.max(0, Math.floor(range(p, flips[0]!, flips[2]! + flipLen) * 3)))]!.target),
