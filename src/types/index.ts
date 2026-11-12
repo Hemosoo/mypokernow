@@ -5,7 +5,16 @@ export type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 
 export interface CardIdentity {rank: Rank; suit: Suit}
 export interface Rect {x: number; y: number; width: number; height: number}
 export interface Point3 {x: number; y: number; z?: number}
-export interface VisualCard {id: string; identity?: CardIdentity; target: Rect; source?: HTMLElement; seatId?: string; round?: number}
+export interface VisualCard {
+  id: string; identity?: CardIdentity;
+  /** The card's own (untransformed) box, centred where it is painted. */
+  target: Rect;
+  source?: HTMLElement; seatId?: string; round?: number;
+  /** Resting tilt in degrees, e.g. PokerNow fans hole cards ±7°. Animations land on it exactly. */
+  rotation?: number;
+  /** The table shows diamonds blue and clubs green. */
+  fourColor?: boolean;
+}
 export interface VisualEvent {id: string; type: VisualEventType; cards: VisualCard[]; origin: Point3; timestamp: number; seats?: Rect[]}
 export interface ParameterSchema {key: string; label: string; min: number; max: number; step: number; default: number; unit?: string}
 export interface CardAppearance {
@@ -41,6 +50,6 @@ export interface EffectSettings {
   ambience: boolean;
 }
 export interface Settings {enabled: boolean; reducedMotion: boolean; speed: number; activeThemeId: string; effects: EffectSettings}
-export interface Library {version: 2; settings: Settings; themes: Theme[]}
+export interface Library {version: 3; settings: Settings; themes: Theme[]}
 export const streetForEvent = (type: VisualEventType): Street | undefined => ({HOLE_CARDS_APPEARED: 'deal', FLOP_REVEALED: 'flop', TURN_REVEALED: 'turn', RIVER_REVEALED: 'river'} as Partial<Record<VisualEventType, Street>>)[type];
 export const eventForStreet: Record<Street, VisualEventType> = {deal: 'HOLE_CARDS_APPEARED', flop: 'FLOP_REVEALED', turn: 'TURN_REVEALED', river: 'RIVER_REVEALED'};

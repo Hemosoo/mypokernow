@@ -294,7 +294,7 @@ export function App() {
 
           {section === 'animations' && <>
             <div className="event-selector"><span>ANIMATE THE</span><div className="street-tabs" role="tablist" aria-label="Poker event">{STREETS.map((item) => <button role="tab" aria-selected={street === item} key={item} className={street === item ? 'selected' : ''} onClick={() => setStreet(item)}>{prettyStreet(item)}{street === item && <span />}</button>)}</div><button className="text-button event-play" onClick={() => playStreet(street)}>Preview {prettyStreet(street).toLowerCase()}<Icon name="arrow" size={15} /></button></div>
-            <div className="section-heading"><div><h2>Find your signature.</h2><p>Twelve distinct effects. One unforgettable table.</p></div><span className="count-pill">12 PRESETS</span></div>
+            <div className="section-heading"><div><h2>Find your signature.</h2><p>{presets.length} distinct effects, from quiet to showstopping. One unforgettable table.</p></div><span className="count-pill">{presets.length} PRESETS</span></div>
             <div className="editor-card"><div className="setting-row"><div><h3>Random</h3><p className="helper-text">Pick a compatible animation each time this event happens. Each effect uses its default tuning.</p></div><button className={randomMode ? 'accent-button' : 'subtle-button'} aria-label="Select Random" aria-pressed={randomMode} onClick={()=>selectPreset('random')}>{randomMode ? 'Random selected' : 'Choose Random'}</button></div></div>
             <div className="preset-grid">{presets.map((preset, index) => {
               const assigned = activeTheme.animations[street].preset === preset.id;

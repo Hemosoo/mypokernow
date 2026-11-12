@@ -36,7 +36,7 @@ test('motion endpoints and peel derivatives preserve continuity and zero landing
 test('all eight compositions remain finite across extreme schema values and 2/10-player layouts',()=>{
  const {JSDOM}=createRequire(import.meta.url)('jsdom');const dom=new JSDOM('<!doctype html><body></body>');
  Object.assign(globalThis,{document:dom.window.document,HTMLElement:dom.window.HTMLElement,DOMParser:dom.window.DOMParser,XMLSerializer:dom.window.XMLSerializer});
- const theme=createDefaultTheme();assert.equal(presets.length,12);assert.equal(new Set(presets.map(p=>p.id)).size,12);
+ const theme=createDefaultTheme();assert.equal(presets.length,16);assert.equal(new Set(presets.map(p=>p.id)).size,16);
  for(const preset of presets)for(const extreme of ['min','default','max'] as const)for(const seats of [2,10]) {
   const street=preset.supportedEvents[0];const length=street==='deal'?seats*2:street==='flop'?3:1;
   const cards:VisualCard[]=Array.from({length},(_,i)=>({id:`card-${i}`,seatId:`seat-${i%seats}`,round:Math.floor(i/seats),identity:street==='deal'&&i%seats!==0?undefined:{rank:i%2?'K':'8',suit:'hearts'} as CardIdentity,target:{x:250+i*25,y:350,width:65,height:91}}));
@@ -48,6 +48,12 @@ test('all eight compositions remain finite across extreme schema values and 2/10
   for(const t of [0,.1,.25,.4,.6,.8,.95,1]) {
    for(const track of tracks)track.update(Math.max(0,Math.min(1,(t-track.start)/(track.end-track.start))));
    assert.ok(!/NaN|Infinity/.test(layer.innerHTML),`${preset.id} ${extreme} ${seats} invalid transform at ${t}`);
+  }
+  // At the end every visible card object sits exactly on its measured resting box, so the hand-off cannot snap.
+  for(const element of layer.querySelectorAll<HTMLElement>(':scope > [data-pnc-card]')){
+   if(element.style.opacity==='0')continue;
+   const card=cards.find(c=>c.id===element.dataset.pncCard)!;
+   assert.ok(element.style.transform.startsWith(`translate3d(${card.target.x.toFixed(3)}px,${card.target.y.toFixed(3)}px,0.000px) rotateX(0.000deg) rotateY(0.000deg) rotateZ(0.000deg) scale(1.00000,1.00000)`),`${preset.id} ${extreme} does not end on its resting pose: ${element.style.transform}`);
   }
   for(const track of tracks)track.cleanup?.();layer.remove();
  }

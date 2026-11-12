@@ -74,6 +74,8 @@ async function runAll(){
   await handle.finished;
   require(input.cards.every(c=>c.source?.style.visibility==='visible'&&c.source.style.getPropertyPriority('visibility')==='important'),`${preset.id}: original styles not restored`);
   require(input.cards.every(card=>!card.source?.hasAttribute('data-pnc-concealed')),`${preset.id}: concealment stranded`);
+  // A natural finish keeps the identical overlay over the restored card for two frames.
+  await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
   require(host.childElementCount===0,`${preset.id}: temporary overlay remained`);
   require(!host.querySelector('[style*="will-change"]'),`${preset.id}: animated GPU layers remained`);
   result.push({preset:preset.id,objects,duration:Math.round(performance.now()-started)});

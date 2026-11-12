@@ -150,12 +150,45 @@ function visibleCards(container: HTMLElement, profile: SelectorProfile, cache: I
   return candidates.filter((element) => !candidates.some((other) => other !== element && other.contains(element)));
 }
 
+/** Linear part of an element's computed transform: [a, b, c, d]. Translation is irrelevant here. */
+function linearTransform(element: Element): [number, number, number, number] {
+  const value = styleOf(element).transform;
+  if (!value || value === 'none') return [1, 0, 0, 1];
+  const numbers = value.slice(value.indexOf('(') + 1, -1).split(',').map(Number);
+  if (value.startsWith('matrix3d(') && numbers.length === 16) return [numbers[0]!, numbers[1]!, numbers[4]!, numbers[5]!];
+  if (value.startsWith('matrix(') && numbers.length === 6) return [numbers[0]!, numbers[1]!, numbers[2]!, numbers[3]!];
+  return [1, 0, 0, 1];
+}
+
+/**
+ * Where a card actually rests: its own box (not the larger bounding box of a
+ * tilted card), centred where it is painted, plus its tilt. PokerNow fans hole
+ * cards at ±7°; animations must land on that exact pose or they visibly snap.
+ */
+export function restingPose(element: HTMLElement): { target: Rect; rotation: number } {
+  const box = rectangle(element);
+  let [a, b, c, d] = [1, 0, 0, 1];
+  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+    const [e, f, g, h] = linearTransform(current);
+    // Ancestor transforms apply after the element's own: M = T_ancestor · M.
+    [a, b, c, d] = [e * a + g * b, f * a + h * b, e * c + g * d, f * c + h * d];
+  }
+  const rotation = Math.atan2(b, a) * 180 / Math.PI;
+  const width = element.offsetWidth * Math.hypot(a, b), height = element.offsetHeight * Math.hypot(c, d);
+  if (!(width > 4 && height > 4) || !Number.isFinite(rotation)) return { target: box, rotation: 0 };
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  return { target: { x: cx - width / 2, y: cy - height / 2, width, height }, rotation: Math.abs(rotation) < 0.05 ? 0 : rotation };
+}
+
 function describe(element: HTMLElement, id: string, profile: SelectorProfile, cache: IdentityCache, publicCard: boolean, seatId?: string, round?: number): VisualCard {
   const leased = element.getAttribute('data-pnc-concealed') === 'true' && cache.has(element);
   // Reusing only previously visible identity prevents a newer hidden value being inspected during a lease.
   const identity = leased ? cache.get(element)?.identity : readVisibleIdentity(element, profile, publicCard);
   if (!leased) cache.set(element, { identity });
-  return { id, identity, target: rectangle(element), source: element, seatId, round };
+  const pose = profile.id === 'pokernow' ? restingPose(element) : { target: rectangle(element), rotation: 0 };
+  const fourColor = profile.id === 'pokernow' && Boolean(element.closest('.four-color'));
+  return { id, identity, target: pose.target, source: element, seatId, round,
+    ...(pose.rotation ? { rotation: pose.rotation } : {}), ...(fourColor ? { fourColor } : {}) };
 }
 
 function visibleBoards(table: HTMLElement, profile: SelectorProfile): HTMLElement[] {
