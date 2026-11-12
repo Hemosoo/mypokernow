@@ -1,3 +1,7 @@
+## Random mode follow-up
+
+57/57 tests passed; typecheck/build and full Chromium suite passed. New checks cover per-street compatible selection, one roll per new event, duplicate suppression, replay using the current Random assignment, saved selection after reload and theme import/export. Live-game verification remains manual.
+
 ## Made-hand aura follow-up
 
 `npm run check`: **55/55 tests**, typecheck and production build passed. Chromium suite passed, including assembly handoff geometry, all 12 presets, four-room/full-hand rehearsal, actual game-control clicks and cleanup. Aura regression activates a custom-color/strength glow for a visible made pair and verifies disabling it removes the live rule. Screenshot `artifacts/hand-aura.png` inspected. Tests cover made-hand categories, wheel straights, draws, board-only hands, hidden/folded cards, multiple boards, duplicate identities and legacy theme defaults. Live-game testing remains manual.

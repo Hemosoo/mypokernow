@@ -51,7 +51,6 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
   const paused = useRef(false);
   const generation = useRef(0);
   const lastStreet = useRef<Street>('flop');
-  const lastPreset = useRef<string | undefined>(undefined);
   const current = useRef(props);
   current.current = props;
 
@@ -101,7 +100,6 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
     setDealt(true);
     setBoardCount(nextCount);
     lastStreet.current = nextStreet;
-    lastPreset.current = override;
     onProgress(0);
     onPlaying(true);
     await frame();
@@ -169,7 +167,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
 
   useImperativeHandle(ref, () => ({
     play,
-    replay: () => play(lastStreet.current, lastPreset.current),
+    replay: () => play(lastStreet.current),
     reset: () => {
       generation.current += 1;
       coordinator.current?.cancelAll();

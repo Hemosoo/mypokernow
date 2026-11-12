@@ -110,6 +110,7 @@ export function App() {
   const activeTheme = library.themes.find((theme) => theme.id === library.settings.activeThemeId) ?? library.themes[0];
   const resolvedTheme = themeResolution?.theme;
   const extensionContext = isExtensionStudio();
+  const randomMode = activeTheme.animations[street].preset === 'random';
   const selectedPreset = getPreset(activeTheme.animations[street].preset) ?? presets[0];
   const currentParameters = activeTheme.animations[street].parameters;
   const previewDuration = Math.min(10000, Math.max(120, (currentParameters.duration ?? selectedPreset.duration)
@@ -169,6 +170,11 @@ export function App() {
     setLibrary((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
   }
   function selectPreset(id: string, play = false) {
+    if (id === 'random') {
+      updateTheme(theme => ({ ...theme, animations: { ...theme.animations, [street]: {preset:'random',parameters:{}} } }));
+      setPendingPreview(play ? {street,presetId:'random'} : null);
+      return;
+    }
     const preset = getPreset(id);
     if (!preset) return;
     const nextStreet = preset.supportedEvents.includes(street) ? street : preset.supportedEvents[0];
@@ -272,13 +278,14 @@ export function App() {
             {resolvedTheme ? <PreviewTable ref={preview} theme={resolvedTheme} settings={library.settings} street={street} players={players} slow={slow}
               onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} /> : <div className="preview-loading">Preparing your table…</div>}
             <div className="playback-bar"><div className="playback-primary"><button className="play-button" onClick={togglePlayback} aria-label={playing && !paused ? 'Pause animation' : 'Play animation'}><Icon name={playing && !paused ? 'pause' : 'play'} size={17} /></button><button className="icon-button" title="Replay animation" aria-label="Replay animation" onClick={() => { setPendingPreview(null); setPaused(false); void preview.current?.replay(); }}><Icon name="replay" size={17} /></button><button className="icon-button" title="Reset hand" aria-label="Reset hand" onClick={() => { setPendingPreview(null); preview.current?.reset(); setPaused(false); }}><Icon name="reset" size={16} /></button></div>
-              <div className="preview-timeline"><span className="timeline-dot" /><div className="timeline-track"><span style={{ width: `${progress * 100}%` }} /></div><span className="timeline-time">{(previewDuration / 1000).toFixed(1)}s</span></div>
+              <div className="preview-timeline"><span className="timeline-dot" /><div className="timeline-track"><span style={{ width: `${progress * 100}%` }} /></div><span className="timeline-time">{randomMode ? 'Random' : `${(previewDuration / 1000).toFixed(1)}s`}</span></div>
               <button className={`slow-button ${slow ? 'active' : ''}`} onClick={() => setSlow(!slow)} aria-pressed={slow}><span>0.4×</span> Slow motion</button></div>
           </div>
 
           {section === 'animations' && <>
             <div className="event-selector"><span>ANIMATE THE</span><div className="street-tabs" role="tablist" aria-label="Poker event">{STREETS.map((item) => <button role="tab" aria-selected={street === item} key={item} className={street === item ? 'selected' : ''} onClick={() => setStreet(item)}>{prettyStreet(item)}{street === item && <span />}</button>)}</div><button className="text-button event-play" onClick={() => playStreet(street)}>Preview {prettyStreet(street).toLowerCase()}<Icon name="arrow" size={15} /></button></div>
             <div className="section-heading"><div><h2>Find your signature.</h2><p>Twelve distinct effects. One unforgettable table.</p></div><span className="count-pill">12 PRESETS</span></div>
+            <div className="editor-card"><div className="setting-row"><div><h3>Random</h3><p className="helper-text">Pick a compatible animation each time this event happens. Each effect uses its default tuning.</p></div><button className={randomMode ? 'accent-button' : 'subtle-button'} aria-label="Select Random" aria-pressed={randomMode} onClick={()=>selectPreset('random')}>{randomMode ? 'Random selected' : 'Choose Random'}</button></div></div>
             <div className="preset-grid">{presets.map((preset, index) => {
               const assigned = activeTheme.animations[street].preset === preset.id;
               const compatible = preset.supportedEvents.includes(street);
@@ -327,14 +334,14 @@ export function App() {
 
         <aside className="inspector"><div className="inspector-label"><span>{section === 'animations' ? 'ANIMATION PROPERTIES' : 'YOUR WORKSPACE'}</span><Icon name="settings" size={15} /></div>
           {section === 'animations' ? <>
-            <div className="inspector-preset"><PresetArt id={selectedPreset.id} /><div className="eyebrow accent">{prettyStreet(street).toUpperCase()} EFFECT</div><h2>{selectedPreset.name}</h2><p>{selectedPreset.description}</p></div>
-            <div className="inspector-content"><div className="inspector-section-title">Make it yours<button className="text-button" onClick={() => selectPreset(selectedPreset.id)}>Reset</button></div>
-              {selectedPreset.parameters.map((parameter) => <Range key={parameter.key} label={parameter.label} value={currentParameters[parameter.key] ?? parameter.default} min={parameter.min} max={parameter.max} step={parameter.step} unit={parameter.unit} onChange={(value) => setParameter(parameter.key, value)} />)}
+            <div className="inspector-preset"><PresetArt id={selectedPreset.id} /><div className="eyebrow accent">{prettyStreet(street).toUpperCase()} EFFECT</div><h2>{randomMode ? 'Random' : selectedPreset.name}</h2><p>{randomMode ? 'A fresh compatible choice for each preview and live event.' : selectedPreset.description}</p></div>
+            <div className="inspector-content"><div className="inspector-section-title">Make it yours<button className="text-button" onClick={() => selectPreset(randomMode ? 'random' : selectedPreset.id)}>Reset</button></div>
+              {!randomMode && selectedPreset.parameters.map((parameter) => <Range key={parameter.key} label={parameter.label} value={currentParameters[parameter.key] ?? parameter.default} min={parameter.min} max={parameter.max} step={parameter.step} unit={parameter.unit} onChange={(value) => setParameter(parameter.key, value)} />)}
               <div className="parameter-divider" /><Range label="Playback speed" value={library.settings.speed} min={0.5} max={2} step={0.1} unit="×" onChange={(value) => setting('speed', value)} />
               <div className="inspector-toggle"><span>Reduced motion</span><Toggle label="Inspector reduced motion" checked={library.settings.reducedMotion} onChange={(value) => setting('reducedMotion', value)} /></div>
               <button className="accent-button wide preview-effect" onClick={() => playStreet(street)}><Icon name="play" size={15} />Preview effect</button>
             </div>
-            <div className="assignments"><div className="eyebrow">YOUR HAND, CHOREOGRAPHED</div>{STREETS.map((item) => <button key={item} className={item === street ? 'active' : ''} onClick={() => setStreet(item)}><span className="assignment-dot" /><span>{prettyStreet(item)}<small>{getPreset(activeTheme.animations[item].preset)?.name ?? 'Default'}</small></span><Icon name="chevron" size={13} /></button>)}</div>
+            <div className="assignments"><div className="eyebrow">YOUR HAND, CHOREOGRAPHED</div>{STREETS.map((item) => <button key={item} className={item === street ? 'active' : ''} onClick={() => setStreet(item)}><span className="assignment-dot" /><span>{prettyStreet(item)}<small>{activeTheme.animations[item].preset === 'random' ? 'Random' : getPreset(activeTheme.animations[item].preset)?.name ?? 'Default'}</small></span><Icon name="chevron" size={13} /></button>)}</div>
           </> : <><div className="workspace-inspector-art"><span className="inspector-monogram">pn<sup>✦</sup></span><span>YOUR TABLE, REIMAGINED.</span></div><div className="inspector-content"><div className="eyebrow accent">ACTIVE THEME</div><h2 className="theme-inspector-title">{activeTheme.name}</h2><p className="helper-text">Every change is saved automatically. Take the whole look with you in a portable theme.</p><button className="subtle-button wide" onClick={() => void downloadTheme()}><Icon name="download" size={15} />Export this theme</button><button className="subtle-button wide" onClick={duplicateTheme}><Icon name="copy" size={15} />Duplicate theme</button><div className="parameter-divider" /><div className="eyebrow">QUICK PREVIEW</div><div className="quick-preview-grid">{STREETS.map((item) => <button key={item} onClick={() => playStreet(item)}><Icon name="play" size={12} />{prettyStreet(item)}</button>)}</div></div><div className="inspector-tip"><Icon name="spark" size={18} /><p>Switch back to Animation Studio to fine-tune each moment of the hand.</p></div></>}
           <div className="inspector-footnote"><span /><p>Presentation only.<br />PokerNow stays in control.</p></div>
         </aside>

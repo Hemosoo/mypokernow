@@ -15,6 +15,14 @@ const byId = new Map(presets.map(preset => [preset.id, preset]));
 export const getPreset = (id: string): AnimationPreset | undefined => byId.get(id);
 export const presetsForStreet = (street: Street): AnimationPreset[] => presets.filter(preset => preset.supportedEvents.includes(street));
 
+/** Resolve once per event; random mode never mixes incompatible streets. */
+export function resolvePreset(id: string, street: Street, random: () => number = Math.random): AnimationPreset | undefined {
+  const compatible = presetsForStreet(street);
+  if (id === 'random') return compatible[Math.floor(random() * compatible.length)];
+  const preset = getPreset(id);
+  return preset?.supportedEvents.includes(street) ? preset : compatible[0];
+}
+
 /** Contributions only register compiled implementations; imported themes never become code. */
 export function registerPreset(preset: AnimationPreset): void {
   if (byId.has(preset.id)) throw new Error(`Duplicate animation ID: ${preset.id}`);

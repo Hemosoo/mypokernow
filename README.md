@@ -42,6 +42,10 @@ Cards → Made-hand aura offers an on/off toggle, color and strength for a stead
 
 Table settings include metal trim, inscription and emblem; Settings independently controls moving chips, celebrations, action feedback and ambience. Four new house presets join the original eight: House Pitch, Silk Cascade, Velvet Turnover and River Squeeze. Existing saved assignments are preserved. Font attribution and licenses ship in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md).
 
+## Random animation mode
+
+In Animation Studio, select an event (deal, flop, turn or river), then choose **Random**. Each new event or replay chooses from that event’s compatible presets using the effect’s default tuning. Choices can repeat. Each event has its own assignment; the mode saves and exports with your theme. Global speed and reduced-motion settings still apply.
+
 ## Included effects
 
 | Event | Presets |

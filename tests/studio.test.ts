@@ -36,6 +36,12 @@ test('Studio mounts, runs all eight through the actual coordinator, persists ass
   await act(async()=>{await wait(450);});
   const stored=validateLibrary(JSON.parse(localStorage.getItem('pokernow-customizer.library.v1')!));
   assert.equal(stored.themes[0].animations.deal.preset,'deal.pitch');assert.equal(stored.themes[0].animations.flop.preset,'flop.cascade');
+  await click('[aria-label="Select Random"]');
+  assert.equal(document.querySelector('[aria-label="Select Random"]')?.getAttribute('aria-pressed'),'true');
+  await click('[aria-label="Replay animation"]');
+  assert.equal(runs.at(-1),'random','Replay must use the current random assignment');
+  await act(async()=>{await wait(450);});
+  assert.equal(validateLibrary(JSON.parse(localStorage.getItem('pokernow-customizer.library.v1')!)).themes[0].animations.turn.preset,'random');
   await nav('Themes');const before=document.querySelectorAll('.theme-library-card').length;
   await click('.section-heading .accent-button');assert.equal(document.querySelectorAll('.theme-library-card').length,before+1);
   const duplicate=[...document.querySelectorAll<HTMLButtonElement>('.button-row button')].find(b=>b.textContent?.includes('Duplicate'))!;

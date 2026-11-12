@@ -57,3 +57,15 @@ test('compressed raster headers are bounded before decode, preventing huge image
  assert.throws(()=>validateRasterDimensions(webp,'image/webp'),/dimensions/);
  pngData.setUint32(16,1024);pngData.setUint32(20,1024);validateRasterDimensions(png,'image/png');
 });
+
+test('random assignments round-trip on all streets and reject effect-specific tuning',async()=>{
+ const theme=createDefaultTheme();
+ const {resolvePreset}=await import('../src/animation/registry');
+ for(const street of ['deal','flop','turn','river'] as const){
+  theme.animations[street]={preset:'random',parameters:{}};
+  for(const sample of [0,.25,.5,.999999])assert.ok(resolvePreset('random',street,()=>sample)!.supportedEvents.includes(street));
+ }
+ assert.deepEqual(validateTheme(theme).animations,theme.animations);
+ assert.deepEqual((await importTheme(await exportTheme(theme))).animations,theme.animations);
+ assert.throws(()=>validateTheme({...theme,animations:{...theme.animations,turn:{preset:'random',parameters:{force:1}}}}));
+});

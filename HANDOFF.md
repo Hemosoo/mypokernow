@@ -1,3 +1,7 @@
+## Random animation mode
+
+Added per-event Random assignment in Animation Studio, schema validation and the shared coordinator. Selection occurs once per new event from compatible presets; default effect parameters are used, with global speed/reduced motion preserved. Replay reads the current assignment and re-rolls random mode. Existing fixed assignments remain unchanged. Theme import/export persists Random; event-specific parameter overrides are rejected for Random. Verified 57/57 tests, typecheck/build and Chromium suite, including random selection persistence after reload. Tests verify independent compatible pools, fresh event selection, deduplication, replay and portable themes.
+
 ## Customizable made-hand aura
 
 Verified: 55 tests, typecheck/build and Chromium suite passed. Aura activation/custom appearance and disabling checked in the replica; screenshot artifacts/hand-aura.png reviewed.

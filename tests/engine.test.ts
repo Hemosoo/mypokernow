@@ -211,3 +211,27 @@ test('overlapping reusable sequence segments cover one synchronized parent clock
   assert.equal(tracks[0]!.start, 0); assert.ok(tracks[1]!.start < tracks[0]!.end);
   assert.ok(Math.abs(tracks[1]!.end - 1) < 1e-9);
 });
+
+test('random mode chooses once per new event from compatible effects with default tuning', async () => {
+  const env = environment(), originalRandom = Math.random;
+  try {
+    env.theme.animations.flop = { preset: 'random', parameters: {} };
+    const { presetsForStreet } = await import('../src/animation/registry');
+    const candidates = presetsForStreet('flop');
+    let rolls = 0;
+    Math.random = () => { rolls++; return 0; };
+    const event = env.fixture();
+    const first = env.engine.play(event, env.theme);
+    assert.equal(env.host.querySelector<HTMLElement>('[data-pnc-preset]')!.dataset.pncPreset, candidates[0]!.id);
+    await env.engine.play(event, env.theme).finished;
+    assert.equal(rolls, 1, 'duplicate events must not re-roll');
+    first.cancel(); await first.finished;
+    Math.random = () => { rolls++; return .999999; };
+    const next = env.engine.play(env.fixture(), env.theme);
+    assert.equal(env.host.querySelector<HTMLElement>('[data-pnc-preset]')!.dataset.pncPreset, candidates.at(-1)!.id);
+    await env.flush(); env.step(300); next.finish(); await next.finished;
+    assert.equal(rolls, 2);
+    assert.equal(env.warnings, 0);
+    assert.equal(env.host.childElementCount, 0);
+  } finally { Math.random = originalRandom; env.close(); }
+});

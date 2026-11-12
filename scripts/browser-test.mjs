@@ -64,6 +64,16 @@ try {
   await sleep(250);
   await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
  }
+ await evaluate(`document.querySelector('[aria-label="Select Random"]').click()`);
+ assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
+ await evaluate(`document.querySelector('[aria-label="Replay animation"]').click()`);
+ await sleep(250);
+ await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
+ await sleep(500);
+ await call('Page.reload');await until('document.querySelectorAll(".preset-card").length===12');
+ // Reload selects the studio's initial event, so return to the saved random turn.
+ await evaluate(`Array.from(document.querySelectorAll('[role="tab"]')).find(x=>x.textContent==='Turn').click()`);
+ assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
  const screenshot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile('artifacts/studio.png',Buffer.from(screenshot.data,'base64'));
  // Settings persist and survive a reload of the standalone development studio.
  await evaluate('[...document.querySelectorAll(".nav-item")].find(x=>x.textContent==="Settings").click()');

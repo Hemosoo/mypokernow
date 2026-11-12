@@ -62,6 +62,10 @@ export function validateTheme(value: unknown): Theme {
   const theme = themeSchema.parse(migrateTheme(value));
   for (const street of ['deal', 'flop', 'turn', 'river'] as Street[]) {
     const assigned = theme.animations[street];
+    if (assigned.preset === 'random') {
+      if (Object.keys(assigned.parameters).length) throw new Error('Random mode uses each animation’s default parameters');
+      continue;
+    }
     const preset = getPreset(assigned.preset);
     if (!preset || !preset.supportedEvents.includes(street)) throw new Error(`Unknown or incompatible preset for ${street}`);
     for (const [key, parameter] of Object.entries(assigned.parameters)) {
