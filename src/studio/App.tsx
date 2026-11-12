@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { presets, getPreset } from '../animation/registry';
 import { PreviewTable, type PreviewHandle } from '../preview/PreviewTable';
+import { LiveTable, liveTableSupported, type LiveTableHandle } from '../preview/LiveTable';
 import { cardDataUrl } from '../rendering/cards';
 import { loadLibrary, saveLibrary } from '../storage/library';
 import { resolveThemeAssets, saveAsset } from '../storage/assets';
@@ -103,7 +104,8 @@ export function App() {
   const [inspection, setInspection] = useState<RuntimeInspection | null>(null);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [editingName, setEditingName] = useState(false);
-  const preview = useRef<PreviewHandle>(null);
+  const [previewMode, setPreviewMode] = useState<'live' | 'lab'>(() => (liveTableSupported() ? 'live' : 'lab'));
+  const preview = useRef<PreviewHandle | LiveTableHandle>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const uploadBackInput = useRef<HTMLInputElement>(null);
   const uploadTableInput = useRef<HTMLInputElement>(null);
@@ -274,9 +276,17 @@ export function App() {
           <div className="page-heading"><div><div className="eyebrow accent">{title[0]}</div><h1>{title[1]}<br /><em>{title[2]}</em></h1><p>{section === 'animations' ? 'Cinematic card animations. Completely your own.' : 'A personal touch, without changing the game.'}</p></div><span className="version-pill"><span /> ANIMATION STUDIO</span></div>
 
           <div className="preview-shell">
-            <div className="preview-topline"><a className="text-button" href="./preview.html" target="_blank" rel="noreferrer">Rehearse a full hand ↗</a><span><Icon name="table" size={15} /> YOUR PREVIEW TABLE</span><label className="player-picker">Players <select aria-label="Preview player count" value={players} onChange={(event) => setPlayers(Number(event.target.value))}>{Array.from({ length: 9 }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count}</option>)}</select></label></div>
-            {resolvedTheme ? <PreviewTable ref={preview} theme={resolvedTheme} settings={library.settings} street={street} players={players} slow={slow}
-              onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} /> : <div className="preview-loading">Preparing your table…</div>}
+            <div className="preview-topline"><div className="preview-mode" role="tablist" aria-label="Preview mode">
+                {liveTableSupported() && <button role="tab" aria-selected={previewMode === 'live'} className={previewMode === 'live' ? 'selected' : ''} onClick={() => { preview.current?.reset(); setPreviewMode('live'); }}>Live table</button>}
+                <button role="tab" aria-selected={previewMode === 'lab'} className={previewMode === 'lab' ? 'selected' : ''} onClick={() => { preview.current?.reset(); setPreviewMode('lab'); }}>Effect lab</button></div>
+              {previewMode === 'live' ? <button className="text-button hand-button" onClick={() => { setPendingPreview(null); setPaused(false); (preview.current as LiveTableHandle | null)?.playHand?.(); }}><Icon name="play" size={12} /> Play full hands</button>
+                : <span><Icon name="table" size={15} /> EFFECT LAB</span>}
+              <label className="player-picker">Players <select aria-label="Preview player count" value={players} onChange={(event) => setPlayers(Number(event.target.value))}>{Array.from({ length: 9 }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count}</option>)}</select></label></div>
+            {resolvedTheme ? previewMode === 'live'
+              ? <LiveTable key="live" ref={preview as React.RefObject<LiveTableHandle>} theme={resolvedTheme} settings={library.settings} players={players} slow={slow}
+                onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} />
+              : <PreviewTable key="lab" ref={preview as React.RefObject<PreviewHandle>} theme={resolvedTheme} settings={library.settings} street={street} players={players} slow={slow}
+                onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} /> : <div className="preview-loading">Preparing your table…</div>}
             <div className="playback-bar"><div className="playback-primary"><button className="play-button" onClick={togglePlayback} aria-label={playing && !paused ? 'Pause animation' : 'Play animation'}><Icon name={playing && !paused ? 'pause' : 'play'} size={17} /></button><button className="icon-button" title="Replay animation" aria-label="Replay animation" onClick={() => { setPendingPreview(null); setPaused(false); void preview.current?.replay(); }}><Icon name="replay" size={17} /></button><button className="icon-button" title="Reset hand" aria-label="Reset hand" onClick={() => { setPendingPreview(null); preview.current?.reset(); setPaused(false); }}><Icon name="reset" size={16} /></button></div>
               <div className="preview-timeline"><span className="timeline-dot" /><div className="timeline-track"><span style={{ width: `${progress * 100}%` }} /></div><span className="timeline-time">{randomMode ? 'Random' : `${(previewDuration / 1000).toFixed(1)}s`}</span></div>
               <button className={`slow-button ${slow ? 'active' : ''}`} onClick={() => setSlow(!slow)} aria-pressed={slow}><span>0.4×</span> Slow motion</button></div>

@@ -1,3 +1,12 @@
+# Claude continuation — 2026-11-12
+
+Pulled the five Codex commits, then:
+- **Replica layout rebuilt from measured PokerNow geometry** (`src/replica/replica.css`, authored, no site CSS). Seats, board, pot well, dealer puck and bet pills now land exactly on the skin's table art; cards use a real two-sided 3D flip like the site. `fitReplica` is back to the site's own scaling formula.
+- **Studio Live table.** `src/preview/LiveTable.tsx` embeds `preview.html?embed=1` (same-origin frame) and drives the shared Runtime directly, so the studio previews the real skin, stage moments and presets; play/pause/replay/progress follow the live animation handle. "Effect lab" keeps the old preview, and is the automatic fallback under jsdom.
+- **Rehearsal page** has a styled toolbar (room, players, play a hand, each street, reset) and exposes a control API for the studio.
+- **Polish from frame-by-frame review of a full hand:** large pots no longer clip (gradient text box grows with the number); dimmed showdown board cards are shaded rather than see-through; the ALL IN badge drops below the plate for top-edge seats; studio accent moved from peach to the table's champagne gold, display type uses the bundled serif.
+- Verified: `npm run check` (57/57), `CHROME_PATH=/opt/pw-browsers/chromium npm run test:browser` passed. Live PokerNow and unpacked-extension install remain manual.
+
 ## Random animation mode
 
 Added per-event Random assignment in Animation Studio, schema validation and the shared coordinator. Selection occurs once per new event from compatible presets; default effect parameters are used, with global speed/reduced motion preserved. Replay reads the current assignment and re-rolls random mode. Existing fixed assignments remain unchanged. Theme import/export persists Random; event-specific parameter overrides are rejected for Random. Verified 57/57 tests, typecheck/build and Chromium suite, including random selection persistence after reload. Tests verify independent compatible pools, fresh event selection, deduplication, replay and portable themes.

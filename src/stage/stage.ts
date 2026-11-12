@@ -472,7 +472,9 @@ export class Stage {
       fontSize: `${(rem * 0.44).toFixed(1)}px`, letterSpacing: '.3em', textIndent: '.3em', color: '#1a150b',
       background: `linear-gradient(180deg,${trim.spec},${trim.mid} 85%)`, boxShadow: `0 ${(rem * 0.2).toFixed(1)}px ${(rem * 0.7).toFixed(1)}px rgba(0,0,0,.55), 0 0 ${(rem * 1.1).toFixed(1)}px ${rgba(glow, 0.55)}`,
     });
-    const x = at.x - rem * 1.75, y = seat.plate.y - rem * 0.56;
+    // Above the plate, unless the seat is at the top edge of the window; then beneath it.
+    const above = seat.plate.y - rem * 0.56 >= rem * 0.2;
+    const x = at.x - rem * 1.75, y = above ? seat.plate.y - rem * 0.56 : seat.plate.y + seat.plate.height - rem * 0.36;
     this.play(badge, Array.from({ length: 25 }, (_, step) => {
       const t = step / 24, enter = spring(clamp(t / 0.28)), exit = clamp((t - 0.82) / 0.18);
       return { offset: t, opacity: Math.min(clamp(t / 0.06), 1 - exit),
