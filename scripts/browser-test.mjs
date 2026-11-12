@@ -101,6 +101,14 @@ try {
  await writeFile('artifacts/hand-aura.png',Buffer.from(aura.data,'base64'));
  await evaluate(`(()=>{const r=globalThis.__pncReplica.runtime;const theme=structuredClone(r.state.theme);theme.card.aura.enabled=false;r.configure(theme,r.state.settings);r.scan();})()`);
  assert.equal(await evaluate(`document.querySelector('[data-pnc-owned="live"]').textContent.includes('card-container::after')`),false,'Aura toggle must remove glow');
+ // No original card may show before its animation takes over (live flop arrives face down, turned 150 ms apart).
+ const handoff=[];
+ for (const street of ['deal','flop','turn','river']) handoff.push(await evaluate(`(async()=>{const R=globalThis.__pncReplica;let done=false;R.stop();R.scenario.prepare(${JSON.stringify(street)});R.runtime.scan();await new Promise(r=>setTimeout(r,300));
+  R.onAnimation(h=>{h.finished.then(()=>{done=true;});});const sel=${JSON.stringify(street)}==='deal'?'.table-player-cards .card-container':'.table-cards .card-container';const before=new Set(document.querySelectorAll(sel));let leaks=0;const t0=performance.now();
+  const loop=()=>{for(const c of document.querySelectorAll(sel)){if(before.has(c))continue;const cs=getComputedStyle(c);if(!done&&cs.visibility!=='hidden'&&Number(cs.opacity)>.01)leaks++;}if(performance.now()-t0<2400)requestAnimationFrame(loop);};requestAnimationFrame(loop);
+  R.scenario.reveal(${JSON.stringify(street)});await new Promise(r=>setTimeout(r,2600));R.onAnimation(undefined);return {street:${JSON.stringify(street)},leaks,animated:done};})()`));
+ console.log('Card hand-off:',handoff);
+ for (const result of handoff) { assert.equal(result.leaks,0,`${result.street} cards showed before their animation`); assert.ok(result.animated,`${result.street} did not animate`); }
  await evaluate('void globalThis.__pncReplica.scenario.playHand(2)');
  await sleep(2000);
  const motion=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
