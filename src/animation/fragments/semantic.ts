@@ -16,7 +16,7 @@ export interface SemanticArtwork {
  * Only our renderer's SVG is parsed, never a website's hidden card structure.
  */
 export function semanticArtwork(card: VisualCard, theme: Theme, parent: HTMLElement): SemanticArtwork[] {
-  const parsed = new DOMParser().parseFromString(cardSvg(card.identity, theme.card, artOptions(theme)), 'image/svg+xml');
+  const parsed = new DOMParser().parseFromString(cardSvg(card.identity, theme.card, artOptions(theme, card)), 'image/svg+xml');
   const source = parsed.documentElement;
   const result: SemanticArtwork[] = [];
   const create = (id: string, kind: SemanticArtwork['kind'], svg: Element, center: { x: number; y: number }): void => {

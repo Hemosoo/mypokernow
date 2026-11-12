@@ -75,4 +75,6 @@ export interface PlayOptions {
   presetId?: string;
   parameters?: Record<string, number>;
   onProgress?: (progress: number) => void;
+  /** The original cards have just been hidden and the overlay has taken over. */
+  onConcealed?: (sources: HTMLElement[]) => void;
 }

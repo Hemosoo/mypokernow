@@ -162,7 +162,11 @@ test('progress, pause/resume and forced completion share one clock and exact res
     handle.resume(); env.step(180); assert.ok(handle.progress > pausedAt);
     handle.finish(); await handle.finished;
     assert.equal(handle.progress, 1); assert.ok(progress.every((value, index) => index === 0 || value >= progress[index - 1]!));
-    restored(event); assert.equal(env.host.childElementCount, 0); assert.equal(env.frames.size, 0);
+    restored(event);
+    // A natural finish keeps the identical overlay over the restored card for two frames.
+    assert.equal(env.host.childElementCount, 1, 'overlay should outlive the restore by two frames');
+    env.step(16); env.step(16);
+    assert.equal(env.host.childElementCount, 0); assert.equal(env.frames.size, 0);
   } finally { env.close(); }
 });
 
@@ -232,6 +236,7 @@ test('random mode chooses once per new event from compatible effects with defaul
     await env.flush(); env.step(300); next.finish(); await next.finished;
     assert.equal(rolls, 2);
     assert.equal(env.warnings, 0);
+    env.step(16); env.step(16);
     assert.equal(env.host.childElementCount, 0);
   } finally { Math.random = originalRandom; env.close(); }
 });

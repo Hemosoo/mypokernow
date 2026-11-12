@@ -165,7 +165,8 @@ export function cardDataUrl(identity: CardIdentity | undefined, appearance: Card
   return svgDataUrl(cardSvg(identity, appearance, options));
 }
 
-export const artOptions = (theme: Theme): CardArtOptions => ({ accent: theme.table.trimColor });
+export const artOptions = (theme: Theme, card?: Pick<VisualCard, 'fourColor'>): CardArtOptions =>
+  ({ accent: theme.table.trimColor, ...(card?.fourColor ? { fourColor: true } : {}) });
 
 /** Resting shadow shared by live cards and animation objects (in the card's own px). */
 export function cardShadow(strength: number, lift = 0): string {
@@ -178,9 +179,9 @@ export function createCardElement(card: VisualCard, theme: Theme): HTMLElement {
   const element = document.createElement('div');
   Object.assign(element.style, {
     position: 'absolute', width: `${card.target.width}px`, height: `${card.target.height}px`,
-    backgroundImage: `url("${cardDataUrl(card.identity, theme.card, artOptions(theme))}")`, backgroundSize: '100% 100%',
+    backgroundImage: `url("${cardDataUrl(card.identity, theme.card, artOptions(theme, card))}")`, backgroundSize: '100% 100%',
     borderRadius: `${n(theme.card.borderRadius * 0.9 / CARD_WIDTH * 100)}% / ${n(theme.card.borderRadius * 0.9 / CARD_HEIGHT * 100)}%`,
-    boxShadow: cardShadow(theme.card.shadow), transformStyle: 'preserve-3d', willChange: 'transform, opacity', pointerEvents: 'none',
+    boxShadow: cardShadow(theme.card.shadow), transformStyle: 'preserve-3d', willChange: 'transform', pointerEvents: 'none',
   });
   element.setAttribute('aria-hidden', 'true');
   return element;

@@ -40,7 +40,7 @@ async function prepareArtwork(cards: VisualCard[], theme: Theme, layer: HTMLElem
   // SVG resources are decoded BEFORE taking visibility leases. No network or canvas capture.
   const images = new Map<string, HTMLImageElement>();
   for (const image of layer.querySelectorAll('img')) if (typeof image.decode === 'function') images.set(image.src, image);
-  const urls = new Set([cardDataUrl(undefined, theme.card, artOptions(theme)), ...cards.map(card => cardDataUrl(card.identity, theme.card, artOptions(theme))), ...images.keys()]);
+  const urls = new Set([cardDataUrl(undefined, theme.card, artOptions(theme)), ...cards.map(card => cardDataUrl(card.identity, theme.card, artOptions(theme, card))), ...images.keys()]);
   await Promise.all([...urls].map(async url => {
     const image = images.get(url) ?? new Image();
     if (!image.src) image.src = url;
@@ -118,7 +118,10 @@ export class AnimationCoordinator {
     let resolveFinished: () => void = () => {};
     const finished = new Promise<void>(resolve => { resolveFinished = resolve; });
     let watchdog = 0;
-    const release = (): void => {
+    // `graceful` marks a natural finish: the overlay stays on top of the restored
+    // card for two more frames, so the page has painted the real card before the
+    // identical overlay is removed. Cancellation removes everything at once.
+    const release = (graceful = false): void => {
       if (done) return;
       done = true;
       clearTimeout(watchdog);
@@ -135,7 +138,11 @@ export class AnimationCoordinator {
             else lease.source.setAttribute('data-pnc-concealed', lease.marker);
           } catch { /* Continue restoring the other cards if a detached node changes. */ }
         }
-        layer.remove();
+        if (graceful && typeof requestAnimationFrame === 'function') {
+          const remove = (): void => layer.remove();
+          requestAnimationFrame(() => requestAnimationFrame(remove));
+          setTimeout(remove, 120);
+        } else layer.remove();
         this.runs.delete(run);
         resolveFinished();
       }
@@ -178,11 +185,12 @@ export class AnimationCoordinator {
           source.dataset.pncConcealed = 'true';
           source.style.setProperty('visibility', 'hidden', 'important');
         }
+        try { options.onConcealed?.(leases.map(lease => lease.source)); } catch { /* A host callback must not affect playback. */ }
         layer.style.visibility = 'visible';
         timeline = new Timeline(tracks, { duration,
           beforeFrame: () => !done && this.host.isConnected && layer.isConnected && event.cards.every(card => !card.source || card.source.isConnected),
           onProgress: value => { progress = value; options.onProgress?.(value); },
-          onEnd: release,
+          onEnd: () => release(true),
           onError: error => { console.warn('[PokerNow Customizer] Animation recovered safely.', error); release(); },
         });
         if (!paused) timeline.start();

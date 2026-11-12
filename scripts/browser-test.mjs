@@ -56,9 +56,9 @@ try {
   await writeFile(`artifacts/assembly-${t}.png`,Buffer.from(shot.data,'base64'));
  }
  await evaluate('globalThis.__assembly.clear()');
- await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".preset-card").length===12');await sleep(500);
- const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,cards:document.querySelectorAll(".preset-card").length})');assert.equal(layout.cards,12);assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');
- for(const name of ['Dealer Flick','Orbit Deal','Triple Spread','Triple Orbit','Crystal Spread','Slam / Impact','Fragment Assembly','Crystallization Reveal','House Pitch','Silk Cascade','Velvet Turnover','River Squeeze']) {
+ await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".preset-card").length===16');await sleep(500);
+ const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,cards:document.querySelectorAll(".preset-card").length})');assert.equal(layout.cards,16);assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');
+ for(const name of ['Dealer Flick','Orbit Deal','Triple Spread','Triple Orbit','Crystal Spread','Slam / Impact','Fragment Assembly','Crystallization Reveal','House Pitch','Silk Cascade','Velvet Turnover','River Squeeze',"Dealer's Storm",'Grand Flop','Spotlight','Showdown']) {
   const clicked=await evaluate(`(()=>{const button=[...document.querySelectorAll('.preset-preview-button')].find(x=>x.getAttribute('aria-label').includes(${JSON.stringify(name)}));if(!button)return false;button.click();return true})()`);
   if(!clicked)throw new Error('Missing preview button: '+name);
   await sleep(250);
@@ -70,7 +70,7 @@ try {
  await sleep(250);
  await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
  await sleep(500);
- await call('Page.reload');await until('document.querySelectorAll(".preset-card").length===12');
+ await call('Page.reload');await until('document.querySelectorAll(".preset-card").length===16');
  // Reload selects the studio's initial event, so return to the saved random turn.
  await evaluate(`Array.from(document.querySelectorAll('[role="tab"]')).find(x=>x.textContent==='Turn').click()`);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
@@ -105,8 +105,8 @@ try {
  const handoff=[];
  for (const street of ['deal','flop','turn','river']) handoff.push(await evaluate(`(async()=>{const R=globalThis.__pncReplica;let done=false;R.stop();R.scenario.prepare(${JSON.stringify(street)});R.runtime.scan();await new Promise(r=>setTimeout(r,300));
   R.onAnimation(h=>{h.finished.then(()=>{done=true;});});const sel=${JSON.stringify(street)}==='deal'?'.table-player-cards .card-container':'.table-cards .card-container';const before=new Set(document.querySelectorAll(sel));let leaks=0;const t0=performance.now();
-  const loop=()=>{for(const c of document.querySelectorAll(sel)){if(before.has(c))continue;const cs=getComputedStyle(c);if(!done&&cs.visibility!=='hidden'&&Number(cs.opacity)>.01)leaks++;}if(performance.now()-t0<2400)requestAnimationFrame(loop);};requestAnimationFrame(loop);
-  R.scenario.reveal(${JSON.stringify(street)});await new Promise(r=>setTimeout(r,2600));R.onAnimation(undefined);return {street:${JSON.stringify(street)},leaks,animated:done};})()`));
+  const loop=()=>{for(const c of document.querySelectorAll(sel)){if(before.has(c))continue;const cs=getComputedStyle(c);if(!done&&cs.visibility!=='hidden'&&Number(cs.opacity)>.01)leaks++;}if(performance.now()-t0<4400)requestAnimationFrame(loop);};requestAnimationFrame(loop);
+  R.scenario.reveal(${JSON.stringify(street)});await new Promise(r=>setTimeout(r,4600));R.onAnimation(undefined);return {street:${JSON.stringify(street)},leaks,animated:done};})()`));
  console.log('Card hand-off:',handoff);
  for (const result of handoff) { assert.equal(result.leaks,0,`${result.street} cards showed before their animation`); assert.ok(result.animated,`${result.street} did not animate`); }
  await evaluate('void globalThis.__pncReplica.scenario.playHand(2)');

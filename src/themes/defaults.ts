@@ -4,10 +4,10 @@ const timestamp = '2026-11-11T00:00:00.000Z';
 
 /** The house choreography: quick where the game is quick, slow where it matters. */
 export const signatureAnimations = (): Record<Street, AnimationAssignment> => ({
-  deal: { preset: 'deal.pitch', parameters: {} },
-  flop: { preset: 'flop.cascade', parameters: {} },
-  turn: { preset: 'reveal.turnover', parameters: {} },
-  river: { preset: 'reveal.squeeze', parameters: {} },
+  deal: { preset: 'deal.storm', parameters: {} },
+  flop: { preset: 'flop.grand', parameters: {} },
+  turn: { preset: 'reveal.spotlight', parameters: {} },
+  river: { preset: 'reveal.showdown', parameters: {} },
 });
 
 export const defaultEffects = (): EffectSettings => ({ chips: true, celebrations: true, moments: true, ambience: true });
@@ -48,7 +48,7 @@ export const builtInThemes: Theme[] = [
 export const DEFAULT_THEME_ID = builtInThemes[0]!.id;
 export function createDefaultTheme(): Theme { return structuredClone(builtInThemes[0]!); }
 export function createDefaultLibrary(): Library {
-  return { version: 2, settings: { enabled: true, reducedMotion: false, speed: 1, activeThemeId: DEFAULT_THEME_ID, effects: defaultEffects() }, themes: structuredClone(builtInThemes) };
+  return { version: 3, settings: { enabled: true, reducedMotion: false, speed: 1, activeThemeId: DEFAULT_THEME_ID, effects: defaultEffects() }, themes: structuredClone(builtInThemes) };
 }
 
 /** Identifiers and timestamp of the three themes shipped before the rooms existed. */

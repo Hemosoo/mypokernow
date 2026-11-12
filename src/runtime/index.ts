@@ -126,7 +126,9 @@ export class Runtime {
     if (event.type === 'TABLE_READY' || event.type === 'HAND_VISUAL_RESET') { this.coordinator.cancelAll(); return; }
     const sources = event.cards.map((card) => card.source).filter((source): source is HTMLElement => Boolean(source));
     try {
-      const handle = this.coordinator.play(event, this.theme, { speed: this.settings.speed, reducedMotion: this.settings.reducedMotion });
+      const handle = this.coordinator.play(event, this.theme, { speed: this.settings.speed, reducedMotion: this.settings.reducedMotion,
+        // Once the overlay has taken over, the hold on the originals is no longer needed.
+        onConcealed: (concealed) => { for (const source of concealed) release(source); } });
       this.options.onAnimation?.(handle, event);
       // A declined event completes at once; its cards are released at the end of this scan.
       if (handle.progress < 1) {

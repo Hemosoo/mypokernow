@@ -18,29 +18,67 @@ export function baseElement(card: VisualCard, parent: HTMLElement): HTMLDivEleme
   const element = document.createElement('div');
   Object.assign(element.style, {
     position: 'absolute', left: '0', top: '0', width: `${card.target.width}px`, height: `${card.target.height}px`,
-    pointerEvents: 'none', transformStyle: 'preserve-3d', transformOrigin: '50% 50%', willChange: 'transform, opacity',
+    // Only `transform` is hinted: Chrome treats `will-change: opacity` as a grouping
+    // property and flattens the 3D context, which would show a mirrored face mid-flip.
+    pointerEvents: 'none', transformStyle: 'preserve-3d', transformOrigin: '50% 50%', willChange: 'transform',
   });
   parent.append(element);
   return element;
 }
 
 /** Front and back share measured dimensions; unknown descriptors always use back artwork. */
+function matchFinish(face: HTMLElement, resting: HTMLElement | null | undefined): void {
+  if (!resting || typeof getComputedStyle !== 'function') return;
+  try {
+    const style = getComputedStyle(resting);
+    if (style.boxShadow) face.style.boxShadow = style.boxShadow;
+    if (style.borderRadius && style.borderRadius !== '0px') face.style.borderRadius = style.borderRadius;
+  } catch { /* Keep the theme's finish. */ }
+}
+
+/**
+ * Front and back share measured dimensions; unknown descriptors always use back artwork.
+ * Which face shows is decided from the pose itself, not only by backface culling, so a
+ * flip reads correctly even while the browser has flattened the 3D context (any fade
+ * below full opacity does that).
+ */
 export function cardObject(card: VisualCard, theme: Theme, parent: HTMLElement): VisualObject {
   const element = baseElement(card, parent);
   element.dataset.pncCard = card.id;
-  for (const [isBack, artwork] of [[false, createCardElement(card, theme)], [true, createCardElement({ ...card, identity: undefined, source: undefined }, theme)]] as const) {
+  const faces = ([[false, createCardElement(card, theme)], [true, createCardElement({ ...card, identity: undefined, source: undefined }, theme)]] as const).map(([isBack, artwork]) => {
     Object.assign(artwork.style, {
-      position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0',
+      position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0', willChange: 'auto',
       backfaceVisibility: 'hidden', transform: isBack ? 'rotateY(180deg)' : 'rotateY(0deg)',
     });
     element.append(artwork);
-  }
-  return object(element);
+    return artwork;
+  });
+  const [front, back] = faces as [HTMLElement, HTMLElement];
+  // Wear the resting card's own finish (shadow, corners) so the hand-off is pixel-identical.
+  matchFinish(front, card.source?.querySelector<HTMLElement>('.card') ?? card.source);
+  matchFinish(back, card.source?.querySelector<HTMLElement>('.front') ?? card.source);
+  let showing: 'front' | 'back' | undefined;
+  // Every pose carries the card's resting tilt, so it lands exactly as the page shows it.
+  const tilt = card.rotation ?? 0;
+  return {
+    element,
+    set: (pose) => {
+      applyPose(element, tilt ? { ...pose, rz: (pose.rz ?? 0) + tilt } : pose);
+      // The face normal points at the viewer when cos(rx)·cos(ry) > 0.
+      const facing = Math.cos((pose.rx ?? 0) * Math.PI / 180) * Math.cos((pose.ry ?? 0) * Math.PI / 180) >= 0 ? 'front' : 'back';
+      if (facing !== showing) {
+        showing = facing;
+        front.style.visibility = facing === 'front' ? 'inherit' : 'hidden';
+        back.style.visibility = facing === 'back' ? 'inherit' : 'hidden';
+      }
+    },
+    remove: () => element.remove(),
+  };
 }
 
 export function artworkImage(card: VisualCard, theme: Theme): HTMLImageElement {
   const image = document.createElement('img');
-  image.src = cardDataUrl(card.identity, theme.card, artOptions(theme));
+  image.src = cardDataUrl(card.identity, theme.card, artOptions(theme, card));
   image.alt = '';
   image.draggable = false;
   Object.assign(image.style, { display: 'block', position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none' });

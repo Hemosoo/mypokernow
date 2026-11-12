@@ -69,3 +69,23 @@ test('random assignments round-trip on all streets and reject effect-specific tu
  assert.deepEqual((await importTheme(await exportTheme(theme))).animations,theme.animations);
  assert.throws(()=>validateTheme({...theme,animations:{...theme.animations,turn:{preset:'random',parameters:{force:1}}}}));
 });
+
+test('version 3 moves untuned house presets to the showpieces once and keeps deliberate choices', async () => {
+ const { validateLibrary } = await import('../src/themes/schema');
+ const { createDefaultLibrary } = await import('../src/themes/defaults');
+ const { getPreset } = await import('../src/animation/registry');
+ const v2 = structuredClone(createDefaultLibrary()) as unknown as { version: number; themes: { animations: Record<string, { preset: string; parameters: Record<string, number> }> }[] };
+ v2.version = 2;
+ const pitchDefaults = Object.fromEntries(getPreset('deal.pitch')!.parameters.map((p) => [p.key, p.default]));
+ v2.themes[0]!.animations = { deal: { preset: 'deal.pitch', parameters: pitchDefaults }, flop: { preset: 'flop.cascade', parameters: {} },
+   turn: { preset: 'reveal.turnover', parameters: { duration: 1200 } }, river: { preset: 'reveal.slam', parameters: {} } };
+ const upgraded = validateLibrary(v2);
+ assert.equal(upgraded.version, 3);
+ assert.equal(upgraded.themes[0]!.animations.deal.preset, 'deal.storm');
+ assert.equal(upgraded.themes[0]!.animations.flop.preset, 'flop.grand');
+ assert.equal(upgraded.themes[0]!.animations.turn.preset, 'reveal.turnover', 'tuned choices are kept');
+ assert.equal(upgraded.themes[0]!.animations.river.preset, 'reveal.slam', 'other presets are kept');
+ // A house preset chosen after the upgrade stays chosen.
+ const later = structuredClone(upgraded); later.themes[0]!.animations.deal = { preset: 'deal.pitch', parameters: {} };
+ assert.equal(validateLibrary(later).themes[0]!.animations.deal.preset, 'deal.pitch');
+});

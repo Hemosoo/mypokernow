@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Library, Street, Theme } from '../types';
 import { getPreset } from '../animation/registry';
+import { SHOWPIECE_UPGRADES } from '../animation/presets/showpiece';
 import { builtInThemes, DEFAULT_THEME_ID, defaultEffects, LEGACY_BUILT_IN } from './defaults';
 
 const hex = z.string().regex(/^#[0-9a-f]{6}$/i);
@@ -32,7 +33,7 @@ export const themeSchema = z.object({
 
 const effectsSchema = z.object({ chips: z.boolean(), celebrations: z.boolean(), moments: z.boolean(), ambience: z.boolean() }).strict();
 export const librarySchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   settings: z.object({ enabled: z.boolean(), reducedMotion: z.boolean(), speed: finite(0.25, 3), activeThemeId: z.string().min(1).max(100), effects: effectsSchema }).strict(),
   themes: z.array(themeSchema).min(1).max(100),
 }).strict();
@@ -81,7 +82,7 @@ export function validateTheme(value: unknown): Theme {
  * front, and become active only when the previous choice was an untouched
  * built-in, so a customised table is never replaced behind its owner's back.
  */
-export function migrateLibrary(value: unknown): unknown {
+function migrateLibraryV1(value: unknown): unknown {
   if (!isObject(value) || value.version !== 1 || !isObject(value.settings) || !Array.isArray(value.themes)) return value;
   const existing = value.themes.map(migrateTheme);
   const ids = new Set(existing.map((theme) => (isObject(theme) ? theme.id : undefined)));
@@ -94,6 +95,31 @@ export function migrateLibrary(value: unknown): unknown {
     version: 2, themes,
     settings: { ...settings, effects: defaultEffects(), activeThemeId: untouched && rooms.length ? DEFAULT_THEME_ID : settings.activeThemeId },
   };
+}
+
+/**
+ * Version 3 makes the showpiece animations the house defaults. A street still
+ * on the quieter house preset it replaces, at that preset's default tuning, is
+ * moved to the showpiece; any other choice or tuning is left exactly as it was.
+ * Runs once, as part of the version change.
+ */
+function upgradeAssignments(theme: unknown): unknown {
+  if (!isObject(theme) || !isObject(theme.animations)) return theme;
+  const animations: Loose = { ...theme.animations };
+  for (const [street, assigned] of Object.entries(animations)) {
+    if (!isObject(assigned) || typeof assigned.preset !== 'string' || !isObject(assigned.parameters)) continue;
+    const replacement = SHOWPIECE_UPGRADES[assigned.preset], previous = getPreset(assigned.preset);
+    if (!replacement || !previous) continue;
+    const untuned = Object.entries(assigned.parameters).every(([key, value]) => previous.parameters.find((schema) => schema.key === key)?.default === value);
+    if (untuned) animations[street] = { preset: replacement, parameters: {} };
+  }
+  return { ...theme, animations };
+}
+
+export function migrateLibrary(value: unknown): unknown {
+  const library = migrateLibraryV1(value);
+  if (!isObject(library) || library.version !== 2 || !Array.isArray(library.themes)) return library;
+  return { ...library, version: 3, themes: library.themes.map(upgradeAssignments) };
 }
 
 export function validateLibrary(value: unknown): Library {
