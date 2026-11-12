@@ -24,6 +24,7 @@ export type PuppyState = 'IDLE' | 'WALKING' | 'RUNNING' | 'GRABBING_CARD' | 'PUS
 const clamp = (v: number, a = 0, b = 1): number => Math.min(b, Math.max(a, v));
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 const smooth = (t: number): number => { const u = clamp(t); return u * u * (3 - 2 * u); };
+const range = (t: number, a: number, b: number): number => clamp((t - a) / Math.max(1e-6, b - a));
 const wrap = (a: number): number => { let x = a; while (x > Math.PI) x -= Math.PI * 2; while (x < -Math.PI) x += Math.PI * 2; return x; };
 const centre = (r: Rect): Pt => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
 const dist = (a: Pt, b: Pt): number => Math.hypot(a.x - b.x, a.y - b.y);
@@ -87,6 +88,24 @@ class Mapper {
   toScreen(point: Vector3): Pt {
     const v = point.clone().project(this.camera);
     return { x: (v.x + 1) / 2 * this.width, y: (1 - v.y) / 2 * this.height };
+  }
+}
+
+/**
+ * The pose at the instant of contact for each action. The body is placed from this
+ * fixed pose, so it stays planted while the head dips or a paw winds up and strikes.
+ */
+function contactPose(action: PuppyCue['action']): Partial<PuppyPose> {
+  switch (action) {
+    case 'paw-strike': return { pawR: 0.95, reachR: 0.48, headPitch: 0.25, lean: 0.1, stretch: 1, sit: 0 };
+    case 'nose-push': return { headPitch: 0.62, lean: 0.18, bow: 0.25, sit: 0 };
+    case 'mouth-grab': return { headPitch: 0.7, lean: 0.15, mouth: 1, sit: 0 };
+    case 'mouth-carry': return { headPitch: -0.05, lean: 0.04, mouth: 0.15, sit: 0 };
+    case 'drop': return { headPitch: 0.25, mouth: 0.9, sit: 0 };
+    case 'paw-slide': return { pawR: 0.35, reachR: 0.85, headPitch: 0.35, lean: 0.1, sit: 0 };
+    case 'paw-flick': return { pawR: 0.35, reachR: 0.85, headPitch: 0.2, sit: 0 };
+    case 'run': return { pawR: 0, reachR: 0, headPitch: 0.1, lean: 0.05, sit: 0 };
+    default: return { pawR: 0, reachR: 0, sit: 0.85, lift: 0, spin: 0 };
   }
 }
 
@@ -205,6 +224,7 @@ export class PuppyCompanion implements Companion {
     // A card animation takes priority over any chip or fold errand.
     this.tasks = [];
     this.card = { handle, plan, from: { ...this.at }, started: performance.now(), done: false };
+    this.clock = { raw: -1, at: 0, rate: 0, value: 0 };
     const finish = (): void => { if (this.card?.handle === handle) { this.card.done = true; this.card = undefined; this.setState('RETURNING_TO_IDLE'); } this.schedule(); };
     void handle.finished.then(finish, finish);
     this.schedule();
@@ -234,8 +254,8 @@ export class PuppyCompanion implements Companion {
   }
 
   private renders = 0;
-  debug(): { state: PuppyState; since: number; at: Pt; home: Pt | undefined; visible: boolean; renders: number } {
-    return { state: this.state, since: this.stateSince, at: { ...this.at }, home: this.home && { ...this.home }, visible: this.rig.root.visible, renders: this.renders };
+  debug(): { state: PuppyState; since: number; at: Pt; heading: number; yaw: number; home: Pt | undefined; visible: boolean; renders: number } {
+    return { state: this.state, since: this.stateSince, at: { ...this.at }, heading: this.heading, yaw: this.rig.root.rotation.y, home: this.home && { ...this.home }, visible: this.rig.root.visible, renders: this.renders };
   }
 
   // ───────────────────────────────────────────────────────────── layout
@@ -468,24 +488,30 @@ export class PuppyCompanion implements Companion {
     Object.assign(p, { lift: 0, spin: 0, lean: 0, roll: 0, bow: 0, stretch: 1, blink: 0, pawL: 0, pawR: 0, reachL: 0, reachR: 0, mouth: 0, tongue: 0, scratch: 0, headPitch: 0.1, headTilt: 0 });
     let target: Pt = this.home, part: 'body' | 'paw' | 'nose' | 'mouth' = 'body', face: Pt | undefined, speed = 0, sitGoal = 1, look: Pt | undefined;
     let follow = false; // true: `target` is exact (contact), not a destination to walk to
+    // When set, the puppy turns toward this heading rather than the way it happens to be moving.
+    let headingGoal: number | undefined;
     let cue: PuppyCue | undefined;
 
     if (this.card && !this.card.done) {
       // ── a card animation: sample the shared plan at the animation's own progress
-      const progress = clamp(this.card.handle.progress);
+      const progress = this.smoothProgress(now);
       cue = this.card.plan.puppy(progress);
       sitGoal = cue.action === 'proud' ? 0.85 : 0;
       look = cue.look;
+      // The heading the puppy will work with: from the touch point toward where the card goes.
+      const working = Math.atan2(cue.face.y - cue.point.y, cue.face.x - cue.point.x);
       if (cue.phase === 'approach') {
-        // Run from wherever it was to the start mark, arriving as the plan says.
-        const from = this.card.from, to = this.solve(cue.part, cue.point, Math.atan2(cue.point.y - from.y, cue.point.x - from.x));
+        // Run straight from wherever it was to its mark, solved for the heading it will
+        // have on arrival, and turn into that heading only over the last stretch.
+        const from = this.card.from, to = this.solve(cue.part, cue.point, working, contactPose(cue.action));
         target = { x: mix(from.x, to.x, cue.approach), y: mix(from.y, to.y, cue.approach) };
         follow = true;
-        face = cue.approach > 0.85 ? cue.face : to;
+        const run = dist(from, to) > 4 ? Math.atan2(to.y - from.y, to.x - from.x) : working;
+        headingGoal = run + wrap(working - run) * smooth(range(cue.approach, 0.7, 1));
         speed = cue.approach < 1 ? 1 : 0;
         this.setState('RUNNING');
       } else {
-        part = cue.part; target = cue.point; face = cue.face; follow = true;
+        part = cue.part; target = cue.point; face = cue.face; follow = true; headingGoal = working;
         this.setState(({ 'paw-strike': 'DEALING', 'nose-push': 'PUSHING_CARD', 'mouth-grab': 'GRABBING_CARD', 'mouth-carry': 'WALKING', drop: 'PUSHING_CARD', 'paw-slide': 'PUSHING_CARD', 'paw-flick': 'PUSHING_CARD', proud: 'CELEBRATING', hop: 'CELEBRATING', spin: 'CELEBRATING', run: 'RUNNING' } as const)[cue.action]);
       }
       this.excite = Math.max(this.excite, cue.excite);
@@ -539,17 +565,29 @@ export class PuppyCompanion implements Companion {
 
     // ── locomotion
     const before = { ...this.at };
+    if (headingGoal !== undefined) this.heading += wrap(headingGoal - this.heading) * (1 - Math.exp(-12 * dt));
     if (follow) {
-      this.at = part === 'body' ? target : this.solve(part, target, this.heading);
+      const solved = part === 'body' ? target : this.solve(part, target, this.heading, cue ? contactPose(cue.action) : {});
+      // A body never moves faster than the puppy can run. Plan motion is well below this,
+      // so contacts stay exact; a discontinuity (switching from nose to paw, a new street
+      // interrupting the last) becomes a quick glide instead of a jump.
+      const step = dist(this.at, solved), cap = this.layout.table.width * 1.8 * dt;
+      this.at = step <= cap ? solved : { x: mix(this.at.x, solved.x, cap / step), y: mix(this.at.y, solved.y, cap / step) };
     } else {
-      const d = dist(this.at, target);
-      const max = (this.layout.table.width * (speed >= 1 ? 1.25 : 0.45)) * dt;
+      // Ease into a run and slow on arrival, rather than starting and stopping dead.
+      const d = dist(this.at, target), top = this.layout.table.width * (speed >= 1 ? 1.25 : 0.45);
+      const arriving = Math.min(1, d / Math.max(1, this.layout.cardH * 1.2));
+      this.freeSpeed = approach(this.freeSpeed, d > 0.5 ? top * Math.max(0.25, arriving) : 0, 7, dt);
+      const max = this.freeSpeed * dt;
       if (d > 0.5) { const k = Math.min(1, max / d); this.at = { x: mix(this.at.x, target.x, k), y: mix(this.at.y, target.y, k) }; }
     }
     const moved = dist(before, this.at), velocity = moved / Math.max(dt, 1e-3);
     // Face the way it travels; at rest, face the thing it is attending to.
-    const desired = moved > 0.6 ? Math.atan2(this.at.y - before.y, this.at.x - before.x) : face ? Math.atan2(face.y - this.at.y, face.x - this.at.x) : this.heading;
-    this.heading += wrap(desired - this.heading) * (1 - Math.exp(-(follow ? 14 : this.state === 'IDLE' ? 3 : 9) * dt));
+    if (headingGoal === undefined) {
+      // Free movement (errands, going home): face the way it travels, or what it attends to.
+      const desired = moved > 0.6 ? Math.atan2(this.at.y - before.y, this.at.x - before.x) : face ? Math.atan2(face.y - this.at.y, face.x - this.at.x) : this.heading;
+      this.heading += wrap(desired - this.heading) * (1 - Math.exp(-(this.state === 'IDLE' ? 3 : 9) * dt));
+    }
     // Gait follows real distance covered, so the legs never slide.
     const strideUnits = 0.42 * this.scaleWorld * this.pxPerUnit;
     p.gait += (moved / Math.max(1, strideUnits)) * Math.PI;
@@ -582,6 +620,31 @@ export class PuppyCompanion implements Companion {
     p.earL = this.ears[0]! - this.excite * 0.12; p.earR = this.ears[1]! - this.excite * 0.12;
 
     this.place(p);
+  }
+
+  /**
+   * The animation's progress, read through a steady clock. The card timeline and the
+   * puppy run in separate frame callbacks whose order can change, so the raw value
+   * can stand still for one frame and jump the next. Between updates the clock moves
+   * on at the observed rate, never ahead of where the next update could be.
+   */
+  private clock = { raw: -1, at: 0, rate: 0, value: 0 };
+  private smoothProgress(now: number): number {
+    const raw = clamp(this.card!.handle.progress), c = this.clock;
+    if (raw !== c.raw) {
+      if (c.raw >= 0 && raw > c.raw && now > c.at) {
+        const rate = (raw - c.raw) / (now - c.at);
+        c.rate = c.rate ? c.rate * 0.7 + rate * 0.3 : rate;
+      }
+      if (raw < c.raw) { c.rate = 0; c.value = raw; }
+      c.raw = raw; c.at = now;
+    }
+    // Extrapolate at most two frames past the last real value; hold if paused or stalled.
+    const ahead = now - c.at > 120 ? 0 : Math.min(now - c.at, 34) * c.rate;
+    const ceiling = raw + ahead;
+    // Never step backwards within a run (unless the animation itself went back).
+    c.value = raw >= 1 ? 1 : clamp(Math.min(ceiling, Math.max(c.value, raw, ceiling)));
+    return c.value;
   }
 
   /** Body language for each beat of a card choreography. */
@@ -659,12 +722,18 @@ export class PuppyCompanion implements Companion {
     p.headPitch = pitch;
   }
   private headYaw = 0;
+  private freeSpeed = 0;
 
   /** Where the puppy must stand so that `part` touches `point` while facing `heading`. */
-  private solve(part: 'body' | 'paw' | 'nose' | 'mouth', point: Pt, heading: number): Pt {
+  private solve(part: 'body' | 'paw' | 'nose' | 'mouth', point: Pt, heading: number, reference: Partial<PuppyPose> = {}): Pt {
     if (part === 'body') return point;
     let root = { ...point };
     const socket = part === 'paw' ? this.rig.sockets.pawR : part === 'nose' ? this.rig.sockets.nose : this.rig.sockets.mouth;
+    // Solve against the pose without its walking stride: the stride swings the paws and
+    // bobs the head every step, which would otherwise shake the whole puppy.
+    // The head's glances and the action's own wind-up are excluded too: the body is
+    // placed for the moment of contact and holds still while the head and paws move.
+    applyPose(this.rig, { ...this.pose, stride: 0, bob: 0, lift: 0, headYaw: 0, ...reference });
     const world = new Vector3();
     for (let iteration = 0; iteration < 3; iteration++) {
       this.transform(root, heading);
