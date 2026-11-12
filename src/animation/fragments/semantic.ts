@@ -1,4 +1,4 @@
-import { artOptions, cardSvg } from '../../rendering/cards';
+import { artOptions, cardSvg, createCardElement } from '../../rendering/cards';
 import type { Theme, VisualCard } from '../../types';
 import type { VisualObject } from '../core/types';
 import { baseElement, object } from '../primitives/objects';
@@ -22,6 +22,11 @@ export function semanticArtwork(card: VisualCard, theme: Theme, parent: HTMLElem
   const create = (id: string, kind: SemanticArtwork['kind'], svg: Element, center: { x: number; y: number }): void => {
     const element = baseElement(card, parent);
     element.dataset.pncSemantic = id;
+    if (kind === 'body') {
+      const resting = createCardElement(card, theme);
+      element.style.boxShadow = resting.style.boxShadow;
+      element.style.borderRadius = resting.style.borderRadius;
+    }
     element.style.transformOrigin = `${center.x * 100}% ${center.y * 100}%`;
     const artwork = document.createElement('img');
     artwork.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;

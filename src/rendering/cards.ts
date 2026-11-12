@@ -158,7 +158,7 @@ export function cardSvg(identity: CardIdentity | undefined, appearance: CardAppe
   const radius = Math.min(13, Math.max(0, appearance.borderRadius)) * 0.9;
   const art = identity ? faceArt(identity, appearance, colors, radius, Boolean(options.fourColor)) : backArt(appearance, colors, radius);
   const border = `<rect x=".5" y=".5" width="89" height="109" rx="${n(Math.max(0, radius - 0.3))}" fill="none" stroke="${identity ? colors.edge : rgba('#000000', 0.18)}" stroke-width="${identity ? 1 : 0.6}"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}">${art}${border}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}">${art}${border}</svg>`;
 }
 
 export function cardDataUrl(identity: CardIdentity | undefined, appearance: CardAppearance, options: CardArtOptions = {}): string {

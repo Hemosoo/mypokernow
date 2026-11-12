@@ -1,7 +1,7 @@
 import { cardSemanticRegions } from '../../rendering/cards';
 import type { VisualCard } from '../../types';
 import type { AnimationContext, TimelineTrack } from '../core/types';
-import { baseElement, cardObject, object, pulse } from '../primitives/objects';
+import { baseElement, cardObject, object } from '../primitives/objects';
 import { clamp, envelope, mix, noise, range, rectCenter, smooth, smoother } from '../primitives/motion';
 import { track } from '../presets/shared';
 import { partitionArtwork, type ArtworkFragment, type Vertex } from './geometry';
@@ -86,12 +86,5 @@ export function constructionTracks(context: AnimationContext, shared: boolean): 
       }));
     });
   });
-  const boardWidth = cards.length > 1 ? Math.max(...cards.map(card => card.target.x + card.target.width)) - Math.min(...cards.map(card => card.target.x)) : width;
-  const ring = pulse(context.layer, context.center.x, context.center.y, boardWidth * 1.16, height * 1.16, '#a8efff');
-  tracks.push(track(t => {
-    const u = range(t, 0.94, 1), amplitude = (p.pulse ?? 0.45) * context.intensity;
-    ring.set({ x: context.center.x - boardWidth * 1.16 / 2, y: context.center.y - height * 1.16 / 2,
-      scale: mix(0.9, 1.17, u), opacity: Math.sin(u * Math.PI) * amplitude * 0.28 });
-  }));
   return tracks;
 }

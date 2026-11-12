@@ -1,3 +1,10 @@
+## Reveal artifact follow-up
+
+- Fragment Assembly body fades in at its measured resting geometry, with no body scaling, depth or translation. Its shadow and corners match the complete card at replacement.
+- Card SVGs explicitly fill their measured viewport; semantic SVG images, clipped fragments and complete cards no longer use differing aspect-ratio behavior. Fragment imagery and artwork preparation now use the same theme accent options as resting cards.
+- Removed colored finishing halos from Fragment Assembly, Crystallization and Crystal Spread, and cyan shockwave/spark decorations from Slam. Legacy numeric settings are still accepted so existing theme files continue loading.
+- Added Chromium regression frames around the semantic-to-complete handoff, checking x/y/width/height and SVG viewport behavior. Screenshots are generated as artifacts/assembly-*.png.
+
 # Codex continuation — 2026-11-11
 
 Original Claude handoff is preserved below. Work continues on `claude/gifted-galileo-kxrvbv`; main has not been merged or modified.

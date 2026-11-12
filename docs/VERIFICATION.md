@@ -1,3 +1,7 @@
+## Reveal artifact regression
+
+Follow-up: npm run check passed (52/52 tests, typecheck, production build); Chromium suite passed all 12 presets and the room rehearsal. New assembly-frame checks at progress .8/.94/.96/.984/.985/.999/1 keep identical x/y/width/height (70 × 98 fixture). Inspected screenshots immediately before/after replacement in artifacts/assembly-0.984.png and assembly-0.985.png. Colored finishing halos and cyan impact sprites removed from related presets. Live-game verification remains manual.
+
 # Verification — premium continuation
 
 Date: 2026-11-11. Branch: `claude/gifted-galileo-kxrvbv`. Node 24.22.1, npm 11.9.0, Chromium 156.0.8078.79, Linux.

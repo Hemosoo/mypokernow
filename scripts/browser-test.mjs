@@ -48,6 +48,14 @@ try {
  await until('!!globalThis.__pncTest');
  assert.equal(await evaluate('document.visibilityState'),'visible','Harness must be active for animation clocks');
  const engine=await evaluate('globalThis.__pncTest.runAll()');console.log('Chrome animation checks:',engine);
+ const assembly=await evaluate('(async()=>{globalThis.__assembly=await globalThis.__pncTest.assemblyFrames(); return globalThis.__assembly.frames;})()');
+ console.log('Assembly handoff geometry:',assembly);
+ for(const t of [.94,.984,.985]) {
+  await evaluate(`globalThis.__assembly.sample(${t})`);
+  const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+  await writeFile(`artifacts/assembly-${t}.png`,Buffer.from(shot.data,'base64'));
+ }
+ await evaluate('globalThis.__assembly.clear()');
  await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".preset-card").length===12');await sleep(500);
  const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,cards:document.querySelectorAll(".preset-card").length})');assert.equal(layout.cards,12);assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');
  for(const name of ['Dealer Flick','Orbit Deal','Triple Spread','Triple Orbit','Crystal Spread','Slam / Impact','Fragment Assembly','Crystallization Reveal','House Pitch','Silk Cascade','Velvet Turnover','River Squeeze']) {
