@@ -1,6 +1,6 @@
-import { cardDataUrl } from '../../rendering/cards';
+import { artOptions, cardDataUrl } from '../../rendering/cards';
 import { streetForEvent, type Theme, type VisualCard, type VisualEvent } from '../../types';
-import { getPreset, presetsForStreet } from '../registry';
+import { resolvePreset } from '../registry';
 import { cardCenter, clamp } from '../primitives/motion';
 import { cardObject } from '../primitives/objects';
 import { Timeline } from './timeline';
@@ -40,7 +40,7 @@ async function prepareArtwork(cards: VisualCard[], theme: Theme, layer: HTMLElem
   // SVG resources are decoded BEFORE taking visibility leases. No network or canvas capture.
   const images = new Map<string, HTMLImageElement>();
   for (const image of layer.querySelectorAll('img')) if (typeof image.decode === 'function') images.set(image.src, image);
-  const urls = new Set([cardDataUrl(undefined, theme.card), ...cards.map(card => cardDataUrl(card.identity, theme.card)), ...images.keys()]);
+  const urls = new Set([cardDataUrl(undefined, theme.card, artOptions(theme)), ...cards.map(card => cardDataUrl(card.identity, theme.card, artOptions(theme))), ...images.keys()]);
   await Promise.all([...urls].map(async url => {
     const image = images.get(url) ?? new Image();
     if (!image.src) image.src = url;
@@ -87,10 +87,10 @@ export class AnimationCoordinator {
     if (options.reducedMotion || this.motionPreference?.matches || document.visibilityState === 'hidden') return completed(options.onProgress);
 
     const assigned = theme.animations[street];
-    let preset = getPreset(options.presetId ?? assigned.preset);
-    if (!preset?.supportedEvents.includes(street)) preset = presetsForStreet(street)[0];
+    const selection = options.presetId ?? assigned.preset;
+    const preset = resolvePreset(selection, street);
     if (!preset) return completed(options.onProgress);
-    const raw = options.parameters ?? assigned.parameters;
+    const raw = selection === 'random' ? {} : options.parameters ?? assigned.parameters;
     const parameters: Record<string, number> = {};
     for (const schema of preset.parameters) {
       const value = raw[schema.key];

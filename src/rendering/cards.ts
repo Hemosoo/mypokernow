@@ -1,59 +1,187 @@
 import type { CardAppearance, CardIdentity, Suit, Theme, VisualCard } from '../types';
-const paths: Record<Suit, string> = {
- hearts:'M0 8 C-25-8-19-27-6-24 C-2-24 0-20 0-18 C0-23 6-26 12-24 C29-18 21-3 0 8Z',
- diamonds:'M0-27 18-9 0 10-18-9Z',
- spades:'M0-28 C-8-17-25-7-17 3 C-12 9-4 6-2 1 L-5 12 H5 L2 1 C5 6 13 9 18 2 C24-8 8-18 0-28Z',
- clubs:'M0-9 C-15-17-8-32 1-27 C8-24 8-16 4-12 C18-21 27-5 17 2 C12 6 5 3 2 0 L5 12 H-5 L-2 0 C-11 9-23 0-19-8 C-16-15-6-16 0-9Z',
+import { darken, lighten, luminance, metal, mix, rgba, safeHex, svgDataUrl } from './color';
+import { CAP_HEIGHT, glyphs } from './glyphs';
+
+/**
+ * Card artwork. One renderer feeds the live table, the animation engine and
+ * the studio, so a card in flight is indistinguishable from the card at rest.
+ *
+ * The design unit is 90 × 110: PokerNow's own card proportion, wider than a
+ * bridge card. Faces use a jumbo index (rank over suit, top left) so a hand
+ * stays readable when only a sliver of each card shows, and one large suit.
+ */
+export const CARD_WIDTH = 90;
+export const CARD_HEIGHT = 110;
+
+export interface CardArtOptions {
+  /** Metal used for back linework and face ornaments; defaults to champagne. */
+  accent?: string;
+  /** Diamonds in blue and clubs in green, following the table's deck setting. */
+  fourColor?: boolean;
+}
+
+const escape = (value: string): string => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[char]!));
+const uploaded = (value: string | undefined): string | undefined => value && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : undefined;
+const n = (value: number): string => Number(value.toFixed(2)).toString();
+
+/** Suit shapes drawn in a unit box centred on the origin. */
+const SUITS: Record<Suit, string> = {
+  hearts: '<path d="M0 .43C-.07 .35-.5 .07-.5-.17C-.5-.36-.37-.46-.24-.46C-.13-.46-.04-.4 0-.3C.04-.4 .13-.46 .24-.46C.37-.46 .5-.36 .5-.17C.5 .07 .07 .35 0 .43Z"/>',
+  diamonds: '<path d="M0-.5C.09-.31 .23-.13 .4 0C.23 .13 .09 .31 0 .5C-.09 .31-.23 .13-.4 0C-.23-.13-.09-.31 0-.5Z"/>',
+  spades: '<path d="M0-.5C.06-.38 .5-.1 .5 .14C.5 .3 .39 .38 .27 .38C.17 .38 .09 .33 .04 .25C.06 .36 .1 .44 .19 .5L-.19 .5C-.1 .44-.06 .36-.04 .25C-.09 .33-.17 .38-.27 .38C-.39 .38-.5 .3-.5 .14C-.5-.1-.06-.38 0-.5Z"/>',
+  clubs: '<path d="M0-.49A.215 .215 0 0 1 .17-.14A.215 .215 0 1 1 .09 .2C.07 .2 .05 .19 .04 .18C.06 .33 .1 .43 .19 .5L-.19 .5C-.1 .43-.06 .33-.04 .18C-.05 .19-.07 .2-.09 .2A.215 .215 0 1 1-.17-.14A.215 .215 0 0 1 0-.49Z"/>',
 };
-const escape = (value: string) => value.replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]!));
-function color(value: string): string {return /^#[0-9a-f]{6}$/i.test(value) ? value : '#7770df';}
-function image(value: string | undefined): string | undefined {return value && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : undefined;}
-function pip(suit: Suit, x: number, y: number, scale: number, upsideDown = false): string {
-  return `<g transform="translate(${x} ${y}) rotate(${upsideDown?180:0}) scale(${scale})"><path d="${paths[suit]}"/></g>`;
+
+export function suitShape(suit: Suit, cx: number, cy: number, size: number): string {
+  return `<g transform="translate(${n(cx)} ${n(cy)}) scale(${n(size)})">${SUITS[suit]}</g>`;
 }
-export interface SemanticRegion {id: string; x: number; y: number; width: number; height: number; kind: 'rank' | 'suit' | 'art' | 'body'}
+
+/** Rank drawn from stored letterforms; "10" is set tight so it sits in the index column. */
+function rankShape(rank: string, x: number, top: number, height: number): { markup: string; width: number } {
+  const scale = height / CAP_HEIGHT;
+  const letters = rank === '10' ? ['1', '0'] : [rank];
+  const squeeze = rank === '10' ? 0.78 : 1, tracking = rank === '10' ? -70 : 0;
+  let cursor = 0, markup = '';
+  letters.forEach((letter, index) => {
+    const glyph = glyphs[letter]!;
+    // Start each letter at its ink edge so the index aligns optically with the card margin.
+    if (index === 0) cursor = -glyph.x0;
+    markup += `<path transform="translate(${n(x + cursor * scale * squeeze)} ${n(top + height)}) scale(${n(scale * squeeze)} ${n(scale)})" d="${glyph.d}"/>`;
+    cursor += glyph.w + tracking;
+  });
+  const last = glyphs[letters[letters.length - 1]!]!;
+  const width = (cursor - tracking - last.w + last.x1) * scale * squeeze;
+  return { markup, width };
+}
+
+const CROWNS: Record<string, string> = {
+  K: '<path d="M-9 4L-10.5-5.2L-5.2-.6L0-7.5L5.2-.6L10.5-5.2L9 4Z"/><circle cx="-10.5" cy="-6.4" r="1.25"/><circle cx="0" cy="-8.8" r="1.4"/><circle cx="10.5" cy="-6.4" r="1.25"/><rect x="-9" y="5.2" width="18" height="1.7" rx=".8"/>',
+  Q: '<path d="M-8.5 4L-9.5-3L-4.6 .6L0-5.2L4.6 .6L9.5-3L8.5 4Z"/><circle cx="-9.5" cy="-4.2" r="1.15"/><circle cx="0" cy="-6.5" r="1.3"/><circle cx="9.5" cy="-4.2" r="1.15"/><circle cx="-4.6" cy="-.8" r=".8"/><circle cx="4.6" cy="-.8" r=".8"/><rect x="-8.5" y="5.2" width="17" height="1.5" rx=".75"/>',
+  J: '<path d="M-7.5 4L-7.5-1.2L-3.6 1.4L0-4.6L3.6 1.4L7.5-1.2L7.5 4Z"/><circle cx="0" cy="-5.9" r="1.25"/><rect x="-7.5" y="5.2" width="15" height="1.4" rx=".7"/>',
+};
+
+export interface SemanticRegion { id: string; x: number; y: number; width: number; height: number; kind: 'rank' | 'suit' | 'art' | 'body' }
+/** Regions of the face that carry identity, in fractions of the card (0–1). */
 export function cardSemanticRegions(identity?: CardIdentity): SemanticRegion[] {
-  const corners: SemanticRegion[] = [{id:'rank-top',x:3,y:3,width:23,height:23,kind:'rank'},{id:'suit-top',x:3,y:26,width:23,height:15,kind:'suit'},{id:'rank-bottom',x:74,y:114,width:23,height:23,kind:'rank'},{id:'suit-bottom',x:74,y:99,width:23,height:15,kind:'suit'}];
-  if (!identity || ['J','Q','K'].includes(identity.rank)) return [...corners,{id:'court',x:26,y:25,width:48,height:90,kind:'art'}];
-  if(identity.rank==='A') return [...corners,{id:'pip-0',x:28,y:48,width:44,height:40,kind:'suit'}];
-  return [...corners, ...pipPositions(identity.rank).map(([x,y],i)=>({id:`pip-${i}`,x:x-9,y:y-12,width:18,height:25,kind:'suit' as const}))];
+  if (!identity) return [{ id: 'medallion', x: 0.28, y: 0.3, width: 0.44, height: 0.4, kind: 'art' }];
+  const court = identity.rank === 'J' || identity.rank === 'Q' || identity.rank === 'K';
+  return [
+    { id: 'rank', x: 0.06, y: 0.06, width: 0.4, height: 0.3, kind: 'rank' },
+    { id: 'index-suit', x: 0.06, y: 0.38, width: 0.26, height: 0.18, kind: 'suit' },
+    { id: 'suit', x: 0.4, y: court ? 0.5 : 0.44, width: 0.52, height: court ? 0.42 : 0.48, kind: 'suit' },
+    ...(court ? [{ id: 'crown', x: 0.5, y: 0.3, width: 0.32, height: 0.2, kind: 'art' as const }] : []),
+  ];
 }
-function pipPositions(rank: string): number[][] {
-  const n = Number(rank); if(rank==='A') return [[50,73]];
-  if(n===2) return [[50,44],[50,99]];
-  if(n===3) return [[50,42],[50,71],[50,100]];
-  if(n===4) return [[35,43],[65,43],[35,100],[65,100]];
-  if(n===5) return [[35,43],[65,43],[50,71],[35,100],[65,100]];
-  const rows=n>=9?[39,59,83,103]:[43,71,100];
-  const positions=rows.flatMap(y=>[[35,y],[65,y]]);
-  if(n===7) positions.push([50,55]);
-  if(n===8) positions.push([50,55],[50,88]);
-  if(n===9) positions.push([50,71]);
-  if(n===10) positions.push([50,49],[50,93]);
-  return positions;
+
+interface Palette { paper: string; edge: string; red: string; black: string; blue: string; green: string; accent: string; back: string }
+function palette(appearance: CardAppearance, options: CardArtOptions): Palette {
+  const red = safeHex(appearance.redColor, '#b8242f'), black = safeHex(appearance.blackColor, '#16181b');
+  const dark = luminance(safeHex(appearance.faceColor, '#fbf7ec')) < 0.2;
+  return {
+    paper: safeHex(appearance.faceColor, '#fbf7ec'), edge: safeHex(appearance.borderColor, '#e6dcc4'), red, black,
+    // Four-colour inks keep the theme's value: lighter on dark faces, deeper on light ones.
+    blue: dark ? '#7fb2ff' : '#1f55c4', green: dark ? '#6fd39a' : '#14773f',
+    accent: safeHex(options.accent ?? '#d4b274', '#d4b274'), back: safeHex(appearance.backColor, '#0c3a2c'),
+  };
 }
-export function cardSvg(identity: CardIdentity | undefined, appearance: CardAppearance): string {
-  const a=appearance; const radius = Math.min(14,Math.max(0,a.borderRadius));
-  const bg = color(a.faceColor), border=color(a.borderColor), back=color(a.backColor);
-  let artwork: string;
-  if(!identity) {
-    const uploaded=image(a.backImage);
-    const pattern = a.back === 'crosshatch' ? '<path d="M-5 0 15 20M0-5 20 15M5-10 25 10M-5 20 15 0M0 25 20 5M5 30 25 10" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width=".7"/>' : '<path d="M10 2 17 10 10 18 3 10Z" fill="none" stroke="#fff" stroke-opacity=".23" stroke-width=".8"/>';
-    artwork=`<defs><pattern id="pattern" width="20" height="20" patternUnits="userSpaceOnUse">${pattern}</pattern><clipPath id="edge"><rect x="4" y="4" width="92" height="132" rx="${Math.max(0,radius-2)}"/></clipPath></defs><rect width="100" height="140" rx="${radius}" fill="${bg}"/><rect x="4" y="4" width="92" height="132" rx="${Math.max(0,radius-2)}" fill="${back}"/>${a.back==='image'&&uploaded?`<image href="${escape(uploaded)}" x="4" y="4" width="92" height="132" preserveAspectRatio="xMidYMid slice" clip-path="url(#edge)"/>`:a.back==='solid'?'':'<rect x="5" y="5" width="90" height="130" fill="url(#pattern)"/>'}<rect x="10" y="10" width="80" height="120" rx="2" fill="none" stroke="#fff" stroke-opacity=".35"/><path d="M50 50 65 70 50 90 35 70Z" fill="${back}" stroke="#fff" stroke-opacity=".65"/><path d="M50 59 58 70 50 81 42 70Z" fill="#fff" fill-opacity=".75"/>`;
-  } else {
-    const ink = color(identity.suit==='hearts'||identity.suit==='diamonds'?a.redColor:a.blackColor);
-    const court=['J','Q','K'].includes(identity.rank);
-    const positions=pipPositions(identity.rank);
-    const center=court ? `<g transform="translate(26 28)" fill="${ink}"><rect width="48" height="84" rx="2" fill="${ink}" fill-opacity=".07" stroke="${ink}" stroke-opacity=".3"/><path d="M6 18 10 5 20 15 24 3 29 15 39 5 42 18Z"/><circle cx="24" cy="33" r="10" fill-opacity=".8"/><path d="M13 33 Q24 45 35 33 L33 47 15 47Z" fill-opacity=".5"/><path d="M6 78 13 49 24 57 35 49 42 78Z" fill-opacity=".65"/><path d="M9 65 39 65M24 57V79" stroke="${bg}" stroke-width="2"/><text x="24" y="74" font-size="13" text-anchor="middle" fill="${bg}" font-family="Georgia,serif">${identity.rank}</text></g>` : positions.map(([x,y])=>pip(identity.suit,x,y,identity.rank==='A'?.85:.38,y>82)).join('');
-    const font=a.face==='modern'?'Arial,sans-serif':'Georgia,serif';
-    const corner=`<text x="14" y="22" text-anchor="middle" font-family="${font}" font-size="${identity.rank==='10'?18:21}" font-weight="700">${escape(identity.rank)}</text>${pip(identity.suit,14,34,.27)}`;
-    artwork=`<rect width="100" height="140" rx="${radius}" fill="${bg}"/><g fill="${ink}">${corner}<g transform="rotate(180 50 70)">${corner}</g>${center}</g>`;
+
+function inkFor(identity: CardIdentity, colors: Palette, fourColor: boolean): string {
+  if (identity.suit === 'hearts') return colors.red;
+  if (identity.suit === 'diamonds') return fourColor ? colors.blue : colors.red;
+  if (identity.suit === 'clubs') return fourColor ? colors.green : colors.black;
+  return colors.black;
+}
+
+function faceArt(identity: CardIdentity, appearance: CardAppearance, colors: Palette, radius: number, fourColor: boolean): string {
+  const ink = inkFor(identity, colors, fourColor);
+  const dark = luminance(colors.paper) < 0.2;
+  const court = identity.rank === 'J' || identity.rank === 'Q' || identity.rank === 'K';
+  const ace = identity.rank === 'A';
+  const rank = rankShape(identity.rank, 8.4, 9, 30.5);
+  const indexSuitX = 8.4 + Math.max(11, Math.min(rank.width, 26)) / 2;
+  // J and Q descend below the baseline; their index suit sits a little lower to clear the tail.
+  const indexSuitY = identity.rank === 'J' || identity.rank === 'Q' ? 57.5 : 51.5;
+  const paperLow = dark ? lighten(colors.paper, 0.05) : mix(colors.paper, colors.edge, 0.55);
+  const classic = appearance.face === 'classic';
+  // A fine keyline gives the classic deck its engraved character; the modern deck stays open.
+  const frame = classic ? `<rect x="3.6" y="3.6" width="82.8" height="102.8" rx="${n(Math.max(0, radius - 2.2))}" fill="none" stroke="${ink}" stroke-opacity=".16" stroke-width=".5"/>` : '';
+  const ornamentInk = dark ? lighten(colors.accent, 0.1) : darken(colors.accent, 0.12);
+  const crown = court ? `<g data-part="art" data-id="crown" data-cx=".66" data-cy=".4" fill="${ornamentInk}"><g transform="translate(59.5 44)">${CROWNS[identity.rank]}</g></g>` : '';
+  const halo = ace ? `<circle cx="58" cy="73" r="27.5" fill="none" stroke="${ornamentInk}" stroke-opacity=".55" stroke-width=".7"/><circle cx="58" cy="73" r="25.2" fill="none" stroke="${ornamentInk}" stroke-opacity=".28" stroke-width=".4" stroke-dasharray=".6 1.8"/>` : '';
+  const suitY = court ? 78 : ace ? 73 : 74.5, suitSize = court ? 36 : ace ? 38 : 43;
+  return `<defs>
+<linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${lighten(colors.paper, dark ? 0.06 : 0.5)}"/><stop offset=".55" stop-color="${colors.paper}"/><stop offset="1" stop-color="${paperLow}"/></linearGradient>
+<linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(ink, dark ? 0.12 : 0.1)}"/><stop offset="1" stop-color="${darken(ink, dark ? 0 : 0.14)}"/></linearGradient>
+</defs>
+<g data-body="1"><rect width="90" height="110" rx="${n(radius)}" fill="url(#paper)"/>${frame}${halo}</g>
+<g data-part="rank" data-id="rank" data-cx=".25" data-cy=".22" fill="url(#ink)">${rank.markup}</g>
+<g data-part="suit" data-id="index-suit" data-cx=".2" data-cy=".47" fill="url(#ink)">${suitShape(identity.suit, indexSuitX, indexSuitY, 15.5)}</g>
+<g data-part="suit" data-id="suit" data-cx=".64" data-cy=".68" fill="url(#ink)">${suitShape(identity.suit, 58, suitY, suitSize)}</g>
+${crown}`;
+}
+
+function backArt(appearance: CardAppearance, colors: Palette, radius: number): string {
+  const metalTone = metal(colors.accent);
+  const line = luminance(colors.back) > 0.45 ? darken(colors.back, 0.45) : metalTone.high;
+  const inner = Math.max(0, radius - 3.2);
+  const image = uploaded(appearance.backImage);
+  let field = '';
+  if (appearance.back === 'image' && image) {
+    field = `<image href="${escape(image)}" x="5" y="5" width="80" height="100" preserveAspectRatio="xMidYMid slice" clip-path="url(#panel)"/>`;
+  } else if (appearance.back === 'crosshatch') {
+    // Guilloché lattice: two families of fine arcs crossing, like engraved banknote work.
+    field = `<rect x="5" y="5" width="80" height="100" fill="url(#lattice)" clip-path="url(#panel)"/>`;
+  } else if (appearance.back === 'diamonds') {
+    field = `<rect x="5" y="5" width="80" height="100" fill="url(#harlequin)" clip-path="url(#panel)"/>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="100" height="140">${artwork}<rect x=".6" y=".6" width="98.8" height="138.8" rx="${radius}" stroke="${border}" stroke-width="1.2" fill="none"/></svg>`;
+  const medallion = appearance.back === 'image' && image ? '' : `<g transform="translate(45 55)">
+<path d="M0-21C6-12 12-6 17 0C12 6 6 12 0 21C-6 12-12 6-17 0C-12-6-6-12 0-21Z" fill="${colors.back}" stroke="${line}" stroke-width=".8"/>
+<path d="M0-15.5C4.4-9 8.6-4.4 12.4 0C8.6 4.4 4.4 9 0 15.5C-4.4 9-8.6 4.4-12.4 0C-8.6-4.4-4.4-9 0-15.5Z" fill="none" stroke="${line}" stroke-opacity=".6" stroke-width=".45"/>
+<g fill="${line}"><g transform="translate(0 -6.2) scale(7)">${SUITS.spades}</g><g transform="rotate(180) translate(0 -6.2) scale(7)">${SUITS.spades}</g><circle r="1.15"/></g>
+</g>`;
+  return `<defs>
+<clipPath id="panel"><rect x="5" y="5" width="80" height="100" rx="${n(inner)}"/></clipPath>
+<radialGradient id="field" cx=".5" cy=".42" r=".8"><stop offset="0" stop-color="${lighten(colors.back, 0.1)}"/><stop offset="1" stop-color="${darken(colors.back, 0.22)}"/></radialGradient>
+<pattern id="lattice" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 5Q2.5 0 5 5T10 5M0 0Q2.5-5 5 0T10 0M0 10Q2.5 5 5 10T10 10M5 0Q0 2.5 5 5T5 10M0 0Q-5 2.5 0 5T0 10M10 0Q5 2.5 10 5T10 10" fill="none" stroke="${line}" stroke-opacity=".34" stroke-width=".42"/><circle cx="5" cy="5" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="0" cy="0" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="10" cy="10" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="10" cy="0" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="0" cy="10" r=".55" fill="${line}" fill-opacity=".5"/></pattern>
+<pattern id="harlequin" width="10" height="13.75" patternUnits="userSpaceOnUse"><path d="M5 0L10 6.875L5 13.75L0 6.875Z" fill="${line}" fill-opacity=".1" stroke="${line}" stroke-opacity=".4" stroke-width=".4"/><circle cx="5" cy="6.875" r=".7" fill="${line}" fill-opacity=".55"/></pattern>
+</defs>
+<g data-body="1"><rect width="90" height="110" rx="${n(radius)}" fill="${colors.paper}"/>
+<rect x="5" y="5" width="80" height="100" rx="${n(inner)}" fill="url(#field)"/>${field}
+<rect x="5" y="5" width="80" height="100" rx="${n(inner)}" fill="none" stroke="${line}" stroke-opacity=".9" stroke-width=".7"/>
+<rect x="8" y="8" width="74" height="94" rx="${n(Math.max(0, inner - 2.4))}" fill="none" stroke="${line}" stroke-opacity=".45" stroke-width=".4"/></g>
+<g data-part="art" data-id="medallion" data-cx=".5" data-cy=".5">${medallion}</g>`;
 }
-export function cardDataUrl(identity: CardIdentity | undefined, appearance: CardAppearance): string {return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cardSvg(identity,appearance))}`;}
+
+export function cardSvg(identity: CardIdentity | undefined, appearance: CardAppearance, options: CardArtOptions = {}): string {
+  const colors = palette(appearance, options);
+  // The theme radius is specified on a 100-unit card; keep that visual proportion here.
+  const radius = Math.min(13, Math.max(0, appearance.borderRadius)) * 0.9;
+  const art = identity ? faceArt(identity, appearance, colors, radius, Boolean(options.fourColor)) : backArt(appearance, colors, radius);
+  const border = `<rect x=".5" y=".5" width="89" height="109" rx="${n(Math.max(0, radius - 0.3))}" fill="none" stroke="${identity ? colors.edge : rgba('#000000', 0.18)}" stroke-width="${identity ? 1 : 0.6}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}">${art}${border}</svg>`;
+}
+
+export function cardDataUrl(identity: CardIdentity | undefined, appearance: CardAppearance, options: CardArtOptions = {}): string {
+  return svgDataUrl(cardSvg(identity, appearance, options));
+}
+
+export const artOptions = (theme: Theme): CardArtOptions => ({ accent: theme.table.trimColor });
+
+/** Resting shadow shared by live cards and animation objects (in the card's own px). */
+export function cardShadow(strength: number, lift = 0): string {
+  const s = Math.min(1, Math.max(0, strength));
+  if (s === 0) return 'none';
+  return `0 ${n(1 + lift * 0.5)}px ${n(1.5 + lift)}px rgba(0,0,0,${n(0.34 * s)}), 0 ${n(4 + lift * 2.4)}px ${n(10 + lift * 5)}px rgba(0,0,0,${n(0.42 * s)})`;
+}
+
 export function createCardElement(card: VisualCard, theme: Theme): HTMLElement {
   const element = document.createElement('div');
-  Object.assign(element.style, {position:'absolute',width:`${card.target.width}px`,height:`${card.target.height}px`, backgroundImage:`url("${cardDataUrl(card.identity,theme.card)}")`,backgroundSize:'100% 100%',borderRadius:`${theme.card.borderRadius}px`,boxShadow:`0 8px 20px rgba(0,0,0,${Math.min(.65,theme.card.shadow)})`, transformStyle:'preserve-3d',willChange:'transform, opacity',pointerEvents:'none'});
-  element.setAttribute('aria-hidden','true'); return element;
+  Object.assign(element.style, {
+    position: 'absolute', width: `${card.target.width}px`, height: `${card.target.height}px`,
+    backgroundImage: `url("${cardDataUrl(card.identity, theme.card, artOptions(theme))}")`, backgroundSize: '100% 100%',
+    borderRadius: `${n(theme.card.borderRadius * 0.9 / CARD_WIDTH * 100)}% / ${n(theme.card.borderRadius * 0.9 / CARD_HEIGHT * 100)}%`,
+    boxShadow: cardShadow(theme.card.shadow), transformStyle: 'preserve-3d', willChange: 'transform, opacity', pointerEvents: 'none',
+  });
+  element.setAttribute('aria-hidden', 'true');
+  return element;
 }

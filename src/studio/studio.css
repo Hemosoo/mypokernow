@@ -8,7 +8,7 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --accent: #edab83;
+  --accent: #dcbc84;
   --muted: #858b88;
   --line: #ffffff0c;
   --panel: #191c1b;
@@ -66,7 +66,7 @@ input[type="color"] {
   cursor: pointer
 }
 ::selection {
-  background: #edab8340;
+  background: #dcbc8440;
   color: #fff
 }
 .studio-app {
@@ -99,7 +99,7 @@ input[type="color"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #e5ac88;
+  background: #d9b886;
   color: #212420;
   border-radius: 11px;
   font-weight: 800;
@@ -113,7 +113,7 @@ input[type="color"] {
   letter-spacing: 0;
   top: -7px;
   right: -5px;
-  color: #e5ac88;
+  color: #d9b886;
   text-shadow: -2px 2px #161817
 }
 .brand-type {
@@ -170,10 +170,10 @@ input[type="color"] {
 }
 .nav-item.active {
   background: #272b27;
-  color: #efb594
+  color: #e3c795
 }
 .nav-item.active svg {
-  filter: drop-shadow(0 0 5px #edab8330)
+  filter: drop-shadow(0 0 5px #dcbc8430)
 }
 .nav-item i {
   position: absolute;
@@ -349,10 +349,10 @@ input[type="color"] {
   background: #6a8b6c
 }
 .save-status.failed {
-  color: #ed967c
+  color: #d6a85f
 }
 .save-status.failed>span {
-  background: #ed967c
+  background: #d6a85f
 }
 .subtle-button {
   display: inline-flex;
@@ -821,7 +821,7 @@ h1 em {
   width: 27px;
   height: 27px;
   border-radius: 5px;
-  background: #efad84;
+  background: #dfbe86;
   color: #292b22
 }
 .play-button svg {
@@ -830,7 +830,7 @@ h1 em {
   stroke-width: 1.5
 }
 .play-button:hover {
-  background: #f8bb94;
+  background: #ecd09c;
   color: #192018
 }
 .icon-button {
@@ -896,8 +896,8 @@ h1 em {
   color: #d6bd97
 }
 .slow-button.active>span {
-  border-color: #edab8350;
-  background: #edab8310
+  border-color: #dcbc8450;
+  background: #dcbc8410
 }
 .event-selector {
   display: flex;
@@ -1004,9 +1004,9 @@ h1 em {
   box-shadow: 0 3px 15px #0002
 }
 .preset-card.selected {
-  border-color: #d8ac7c88;
+  border-color: #d1b27c88;
   background: #23281f;
-  box-shadow: 0 0 0 1px #d8ac7c12
+  box-shadow: 0 0 0 1px #d1b27c12
 }
 .preset-select {
   display: flex;
@@ -1189,7 +1189,7 @@ h1 em {
   border-radius: 50%;
   left: calc(50% - 42px);
   top: 71px;
-  box-shadow: 0 0 8px #d7b18b18
+  box-shadow: 0 0 8px #d4b88c18
 }
 .art-deal-dealer-flick .card-one {
   left: calc(50% - 37px);
@@ -1298,7 +1298,7 @@ h1 em {
   width: 2px;
   height: 7px;
   top: 66px;
-  background: #d7b18b60
+  background: #d4b88c60
 }
 .art-reveal-fragment-assembly .card-three {
   display: none
@@ -1321,7 +1321,7 @@ h1 em {
   height: 53px;
   top: 21px;
   left: calc(50% - 30px);
-  color: #dcae9b
+  color: #d6bf98
 }
 .art-reveal-fragment-assembly .card-two span {
   font-size: 15px;
@@ -1333,7 +1333,7 @@ h1 em {
   position: absolute;
   right: 0;
   bottom: -2px;
-  text-shadow: 0 0 12px #dcae9b22
+  text-shadow: 0 0 12px #d6bf9822
 }
 .art-reveal-crystallization .card-one,.art-reveal-crystallization .card-three {
   display: none
@@ -1553,7 +1553,7 @@ h1 em {
   justify-content: center;
   gap: 8px;
   border-radius: 5px;
-  background: #e6ac84;
+  background: #d8b680;
   color: #2c3326;
   padding: 10px 14px;
   font-size: 9px;
@@ -1561,7 +1561,7 @@ h1 em {
   box-shadow: 0 2px 5px #0001
 }
 .accent-button:hover {
-  background: #f3bd95;
+  background: #e9cc98;
   color: #252d1e
 }
 .accent-button svg {
@@ -1785,14 +1785,14 @@ h1 em {
   color: #9eae94
 }
 .face-style-card.selected {
-  border-color: #d7b18b80;
+  border-color: #d4b88c80;
   background: #242b20
 }
 .face-style-card svg {
   position: absolute;
   right: 8px;
   top: 8px;
-  color: #d7b18b
+  color: #d4b88c
 }
 .helper-text {
   color: #718568;
@@ -1843,7 +1843,7 @@ h1 em {
   color: #6e835f
 }
 .table-theme-card:hover {
-  border-color: #d7b18b40
+  border-color: #d4b88c40
 }
 .quiet-card {
   display: flex;
@@ -1896,7 +1896,7 @@ h1 em {
   position: relative
 }
 .theme-library-card.selected {
-  border-color: #d7b18b80
+  border-color: #d4b88c80
 }
 .theme-library-art {
   height: 113px;
@@ -3217,7 +3217,7 @@ h1 em {
   justify-content: space-between;
   gap: 18px;
   padding: 16px;
-  border: 1px solid #dbab7350;
+  border: 1px solid #d2b07150;
   border-radius: 7px;
   background: #493f2425;
   margin-bottom: 25px
@@ -3308,3 +3308,76 @@ h1 em {
   }
 }
 
+
+/* Live table: the real replica and runtime in a same-origin frame. */
+.preview-mode {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: #121513;
+  border: 1px solid #ffffff0a
+}
+.preview-mode button {
+  padding: 5px 11px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: .4px;
+  color: #7f8b7d
+}
+.preview-mode button.selected {
+  color: #1a150b;
+  background: linear-gradient(180deg, #ecd49f, #c9a463)
+}
+.hand-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  letter-spacing: .4px
+}
+.live-table {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-height: 560px;
+  width: 100%;
+  background: #07090a;
+  overflow: hidden
+}
+.live-table-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  opacity: 0;
+  transition: opacity .6s cubic-bezier(.16, 1, .3, 1)
+}
+.live-table.is-ready .live-table-frame {
+  opacity: 1
+}
+.live-table-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c9b48a;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase
+}
+
+/* One typographic voice with the table: the card-index serif for display type. */
+@font-face { font-family: "PNC Serif"; src: url(/fonts/playfair-display.woff2) format("woff2"); font-weight: 400 900; font-style: normal; font-display: swap }
+@font-face { font-family: "PNC Serif"; src: url(/fonts/playfair-display-italic.woff2) format("woff2"); font-weight: 400 900; font-style: italic; font-display: swap }
+@font-face { font-family: "PNC Sans"; src: url(/fonts/inter.woff2) format("woff2"); font-weight: 400 800; font-style: normal; font-display: swap }
+:root { font-family: "PNC Sans", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif }
+.page-heading h1, .section-heading h2, .inspector-preset h2, .theme-inspector-title {
+  font-family: "PNC Serif", "Playfair Display", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -.01em
+}
+.page-heading h1 em { font-style: italic; font-weight: 500 }

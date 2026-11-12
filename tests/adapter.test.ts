@@ -169,80 +169,45 @@ test('board and table replacements release previous appearance styles and artwor
   assert.equal(after.style.backgroundColor, '');
 });
 
-function legacyCard(rank: string, suit = '♥'): string {
-  return `<div class="card-container"><div class="card"><span class="value">${rank}</span><span class="suit">${suit}</span></div></div>`;
+function siteCard(rank: string, flipped = true): string {
+  return `<div class="card-container ${flipped ? 'flipped' : ''}"><div class="front"></div><div class="card"><span class="value">${rank}</span><span class="suit">h</span></div></div>`;
 }
-
-function legacyTable(boardClass = 'table-cards'): string {
-  return `<div class="table"><div class="${boardClass}"></div><div class="table-player">${legacyCard('A')}${legacyCard('8')}</div><div class="table-player">${legacyCard('K')}${legacyCard('Q')}</div>${'<div class="table-player table-player-seat"></div>'.repeat(8)}</div>`;
+function siteTable(): string {
+  return `<div class="table"><div class="table-cards run-1"></div><div class="table-player table-player-1"><div class="table-player-cards">${siteCard('A')}${siteCard('8')}</div></div><div class="table-player table-player-6"><div class="table-player-cards">${siteCard('K')}${siteCard('Q')}</div></div>${'<div class="table-player table-player-seat"></div>'.repeat(8)}</div>`;
 }
-
-test('corroborated candidate profile resolves nested aliases, wrapper cards, and empty seat placeholders', () => {
-  const doc = installDom();
-  doc.defaultView!.history.replaceState({}, '', '/games/candidate-profile');
-  doc.body.innerHTML = `<div id="table">${legacyTable()}</div>`;
+test('pokernow profile reads face-up wrapper cards and excludes open seats', () => {
+  const doc = installDom(); doc.body.innerHTML = siteTable();
   const selected = extractSnapshot(doc)!;
-  assert(selected);
-  assert.equal(selected.profile, 'legacy-candidate');
-  assert.equal(selected.table.className, 'table', 'nested aliases resolve the coherent inner table');
-  assert.equal(selected.seats.length, 2, 'empty seat placeholders are not participating players');
-  assert.equal(selected.holes.length, 4, 'a wrapper and face represent one card');
-  assert(selected.holes.every((card) => card.source!.matches('.card-container')));
-  assert.equal(selected.holes[0]!.identity!.rank, 'A');
+  assert.equal(selected.profile, 'pokernow'); assert.equal(selected.seats.length, 2);
+  assert.equal(selected.holes.length, 4); assert.equal(selected.holes[0]!.identity!.rank, 'A');
   const events: VisualEventType[] = [];
-  const adapter = new PokerNowAdapter({ onEvent: (event) => events.push(event.type) }, doc);
-  try {
-    adapter.start();
-    doc.querySelector('.table-cards')!.innerHTML = legacyCard('A') + legacyCard('8') + legacyCard('K');
-    adapter.scan();
-    adapter.scan();
-    assert.deepEqual(events, ['TABLE_READY', 'FLOP_REVEALED']);
-  } finally { adapter.stop(); }
+  const adapter = new PokerNowAdapter({ allowAnyLocation: true, onEvent: event => events.push(event.type) }, doc);
+  try { adapter.start(); doc.querySelector('.table-cards')!.innerHTML = siteCard('A') + siteCard('8') + siteCard('K'); adapter.scan(); adapter.scan(); assert.deepEqual(events, ['TABLE_READY', 'FLOP_REVEALED']); }
+  finally { adapter.stop(); }
 });
-
-test('candidate board aliases stay scoped to one table and independent tables remain ambiguous', () => {
+test('unsupported board aliases and independent tables fail open', () => {
   const doc = installDom();
   for (const alias of ['table-community-cards', 'board-cards']) {
-    doc.body.innerHTML = legacyTable(alias);
-    assert.equal(extractSnapshot(doc)!.boardElement.className, alias);
+    doc.body.innerHTML = siteTable().replace('table-cards run-1', alias);
+    assert.equal(extractSnapshot(doc), undefined);
   }
-  doc.body.innerHTML = `<div id="table">${legacyTable()}${legacyTable()}</div>`;
-  assert.equal(extractSnapshot(doc), undefined, 'two independent tables must never be merged');
-  assert.equal(takePresentationSnapshot(doc), undefined, 'appearance also requires an unambiguous table');
-  doc.body.innerHTML = `${legacyTable()}<div class="table"></div>`;
-  assert.equal(takePresentationSnapshot(doc), undefined, 'a second unrecognized table must not be silently discarded');
+  doc.body.innerHTML = siteTable() + siteTable();
+  assert.equal(extractSnapshot(doc), undefined); assert.equal(takePresentationSnapshot(doc), undefined);
 });
-
-test('wrapper transforms and face-down ancestors never turn hidden class values into visible identities', () => {
-  const doc = installDom();
-  doc.body.innerHTML = legacyTable();
-  const cards = doc.querySelectorAll<HTMLElement>('.card-container');
-  cards[0]!.style.transform = 'matrix3d(-1,0,0,0,0,1,0,0,0,0,-1,0,0,0,0,1)';
-  cards[1]!.querySelector('.card')!.classList.add('face-down');
+test('face-down hole cards never expose preloaded identity and folded hands are excluded', () => {
+  const doc = installDom(); doc.body.innerHTML = siteTable();
+  doc.querySelector('.table-player-cards')!.innerHTML = siteCard('Q', false) + siteCard('A', false);
   const snapshot = extractSnapshot(doc)!;
-  assert.equal(snapshot.holes[0]!.identity, undefined);
-  assert.equal(snapshot.holes[1]!.identity, undefined);
+  assert.equal(snapshot.holes[0]!.identity, undefined); assert.equal(snapshot.holes[1]!.identity, undefined);
   assert.equal(snapshot.holes[2]!.identity!.rank, 'K');
+  doc.querySelector('.table-player-cards')!.classList.add('hide-cards');
+  assert.equal(takePresentationSnapshot(doc)!.holes.length, 2);
 });
-
-test('a visibly painted inner back gets custom artwork while unreadable and hidden back surfaces remain native', () => {
-  const doc = installDom();
-  doc.body.innerHTML = legacyTable();
-  const seat = doc.querySelector('.table-player')!;
-  seat.innerHTML = '<div class="card-container"><div class="card card-back"><span class="value" style="display:none">Q</span><span class="suit" style="display:none">♠</span></div></div>' +
-    '<div class="card-container"><div class="card"><span>Unrecognized native face</span><div class="card-back" style="display:none"></div></div></div>' +
-    '<div class="card-container"><div class="card"><span>Another native face</span><div class="card-back" style="transform:matrix3d(-1,0,0,0,0,1,0,0,0,0,-1,0,0,0,0,1)"></div></div></div>';
-  const nativeCards = seat.querySelectorAll('.card-container');
+test('unreadable face-up artwork stays native while explicit backs are eligible', () => {
+  const doc = installDom(); doc.body.innerHTML = siteTable();
+  doc.querySelector('.table-player-cards')!.innerHTML = siteCard('?', true) + siteCard('Q', false);
   const snapshot = takePresentationSnapshot(doc)!;
-  assert.equal(snapshot.holes.length, 3, 'one visible back and two readable cards from the other player are safe');
-  assert.equal(snapshot.holes[0]!.identity, undefined, 'hidden rank and suit remain unread');
-  const presentation = new TablePresentation();
-  try {
-    presentation.apply(snapshot, createDefaultTheme());
-    assert(nativeCards[0]!.querySelector('[data-pnc-owned]'));
-    assert.equal(nativeCards[1]!.querySelector('[data-pnc-owned]'), null);
-    assert.equal(nativeCards[2]!.querySelector('[data-pnc-owned]'), null);
-  } finally { presentation.clear(); }
+  assert.equal(snapshot.holes.length, 3); assert.equal(snapshot.holes[0]!.identity, undefined);
 });
 
 test('a displayed empty zero-height board establishes a baseline before its first flop', () => {
@@ -462,4 +427,14 @@ test('actual adapter and coordinator preserve one flop through artwork leases, o
     if (clearTimeoutDescriptor) Object.defineProperty(globalThis, 'clearTimeout', clearTimeoutDescriptor);
     else Reflect.deleteProperty(globalThis, 'clearTimeout');
   }
+});
+
+test('community identities wait for the site flip even when preloaded in DOM', () => {
+ const doc=installDom();doc.body.innerHTML=siteTable();
+ const board=doc.querySelector('.table-cards')!;
+ board.innerHTML=siteCard('A',false)+siteCard('K',false)+siteCard('Q',false);
+ assert.equal(extractSnapshot(doc),undefined,'A preloaded face-down board must not animate');
+ assert.ok(takePresentationSnapshot(doc)!.board.every(card=>card.identity===undefined),'Only back art is eligible before a flip');
+ for(const card of Array.from(board.children))card.classList.add('flipped');
+ assert.equal(extractSnapshot(doc)!.board.length,3);
 });

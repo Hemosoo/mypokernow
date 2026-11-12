@@ -1,5 +1,5 @@
 import type { Theme, VisualCard } from '../../types';
-import { cardDataUrl, createCardElement } from '../../rendering/cards';
+import { artOptions, cardDataUrl, createCardElement } from '../../rendering/cards';
 import type { Pose, VisualObject } from '../core/types';
 
 export function applyPose(element: HTMLElement, pose: Pose): void {
@@ -40,7 +40,7 @@ export function cardObject(card: VisualCard, theme: Theme, parent: HTMLElement):
 
 export function artworkImage(card: VisualCard, theme: Theme): HTMLImageElement {
   const image = document.createElement('img');
-  image.src = cardDataUrl(card.identity, theme.card);
+  image.src = cardDataUrl(card.identity, theme.card, artOptions(theme));
   image.alt = '';
   image.draggable = false;
   Object.assign(image.style, { display: 'block', position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none' });

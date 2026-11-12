@@ -34,6 +34,18 @@ There is no popup and no in-game settings panel. Switch off customization in the
 
 See [troubleshooting](docs/TROUBLESHOOTING.md). In the installed studio, open **Settings → Check PokerNow connection**. The result distinguishes disabled settings, a missing content script, unsupported table/card markup, and missing uploaded assets. A localhost browser preview has separate settings and is now labeled explicitly.
 
+## Room rehearsal
+
+The studio’s **Rehearse a full hand** link opens `preview.html`, a self-contained replica with authored layout CSS. It runs the extension’s shared Runtime, skin, stage and adapter through a sample hand. Choose a room, play, or reset. This is an offline fixture, not a PokerNow connection.
+
+Cards → Made-hand aura offers an on/off toggle, color and strength for a steady glow around your hole cards when they contribute to a pair or better. Only visible cards and revealed board cards are used; board-only hands, folded/hidden hands and multiple boards do not trigger it. Aura settings travel with the theme.
+
+Table settings include metal trim, inscription and emblem; Settings independently controls moving chips, celebrations, action feedback and ambience. Four new house presets join the original eight: House Pitch, Silk Cascade, Velvet Turnover and River Squeeze. Existing saved assignments are preserved. Font attribution and licenses ship in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md).
+
+## Random animation mode
+
+In Animation Studio, select an event (deal, flop, turn or river), then choose **Random**. Each new event or replay chooses from that event’s compatible presets using the effect’s default tuning. Choices can repeat. Each event has its own assignment; the mode saves and exports with your theme. Global speed and reduced-motion settings still apply.
+
 ## Included effects
 
 | Event | Presets |
@@ -63,7 +75,7 @@ npm run build
 npm run test:browser
 ```
 
-`test:browser` uses an installed Chrome binary, native DevTools protocol over a debugging pipe, local file fixtures, and no automation service. On macOS it finds `/Applications/Google Chrome.app`; elsewhere set `CHROME_PATH` to a Chrome/Chromium executable. Run `build` first. It writes the studio screenshot and verification results to ignored `artifacts/`. These tests prove local behavior, not live PokerNow compatibility or a universal 60 FPS guarantee.
+`test:browser` uses an installed Chrome binary, native DevTools protocol over a debugging pipe, loopback HTTP fixtures, and no automation service. On macOS it finds `/Applications/Google Chrome.app`; elsewhere set `CHROME_PATH` to a Chrome/Chromium executable. Run `build` first. It writes the studio screenshot and verification results to ignored `artifacts/`. These tests prove local behavior, not live PokerNow compatibility or a universal 60 FPS guarantee.
 
 See [TEST_PLAN](docs/TEST_PLAN.md) for live verification steps, performance profiling, and release gates. Current test evidence is in [VERIFICATION](docs/VERIFICATION.md).
 

@@ -14,12 +14,12 @@ test('defaults validate and orphaned selection recovers without deleting themes'
 });
 test('inert theme schema rejects code, remote URLs, nonfinite values, future versions',()=>{
  const theme=createDefaultTheme();
- for(const patch of [{version:2},{script:'alert(1)'},{animations:{...theme.animations,deal:{preset:'reveal.slam',parameters:{}}}},{animations:{...theme.animations,turn:{preset:'reveal.slam',parameters:{force:999}}}},{card:{...theme.card,backImage:'https://remote.test/a.png'}},{card:{...theme.card,shadow:Infinity}},{name:' '},{animations:{...theme.animations,flop:{preset:'flop.triple-spread',parameters:{bad:NaN}}}}]) assert.throws(()=>validateTheme({...theme,...patch}));
+ for(const patch of [{version:99},{script:'alert(1)'},{animations:{...theme.animations,deal:{preset:'reveal.slam',parameters:{}}}},{animations:{...theme.animations,turn:{preset:'reveal.slam',parameters:{force:999}}}},{card:{...theme.card,backImage:'https://remote.test/a.png'}},{card:{...theme.card,shadow:Infinity}},{name:' '},{animations:{...theme.animations,flop:{preset:'flop.triple-spread',parameters:{bad:NaN}}}}]) assert.throws(()=>validateTheme({...theme,...patch}));
  assert.equal(validateTheme({...theme,name:'  Saved  '}).name,'Saved');
 });
 test('recognized version migration preserves appearance and rejects unknown fields',()=>{
  const theme=createDefaultTheme();const old={...theme,version:0,createdAt:undefined,updatedAt:undefined};
- assert.equal(validateTheme(old).version,1);assert.equal(validateTheme(old).table.feltColor,theme.table.feltColor);
+ assert.equal(validateTheme(old).version,2);assert.equal(validateTheme(old).table.feltColor,theme.table.feltColor);
  assert.deepEqual(migrateTheme(theme),theme);
 });
 test('portable JSON round-trip regenerates ID, preserves assignments and rejects malformed envelopes',async()=>{
@@ -37,9 +37,9 @@ test('asset envelope rejects disguised executable data and invalid content signa
 test('all 52 visible identities render self-contained correct SVG, backs never include ranks',()=>{
  const appearance=createDefaultTheme().card;
  for(const suit of ['hearts','diamonds','clubs','spades'] as Suit[])for(const rank of ['A','2','3','4','5','6','7','8','9','10','J','Q','K'] as Rank[]) {
-  const svg=cardSvg({rank,suit},appearance);assert.ok(svg.includes('viewBox="0 0 100 140"'));assert.ok(svg.includes(`>${rank}</text>`));assert.ok(!svg.includes('<script'));assert.ok(cardDataUrl({rank,suit},appearance).startsWith('data:image/svg+xml;'));
+  const svg=cardSvg({rank,suit},appearance);assert.ok(svg.includes('viewBox="0 0 90 110"'));assert.ok(svg.includes('data-part="rank"'));assert.ok(svg.includes('<path'));assert.ok(!svg.includes('<script'));assert.ok(cardDataUrl({rank,suit},appearance).startsWith('data:image/svg+xml;'));
   const regions=cardSemanticRegions({rank,suit});assert.ok(regions.some(r=>r.kind==='rank'));assert.ok(regions.some(r=>r.kind==='suit'));
-  if(!['A','J','Q','K'].includes(rank))assert.equal(regions.filter(r=>r.id.startsWith('pip-')).length,Number(rank));
+  assert.ok(regions.every(r=>r.x>=0&&r.y>=0&&r.x+r.width<=1&&r.y+r.height<=1));
  }
  const back=cardSvg(undefined,appearance);assert.ok(!back.includes('<text'));assert.ok(back.includes('pattern'));
 });
@@ -56,4 +56,16 @@ test('compressed raster headers are bounded before decode, preventing huge image
  const webp=new Uint8Array(30);webp.set([86,80,56,88],12);webp[24]=255;webp[25]=255;webp[26]=255;
  assert.throws(()=>validateRasterDimensions(webp,'image/webp'),/dimensions/);
  pngData.setUint32(16,1024);pngData.setUint32(20,1024);validateRasterDimensions(png,'image/png');
+});
+
+test('random assignments round-trip on all streets and reject effect-specific tuning',async()=>{
+ const theme=createDefaultTheme();
+ const {resolvePreset}=await import('../src/animation/registry');
+ for(const street of ['deal','flop','turn','river'] as const){
+  theme.animations[street]={preset:'random',parameters:{}};
+  for(const sample of [0,.25,.5,.999999])assert.ok(resolvePreset('random',street,()=>sample)!.supportedEvents.includes(street));
+ }
+ assert.deepEqual(validateTheme(theme).animations,theme.animations);
+ assert.deepEqual((await importTheme(await exportTheme(theme))).animations,theme.animations);
+ assert.throws(()=>validateTheme({...theme,animations:{...theme.animations,turn:{preset:'random',parameters:{force:1}}}}));
 });

@@ -1,6 +1,7 @@
 import { AnimationCoordinator } from '../src/animation/core/coordinator';
 import { presets, getPreset } from '../src/animation/registry';
 import { createDefaultTheme } from '../src/themes/defaults';
+import { cardObject } from '../src/animation/primitives/objects';
 import { cardDataUrl } from '../src/rendering/cards';
 import { eventForStreet } from '../src/types';
 import type { CardIdentity, Street, VisualEvent } from '../src/types';
@@ -14,7 +15,7 @@ async function leased(input:VisualEvent):Promise<void>{
   await wait(10);
  }
 }
-const theme=createDefaultTheme();
+const theme=createDefaultTheme();theme.animations.flop={preset:'flop.triple-spread',parameters:{}};
 const scene=document.createElement('main');
 scene.style.cssText='position:fixed;inset:40px;background:#183c35;border-radius:180px;border:18px solid #292a35';
 document.body.style.cssText='background:#101219;color:#fff;margin:0';
@@ -39,6 +40,28 @@ function event(street:Street):VisualEvent {
   const rect=source.getBoundingClientRect();return {id:`${street}-${index}`,identity,source,seatId:`seat-${seat}`,round,target:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}};
  });
  return {id:`browser-${generation++}`,type:eventForStreet[street],cards,timestamp:Date.now(),origin:{x:innerWidth*.45,y:innerHeight*.3,z:0}};
+}
+async function assemblyFrames() {
+ const input=event('turn'), card=input.cards[0]!;
+ const layer=document.createElement('div');
+ layer.style.cssText='position:fixed;inset:0;pointer-events:none;perspective:1100px;transform-style:preserve-3d';
+ host.append(layer);
+ const preset=getPreset('reveal.fragment-assembly')!;
+ const parameters=Object.fromEntries(preset.parameters.map(p=>[p.key,p.default]));
+ const tracks=preset.build({event:input,theme,parameters,layer,intensity:1,center:{x:card.target.x+card.target.width/2,y:card.target.y+card.target.height/2,z:0},card:c=>cardObject(c,theme,layer)});
+ await Promise.all(Array.from(layer.querySelectorAll('img')).map(image=>image.decode()));
+ const sample=(t:number)=>{
+  for(const track of tracks)track.update(t);
+  const body=layer.querySelector<HTMLElement>('[data-pnc-semantic="card-body"]')!;
+  const complete=layer.querySelector<HTMLElement>('[data-pnc-card]')!;
+  const bounds=body.getBoundingClientRect(), resting=complete.getBoundingClientRect();
+  for(const key of ['x','y','width','height'] as const) require(Math.abs(bounds[key]-resting[key])<.1,`Assembly body changes ${key} at ${t}`);
+  for(const image of layer.querySelectorAll('img')) require(decodeURIComponent(image.src).includes('preserveAspectRatio="none"'),'Semantic aspect ratio differs from card');
+  return {t,width:bounds.width,height:bounds.height};
+ };
+ card.source!.style.setProperty('visibility','hidden','important');
+ const frames=[.8,.94,.96,.984,.985,.999,1].map(sample);
+ return {frames,sample,clear:()=>{layer.remove();card.source!.style.setProperty('visibility','visible','important');}};
 }
 async function runAll(){
  const result:{preset:string;objects:number;duration:number}[]=[];
@@ -67,4 +90,4 @@ async function runAll(){
  require(failed.cards.every(c=>c.source?.style.visibility==='visible'),'preparation error stranded source');
  return result;
 }
-(globalThis as typeof globalThis & {__pncTest:unknown}).__pncTest={runAll,engine,event,theme,presets};
+(globalThis as typeof globalThis & {__pncTest:unknown}).__pncTest={runAll,assemblyFrames,engine,event,theme,presets};

@@ -1,7 +1,7 @@
 import type { AnimationPreset } from '../../core/types';
 import { semanticArtwork } from '../../fragments/semantic';
-import { baseElement, cardObject, object, pulse } from '../../primitives/objects';
-import { clamp, envelope, mix, noise, range, rectCenter, smooth, smoother } from '../../primitives/motion';
+import { baseElement, cardObject, object } from '../../primitives/objects';
+import { clamp, mix, noise, range, smooth, smoother } from '../../primitives/motion';
 import { commonParameters, parameter, track } from '../shared';
 
 export const fragmentAssembly: AnimationPreset = {
@@ -14,7 +14,7 @@ export const fragmentAssembly: AnimationPreset = {
   build(context) {
     const p = context.parameters;
     return context.event.cards.slice(0, 1).flatMap(card => {
-      const center = rectCenter(card.target), parent = object(baseElement(card, context.layer));
+      const parent = object(baseElement(card, context.layer));
       parent.set({ x: card.target.x, y: card.target.y });
       const components = semanticArtwork(card, context.theme, parent.element), complete = cardObject(card, context.theme, parent.element);
       const tracks = [track(t => complete.set({ x: 0, y: 0, opacity: t >= 0.985 ? 1 : 0 }))];
@@ -27,7 +27,8 @@ export const fragmentAssembly: AnimationPreset = {
         tracks.push(track(t => {
           if (isBody) {
             const u = smoother(range(t, start, 0.96));
-            component.visual.set({ x: 0, y: card.target.height * 0.08 * (1 - u), z: -12 * (1 - u), scale: mix(0.96, 1, u),
+            // Materialize at final size: no perspective expansion or scale jump.
+            component.visual.set({ x: 0, y: 0, z: 0, scale: 1,
               opacity: t >= 0.985 ? 0 : u });
             component.visual.element.style.zIndex = '1';
             return;
@@ -46,12 +47,6 @@ export const fragmentAssembly: AnimationPreset = {
           component.visual.element.style.zIndex = String(20 + index);
         }));
       });
-      const ring = pulse(context.layer, center.x, center.y, card.target.width * 1.3, card.target.height * 1.15, '#d8c5ff');
-      tracks.push(track(t => {
-        const u = range(t, 0.91, 1);
-        ring.set({ x: center.x - card.target.width * 1.3 / 2, y: center.y - card.target.height * 1.15 / 2,
-          scale: mix(0.92, 1.14, u), opacity: envelope(u) * p.accent! * 0.28 * context.intensity });
-      }));
       return tracks;
     });
   },

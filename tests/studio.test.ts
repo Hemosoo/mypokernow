@@ -26,7 +26,7 @@ test('Studio mounts, runs all eight through the actual coordinator, persists ass
  const nav=async(text:string)=>{const button=[...document.querySelectorAll<HTMLButtonElement>('.nav-item')].find(b=>b.textContent===text)!;assert.ok(button);await act(async()=>{button.click();});};
  try {
   await act(async()=>{root.render(createElement(App));await wait(30);});await act(async()=>{await wait(30);});
-  assert.equal(document.querySelectorAll('.preset-card').length,8);assert.equal(document.querySelectorAll('.player-seat').length,6);
+  assert.equal(document.querySelectorAll('.preset-card').length,12);assert.equal(document.querySelectorAll('.player-seat').length,6);
   assert.match(document.querySelector('.studio-context')!.textContent!, /Browser preview.*changes stay here/);
   for(const preset of presets) {
    await click(`[aria-label="Preview ${preset.name}"]`);
@@ -35,7 +35,13 @@ test('Studio mounts, runs all eight through the actual coordinator, persists ass
   }
   await act(async()=>{await wait(450);});
   const stored=validateLibrary(JSON.parse(localStorage.getItem('pokernow-customizer.library.v1')!));
-  assert.equal(stored.themes[0].animations.deal.preset,'deal.orbit');assert.equal(stored.themes[0].animations.flop.preset,'flop.crystal-spread');
+  assert.equal(stored.themes[0].animations.deal.preset,'deal.pitch');assert.equal(stored.themes[0].animations.flop.preset,'flop.cascade');
+  await click('[aria-label="Select Random"]');
+  assert.equal(document.querySelector('[aria-label="Select Random"]')?.getAttribute('aria-pressed'),'true');
+  await click('[aria-label="Replay animation"]');
+  assert.equal(runs.at(-1),'random','Replay must use the current random assignment');
+  await act(async()=>{await wait(450);});
+  assert.equal(validateLibrary(JSON.parse(localStorage.getItem('pokernow-customizer.library.v1')!)).themes[0].animations.turn.preset,'random');
   await nav('Themes');const before=document.querySelectorAll('.theme-library-card').length;
   await click('.section-heading .accent-button');assert.equal(document.querySelectorAll('.theme-library-card').length,before+1);
   const duplicate=[...document.querySelectorAll<HTMLButtonElement>('.button-row button')].find(b=>b.textContent?.includes('Duplicate'))!;
@@ -63,7 +69,7 @@ test('Studio mounts, runs all eight through the actual coordinator, persists ass
   root=createRoot(document.getElementById('root')!);await act(async()=>{root.render(createElement(App));});await act(async()=>{await wait(450);});
   assert.ok(document.querySelector('.recovery-banner'));assert.equal(localStorage.getItem(key),broken,'Invalid data was overwritten without recovery');
   await click('.recovery-banner .accent-button');await act(async()=>{await wait(450);});
-  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(validateLibrary(JSON.parse(localStorage.getItem(key)!)).version,1);
+  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(validateLibrary(JSON.parse(localStorage.getItem(key)!)).version,2);
 
   // Uploaded assets can take longer than the old 80 ms preview timer. A preset
   // must wait for the exact resolved theme, then play instead of being cancelled.

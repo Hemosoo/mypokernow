@@ -1,3 +1,4 @@
+import { signaturePresets } from '../presets/signature';
 import type { Street } from '../../types';
 import type { AnimationPreset } from '../core/types';
 import { dealerFlick } from '../presets/deal/dealer-flick';
@@ -9,10 +10,18 @@ import { slam } from '../presets/reveal/slam';
 import { fragmentAssembly } from '../presets/reveal/fragment-assembly';
 import { crystallization } from '../presets/reveal/crystallization';
 
-export const presets: AnimationPreset[] = [dealerFlick, orbitDeal, tripleSpread, tripleOrbit, crystalSpread, slam, fragmentAssembly, crystallization];
+export const presets: AnimationPreset[] = [dealerFlick, orbitDeal, tripleSpread, tripleOrbit, crystalSpread, slam, fragmentAssembly, crystallization, ...signaturePresets];
 const byId = new Map(presets.map(preset => [preset.id, preset]));
 export const getPreset = (id: string): AnimationPreset | undefined => byId.get(id);
 export const presetsForStreet = (street: Street): AnimationPreset[] => presets.filter(preset => preset.supportedEvents.includes(street));
+
+/** Resolve once per event; random mode never mixes incompatible streets. */
+export function resolvePreset(id: string, street: Street, random: () => number = Math.random): AnimationPreset | undefined {
+  const compatible = presetsForStreet(street);
+  if (id === 'random') return compatible[Math.floor(random() * compatible.length)];
+  const preset = getPreset(id);
+  return preset?.supportedEvents.includes(street) ? preset : compatible[0];
+}
 
 /** Contributions only register compiled implementations; imported themes never become code. */
 export function registerPreset(preset: AnimationPreset): void {

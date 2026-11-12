@@ -41,7 +41,7 @@ function environment(deferredDecode = false) {
   const warn = console.warn;
   console.warn = () => { warnings++; };
   const host = document.createElement('div'); document.body.append(host);
-  const theme = createDefaultTheme();
+  const theme = createDefaultTheme(); theme.animations.flop = { preset: 'flop.triple-spread', parameters: {} };
   let eventId = 0;
   const fixture = (): VisualEvent => {
     const cards = Array.from({ length: 3 }, (_, index) => {
@@ -180,22 +180,24 @@ test('system reduced motion and host/source detachment fail open immediately', a
   } finally { env.close(); }
 });
 
-test('semantic layers contain actual complete rank/suit/pip groups and one coherent court', () => {
+test('semantic layers preserve jumbo index, suits, gradients and coherent crown', () => {
   const env = environment();
   try {
     for (const rank of ['A', '2', '7', '8', '10', 'J', 'Q', 'K'] as Rank[]) {
       const card = { id: rank, identity: { rank, suit: 'hearts' as const }, target: { x: 200, y: 200, width: 70, height: 98 } };
       const layers = semanticArtwork(card, env.theme, env.host);
-      assert.equal(layers.filter(layer => layer.kind === 'rank').length, 2);
+      assert.equal(layers.filter(layer => layer.kind === 'rank').length, 1);
       const court = ['J', 'Q', 'K'].includes(rank);
       assert.equal(layers.filter(layer => layer.kind === 'art').length, court ? 1 : 0);
-      assert.equal(layers.filter(layer => layer.id.startsWith('pip-')).length, court ? 0 : rank === 'A' ? 1 : Number(rank));
+      assert.equal(layers.filter(layer => layer.kind === 'suit').length, 2);
       for (const layer of layers) {
         const src = layer.visual.element.querySelector('img')!.src;
         const svg = new DOMParser().parseFromString(decodeURIComponent(src.split(',').slice(1).join(',')), 'image/svg+xml');
         assert.equal(svg.querySelector('parsererror'), null);
-        if (layer.kind === 'rank') assert.equal(svg.querySelector('text')!.textContent, rank);
-        if (layer.kind === 'body') { assert.equal(svg.querySelector('text'), null); assert.equal(svg.querySelector('g'), null); }
+        assert.ok(layer.center.x >= 0 && layer.center.x <= 1 && layer.center.y >= 0 && layer.center.y <= 1);
+        if (layer.kind !== 'body') { assert.equal(svg.querySelectorAll('[data-part]').length, 1); assert.ok(svg.querySelector('path')); assert.ok(svg.querySelector('#ink')); }
+        else assert.equal(svg.querySelector('[data-part]'), null);
+        if (layer.kind === 'body') assert.ok(svg.querySelector('[data-body]'));
         if (layer.id === 'rank-bottom') assert.match(svg.querySelector('g g')!.getAttribute('transform')!, /rotate\(180/);
       }
       env.host.replaceChildren();
@@ -208,4 +210,28 @@ test('overlapping reusable sequence segments cover one synchronized parent clock
   const tracks = sequence({ tracks: base }, { tracks: base, overlap: 0.2 });
   assert.equal(tracks[0]!.start, 0); assert.ok(tracks[1]!.start < tracks[0]!.end);
   assert.ok(Math.abs(tracks[1]!.end - 1) < 1e-9);
+});
+
+test('random mode chooses once per new event from compatible effects with default tuning', async () => {
+  const env = environment(), originalRandom = Math.random;
+  try {
+    env.theme.animations.flop = { preset: 'random', parameters: {} };
+    const { presetsForStreet } = await import('../src/animation/registry');
+    const candidates = presetsForStreet('flop');
+    let rolls = 0;
+    Math.random = () => { rolls++; return 0; };
+    const event = env.fixture();
+    const first = env.engine.play(event, env.theme);
+    assert.equal(env.host.querySelector<HTMLElement>('[data-pnc-preset]')!.dataset.pncPreset, candidates[0]!.id);
+    await env.engine.play(event, env.theme).finished;
+    assert.equal(rolls, 1, 'duplicate events must not re-roll');
+    first.cancel(); await first.finished;
+    Math.random = () => { rolls++; return .999999; };
+    const next = env.engine.play(env.fixture(), env.theme);
+    assert.equal(env.host.querySelector<HTMLElement>('[data-pnc-preset]')!.dataset.pncPreset, candidates.at(-1)!.id);
+    await env.flush(); env.step(300); next.finish(); await next.finished;
+    assert.equal(rolls, 2);
+    assert.equal(env.warnings, 0);
+    assert.equal(env.host.childElementCount, 0);
+  } finally { Math.random = originalRandom; env.close(); }
 });

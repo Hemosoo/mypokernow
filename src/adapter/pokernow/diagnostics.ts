@@ -19,8 +19,8 @@ export function inspectLayout(document:Document):ObservedLayout {
  return {tableCount:0,boardCount:0,seatCount:0,cardCount:0};
 }
 export function describeUnsupported(layout:ObservedLayout,appearanceActive:boolean):string {
- if(layout.tableCount===0)return 'Content script connected, but no supported table element was found. This page layout needs an adapter update.';
- if(layout.tableCount>1)return 'Multiple possible table elements were found; customization is paused to avoid changing the wrong area.';
+ if(layout.tableCount===0)return 'Content script connected and the skin is loaded, but no table is on the page yet.';
+ if(layout.tableCount>1)return 'Multiple possible table elements were found; card effects are paused to avoid following the wrong one.';
  const prefix=appearanceActive?'Table appearance is active. ':'';
  if(layout.boardCount===0)return prefix+'The community board markup was not recognized, so card effects are paused.';
  if(layout.boardCount>1)return prefix+'Multiple community boards are unsupported for card effects.';

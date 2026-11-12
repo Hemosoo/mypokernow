@@ -1,6 +1,6 @@
 import type { AnimationPreset } from '../../core/types';
-import { object, pulse } from '../../primitives/objects';
-import { clamp, envelope, mix, range, rectCenter, smooth, smoother } from '../../primitives/motion';
+import { object } from '../../primitives/objects';
+import { clamp, mix, range, rectCenter, smooth, smoother } from '../../primitives/motion';
 import { commonParameters, parameter, settleObject, track } from '../shared';
 
 export const slam: AnimationPreset = {
@@ -19,14 +19,7 @@ export const slam: AnimationPreset = {
       Object.assign(focus.style, { position: 'absolute', left: '0', top: '0', width: `${width * 3.4}px`, height: `${height * 1.5}px`,
         borderRadius: '50%', background: 'radial-gradient(ellipse,rgba(4,7,14,.6),rgba(4,7,14,0) 70%)', pointerEvents: 'none' });
       context.layer.prepend(focus);
-      const focusObject = object(focus), ring = pulse(context.layer, center.x, center.y, width * 1.8, height * 0.65, '#aaf4f0');
-      const sparks = Array.from({ length: 7 }, () => {
-        const spark = document.createElement('div');
-        Object.assign(spark.style, { position: 'absolute', width: `${Math.max(2, width * 0.045)}px`, height: `${height * 0.07}px`,
-          borderRadius: '2px', background: '#d6fffa', pointerEvents: 'none', opacity: '0', boxShadow: '0 0 6px #9ae5db' });
-        context.layer.append(spark);
-        return object(spark);
-      });
+      const focusObject = object(focus);
       return [track(t => {
         const drop = range(t, p.anticipation!, impact), descent = drop ** 3;
         const anticipation = smoother(range(t, 0, p.anticipation!));
@@ -43,15 +36,7 @@ export const slam: AnimationPreset = {
         visual.element.style.filter = `drop-shadow(0 ${mix(4, 22, heightEnvelope)}px ${mix(8, 30, heightEnvelope)}px rgba(0,0,0,${mix(0.28, 0.12, heightEnvelope)}))`;
         focusObject.set({ x: center.x - width * 1.7, y: center.y - height * 0.75,
           opacity: t < impact ? smooth(range(t, 0, 0.17)) * (1 - smooth(range(t, 0.59, impact))) * 0.27 : 0 });
-        ring.set({ x: center.x - width * 0.9, y: center.y - height * 0.325,
-          scale: mix(0.45, 2.1, Math.sqrt(response)), opacity: t < impact ? 0 : (1 - response) ** 2 * p.shockwave! * force * 0.47 });
-        sparks.forEach((spark, index) => {
-          const angle = (index / sparks.length) * Math.PI * 2 + 0.21;
-          const distance = width * (0.45 + 1.3 * response) * force;
-          spark.set({ x: center.x + Math.cos(angle) * distance, y: center.y + Math.sin(angle) * distance * 0.43,
-            rz: angle * 180 / Math.PI + 90, scale: 1 - response * 0.8,
-            opacity: t < impact ? 0 : envelope(range(response, 0, 0.65)) * 0.65 * p.shockwave! });
-        });
+
       })];
     });
   },

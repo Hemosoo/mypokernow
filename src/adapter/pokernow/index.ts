@@ -1,15 +1,20 @@
 import type { VisualEvent } from '../../types';
 import { VisualDiffer } from './diff';
 import { OWNED_SELECTOR } from './selectors';
-import { takePresentationSnapshot, takeSnapshot, type TablePresentationSnapshot, type TableSnapshot } from './snapshot';
+import { locateTable, takePresentationSnapshot, takeSnapshot, type TablePresentationSnapshot, type TableSnapshot } from './snapshot';
+import { readTableState, type TableState } from './table-state';
 
 export interface PokerNowAdapterOptions {
   onEvent(event: VisualEvent): void;
   onPresentation?(snapshot: TablePresentationSnapshot | undefined): void;
   onSnapshot?(snapshot: TableSnapshot): void;
+  /** Seats, bets and pot as currently shown; undefined when no live table is recognised. */
+  onTable?(state: TableState | undefined): void;
   onInvalidate?(): void;
   onUnsupported?(): void;
   allowFixture?: boolean;
+  /** The studio's preview table lives outside a /games/ address. */
+  allowAnyLocation?: boolean;
 }
 
 export class PokerNowAdapter {
@@ -41,8 +46,9 @@ export class PokerNowAdapter {
     if (this.active) return;
     this.active = true;
     this.pathname = this.document.location.pathname;
-    this.observer = new MutationObserver((mutations) => {
-      if (mutations.every((mutation) => this.ownedMutation(mutation))) return;
+    const Observer = (this.document.defaultView ?? window).MutationObserver ?? MutationObserver;
+    this.observer = new Observer((mutations) => {
+      if (mutations.every((mutation) => this.ownedMutation(mutation) || this.clockTick(mutation))) return;
       this.schedule();
     });
     this.observer.observe(this.document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'] });
@@ -72,40 +78,52 @@ export class PokerNowAdapter {
     window.removeEventListener('popstate', this.invalidate);
     this.options.onInvalidate?.();
     this.options.onPresentation?.(undefined);
+    this.options.onTable?.(undefined);
     this.last = undefined;
     this.unsupportedSince = 0;
     this.differ.baseline();
   }
 
   private ownedMutation(mutation: MutationRecord): boolean {
-    const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+    const target = mutation.target.nodeType === 1 ? mutation.target as Element : mutation.target.parentElement;
     if (target?.closest(OWNED_SELECTOR)) return true;
     if (mutation.type === 'childList') {
-      const changed = [...mutation.addedNodes, ...mutation.removedNodes];
-      return changed.length > 0 && changed.every((node) => node instanceof Element && node.matches(OWNED_SELECTOR));
+      const changed = [...Array.from(mutation.addedNodes), ...Array.from(mutation.removedNodes)];
+      return changed.length > 0 && changed.every((node) => node.nodeType === 1 && (node as Element).matches(OWNED_SELECTOR));
     }
     return false;
+  }
+
+  /** The action clock repaints its width many times a second; that alone changes nothing we present. */
+  private clockTick(mutation: MutationRecord): boolean {
+    return mutation.type === 'attributes' && mutation.attributeName === 'style' &&
+      Boolean((mutation.target as Element).parentElement?.classList.contains('time-to-talk'));
   }
 
   private schedule(): void {
     if (!this.active || this.document.hidden || this.timer) return;
     // A bounded batching window avoids three unrelated one-card flop effects.
-    this.timer = setTimeout(() => { this.timer = undefined; this.scan(); }, 100);
+    this.timer = setTimeout(() => { this.timer = undefined; this.scan(); }, 45);
   }
 
   /** Public for deterministic local fixture verification; normal callers use start/stop. */
   scan(): void {
     if (!this.active || this.document.hidden) return;
-    if (!this.options.allowFixture && !/^\/games\/[^/]+/.test(this.document.location.pathname)) {
+    if (!this.options.allowFixture && !this.options.allowAnyLocation && !/^\/games\/[^/]+/.test(this.document.location.pathname)) {
       if (this.last) this.options.onInvalidate?.();
       this.last = undefined;
       this.differ.baseline();
       this.options.onPresentation?.(undefined);
+      this.options.onTable?.(undefined);
       this.options.onUnsupported?.();
       return;
     }
     try {
       this.options.onPresentation?.(takePresentationSnapshot(this.document, this.identityCache, this.options.allowFixture ?? false));
+      if (this.options.onTable) {
+        const located = locateTable(this.document, this.options.allowFixture ?? false);
+        this.options.onTable(located?.profile.id === 'pokernow' ? readTableState(located.table) : undefined);
+      }
       if (this.unsupportedSince && Date.now() - this.unsupportedSince > 600) {
         this.last = undefined;
         this.differ.baseline();
@@ -137,6 +155,7 @@ export class PokerNowAdapter {
     } catch {
       this.options.onInvalidate?.();
       this.options.onPresentation?.(undefined);
+      this.options.onTable?.(undefined);
       this.options.onUnsupported?.();
     }
   }
