@@ -20,6 +20,8 @@ export interface PuppyPose {
   sit: number;
   /** 0 … 1 play bow: chest down, rear up. */
   bow: number;
+  /** 0 … 1 lying down: belly on the felt, front paws out, head resting on them. */
+  lie: number;
   headYaw: number; headPitch: number; headTilt: number;
   /** Ear flop, each side (positive swings out). */
   earL: number; earR: number;
@@ -37,7 +39,7 @@ export interface PuppyPose {
 }
 
 export const neutralPose = (): PuppyPose => ({
-  lift: 0, spin: 0, bob: 0, stretch: 1, lean: 0, roll: 0, sit: 0, bow: 0, headYaw: 0, headPitch: 0, headTilt: 0, earL: 0, earR: 0,
+  lift: 0, spin: 0, bob: 0, stretch: 1, lean: 0, roll: 0, sit: 0, bow: 0, lie: 0, headYaw: 0, headPitch: 0, headTilt: 0, earL: 0, earR: 0,
   mouth: 0, tongue: 0, blink: 0, tailWag: 0, tailLift: 0, gait: 0, stride: 0, pawL: 0, pawR: 0, reachL: 0, reachR: 0, scratch: 0, scratchPhase: 0,
 });
 
@@ -108,6 +110,36 @@ export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
   };
   hind(legs.bl, g + Math.PI, 0);
   hind(legs.br, g, pose.scratch);
+
+  // Lying down blends over everything else: belly low and level, front paws out
+  // in front, hind legs tucked, head lowered onto the paws, tail curled round.
+  const lie = Math.max(0, Math.min(1, pose.lie));
+  if (lie > 0) {
+    const k = lie * lie * (3 - 2 * lie);
+    const mixTo = (from: number, to: number): number => from + (to - from) * k;
+    body.position.y = mixTo(body.position.y, 0.2 + pose.bob * 0.4);
+    body.position.z = mixTo(body.position.z, 0);
+    body.rotation.x = mixTo(body.rotation.x, 0.04);
+    body.rotation.z = mixTo(body.rotation.z, 0.08);
+    neck.rotation.x = mixTo(neck.rotation.x, 0.16);
+    neck.rotation.y = mixTo(neck.rotation.y, 0.28);
+    head.rotation.z = mixTo(head.rotation.z, 0.42);
+    head.rotation.y = mixTo(head.rotation.y, 0.2);
+    for (const leg of [legs.fl, legs.fr]) {
+      leg.hip.rotation.x = mixTo(leg.hip.rotation.x, -1.42);
+      leg.knee.rotation.x = mixTo(leg.knee.rotation.x, 0.12);
+      leg.paw.rotation.x = mixTo(leg.paw.rotation.x, 1.2);
+    }
+    for (const leg of [legs.bl, legs.br]) {
+      leg.hip.rotation.x = mixTo(leg.hip.rotation.x, -1.25);
+      leg.knee.rotation.x = mixTo(leg.knee.rotation.x, 2.3);
+      leg.paw.rotation.x = mixTo(leg.paw.rotation.x, -1.0);
+    }
+    tail.forEach((segment, index) => {
+      segment.rotation.y = mixTo(segment.rotation.y, 0.5 + index * 0.18);
+      segment.rotation.x = mixTo(segment.rotation.x, index === 0 ? 0.35 : 0.05);
+    });
+  }
 
   // Shadow tightens and darkens as the puppy nears the felt.
   const height = Math.max(0, pose.lift);

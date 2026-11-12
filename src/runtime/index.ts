@@ -1,15 +1,19 @@
 import { PokerNowAdapter } from '../adapter/pokernow';
 import { describeUnsupported, inspectLayout, type ObservedLayout } from '../adapter/pokernow/diagnostics';
-import { AnimationCoordinator, type AnimationHandle } from '../animation/core/coordinator';
+import { AnimationCoordinator, warmArtwork, type AnimationHandle } from '../animation/core/coordinator';
 import { Skin } from '../skin';
 import { Stage } from '../stage/stage';
 import type { Settings, Theme, VisualEvent } from '../types';
 import type { Companion, CompanionModule } from '../puppy/types';
 import { planForEvent } from '../puppy/plan';
+import { isCompanionPreset } from '../animation/presets/puppy';
 
 /** Marks a card the extension has finished deciding about; see `pnc-hold` in the skin. */
 const RELEASED = 'data-pnc-released';
-const release = (card: HTMLElement): void => { if (card.isConnected && !card.hasAttribute(RELEASED)) card.setAttribute(RELEASED, ''); };
+/** What a card shows: a released card that starts showing something else is held again. */
+const showing = (card: Element): string => `${card.classList.contains('flipped') ? 'u' : 'd'}${card.classList.contains('not-visible') ? 'n' : 'v'}`
+  + `${card.querySelector('.value')?.textContent ?? ''}${card.querySelector('.suit')?.textContent ?? ''}`;
+const release = (card: HTMLElement): void => { if (card.isConnected && !card.hasAttribute(RELEASED)) card.setAttribute(RELEASED, showing(card)); };
 
 export type RuntimeState = 'starting' | 'ready' | 'unsupported' | 'disabled' | 'error';
 
@@ -99,6 +103,7 @@ export class Runtime {
       this.stage.configure(undefined, settings?.effects ?? { chips: false, celebrations: false, moments: false, ambience: false }, true);
       this.skin.clear();
       root.removeAttribute('data-pnc-cards');
+      this.watchCards(false);
       this.appearanceActive = false;
       this.releaseCompanion();
       return;
@@ -107,8 +112,8 @@ export class Runtime {
     this.stage.configure(this.theme, settings.effects, settings.reducedMotion);
     this.syncCompanion(this.theme, settings);
     // Cards hold for a beat on entry only while an animation could take them over.
-    if (settings.reducedMotion) root.removeAttribute('data-pnc-cards');
-    else root.setAttribute('data-pnc-cards', 'animated');
+    if (settings.reducedMotion) { root.removeAttribute('data-pnc-cards'); this.watchCards(false); }
+    else { root.setAttribute('data-pnc-cards', 'animated'); this.watchCards(true); warmArtwork(this.theme); }
     this.adapter.start();
     this.adapter.scan();
   }
@@ -120,20 +125,47 @@ export class Runtime {
 
   /** Create, update or remove the table companion to match the theme. */
   private syncCompanion(theme: Theme, settings: Settings): void {
-    if (!theme.companion || !this.options.loadCompanion) { this.releaseCompanion(); return; }
-    if (this.companion) { this.companion.configure(theme, settings); return; }
+    // The Puppy room keeps its puppy on the table. Any other room that uses a puppy card
+    // animation gets a visitor, who appears for those animations only and then leaves.
+    const wanted = Boolean(theme.companion) || Object.values(theme.animations).some((assignment) => isCompanionPreset(assignment.preset));
+    if (!wanted || !this.options.loadCompanion) { this.releaseCompanion(); return; }
+    if (this.companion) { this.companion.configure(theme, settings); this.stage.setDirector(theme.companion ? this.companion.director : undefined); return; }
     const revision = ++this.companionRevision;
     this.companionModule ??= this.options.loadCompanion();
     this.companionModule.then((module) => {
       // The theme may have changed (or the runtime gone) while the module loaded.
-      if (this.disposed || revision !== this.companionRevision || !this.theme?.companion || this.companion) return;
+      if (this.disposed || revision !== this.companionRevision || !this.theme || this.companion) return;
       const companion = module.createCompanion(this.surface, this.options.document);
       if (!companion) return;
       this.companion = companion;
       companion.configure(this.theme, this.settings!);
-      this.stage.setDirector(companion.director);
+      this.stage.setDirector(this.theme.companion ? companion.director : undefined);
       this.adapter.scan();
     }, () => { this.companionModule = undefined; });
+  }
+
+  /**
+   * The site may reuse a board card's element for the next street (an empty slot
+   * that is filled and turned over) instead of inserting a new one. Mutation
+   * callbacks run before the page is painted, so a released board card that starts
+   * showing something new is held again in time, exactly like a new card.
+   */
+  private cardWatch: MutationObserver | undefined;
+  private watchCards(on: boolean): void {
+    if (!on) { this.cardWatch?.disconnect(); this.cardWatch = undefined; return; }
+    if (this.cardWatch || typeof MutationObserver === 'undefined') return;
+    this.cardWatch = new MutationObserver((records) => {
+      const seen = new Set<Element>();
+      for (const record of records) {
+        const node = record.target.nodeType === 1 ? record.target as Element : record.target.parentElement;
+        const card = node?.closest('.table-cards .card-container');
+        if (!card || seen.has(card)) continue;
+        seen.add(card);
+        const was = card.getAttribute(RELEASED);
+        if (was !== null && was !== showing(card) && !card.hasAttribute('data-pnc-concealed')) card.removeAttribute(RELEASED);
+      }
+    });
+    this.cardWatch.observe(this.options.document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class'] });
   }
 
   private releaseCompanion(): void {
@@ -155,6 +187,7 @@ export class Runtime {
     this.stage.dispose();
     this.skin.clear();
     this.options.document.documentElement.removeAttribute('data-pnc-cards');
+    this.watchCards(false);
     for (const card of this.options.document.querySelectorAll(`[${RELEASED}]`)) card.removeAttribute(RELEASED);
     this.awaiting.clear();
     this.host.remove();
@@ -171,7 +204,8 @@ export class Runtime {
     try {
       const handle = this.coordinator.play(event, this.theme, { speed: this.settings.speed, reducedMotion: this.settings.reducedMotion,
         // Once the overlay has taken over, the hold on the originals is no longer needed.
-        onConcealed: (concealed) => { for (const source of concealed) release(source); } });
+        onConcealed: (concealed) => { for (const source of concealed) release(source); },
+        companionReady: Boolean(this.companion?.ready()) });
       this.options.onAnimation?.(handle, event);
       if (handle.progress < 1) this.companion?.animation(handle, event, planForEvent(event.id));
       // A declined event completes at once; its cards are released at the end of this scan.
@@ -190,8 +224,8 @@ export class Runtime {
    * New cards stay hidden (see `pnc-hold` in the skin) until the extension has
    * decided their fate: an animation takes them over, or they are shown now.
    * Board cards still being turned over by the site wait for the whole street,
-   * so a flop never shows one card early. The stylesheet caps the wait at one
-   * second, so a card can never stay hidden if this code does not run.
+   * so a flop never shows one card early. The stylesheet caps the wait at two and a half seconds,
+   * so a card can never stay hidden if this code does not run.
    */
   private releaseCards(): void {
     const table = this.table;

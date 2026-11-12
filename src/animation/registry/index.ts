@@ -20,7 +20,8 @@ export const presetsForStreet = (street: Street): AnimationPreset[] => presets.f
 /** Resolve once per event; random mode never mixes incompatible streets. */
 export function resolvePreset(id: string, street: Street, random: () => number = Math.random): AnimationPreset | undefined {
   const compatible = presetsForStreet(street);
-  if (id === 'random') return compatible[Math.floor(random() * compatible.length)];
+  // A surprise never summons the puppy: that is chosen deliberately, per street.
+  if (id === 'random') { const pool = compatible.filter((preset) => !preset.companion); return pool[Math.floor(random() * pool.length)]; }
   const preset = getPreset(id);
   return preset?.supportedEvents.includes(street) ? preset : compatible[0];
 }

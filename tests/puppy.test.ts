@@ -103,7 +103,7 @@ test('the runtime loads the companion only for a companion theme, wires the dire
   const director: StageDirector = { collect: () => 0, fold: () => 0, bet() {}, award() {}, allIn() {}, turn() {}, newHand() {} };
   const module: CompanionModule = {
     createCompanion: () => {
-      const companion: Companion = { director, configure: (theme) => log.push(`configure:${theme.id}`), table: () => {}, animation: () => {}, geometry: () => log.push('geometry'), dispose: () => log.push('dispose') };
+      const companion: Companion = { director, configure: (theme) => log.push(`configure:${theme.id}`), table: () => {}, animation: () => {}, ready: () => true, geometry: () => log.push('geometry'), dispose: () => log.push('dispose') };
       log.push('create');
       return companion;
     },
@@ -123,6 +123,11 @@ test('the runtime loads the companion only for a companion theme, wires the dire
     // A quick switch away while the module is loading never leaves a stray puppy behind.
     runtime.configure(puppyTheme, settings); runtime.configure(builtInThemes[2], settings); await flush();
     assert.equal(log.filter((entry) => entry === 'create').length, 1);
+    // Another room that uses a puppy animation gets a visiting puppy, without the room's table moments.
+    const visited = { ...builtInThemes[0]!, animations: { ...builtInThemes[0]!.animations, flop: { preset: 'flop.puppy', parameters: {} } } };
+    runtime.configure(visited, settings); await flush();
+    assert.equal(log.filter((entry) => entry === 'create').length, 2, 'a puppy preset in another room brings the puppy in');
+    assert.equal(log.at(-1), `configure:${visited.id}`);
     runtime.configure(puppyTheme, settings); await flush();
     runtime.dispose();
     assert.equal(log.at(-1), 'dispose');

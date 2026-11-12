@@ -1,5 +1,5 @@
 import { artOptions, cardDataUrl } from '../../rendering/cards';
-import { streetForEvent, type Theme, type VisualCard, type VisualEvent } from '../../types';
+import { streetForEvent, type Rank, type Suit, type Theme, type VisualCard, type VisualEvent } from '../../types';
 import { resolvePreset } from '../registry';
 import { cardCenter, clamp } from '../primitives/motion';
 import { cardObject } from '../primitives/objects';
@@ -36,12 +36,61 @@ function conflicts(a: VisualCard, b: VisualCard): boolean {
   return x > Math.min(a.target.width, b.target.width) * 0.65 && y > Math.min(a.target.height, b.target.height) * 0.65;
 }
 
+/**
+ * Decoded card artwork, kept for the theme in use. A street's cards are then ready
+ * the moment they arrive, so the animation takes over the real cards without a
+ * wait (the real cards are held hidden until it does).
+ */
+const warmed = new Map<string, Promise<void>>();
+let warmedKey = '';
+function decodeOnce(url: string): Promise<void> {
+  let ready = warmed.get(url);
+  if (!ready) {
+    const image = new Image();
+    image.src = url;
+    ready = typeof image.decode === 'function' ? image.decode() : image.complete ? Promise.resolve() : new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve(); image.onerror = () => reject(new Error('Card artwork unavailable'));
+    });
+    ready.catch(() => warmed.delete(url));
+    // Keep the element alive with its promise so the decoded bitmap stays cached.
+    warmed.set(url, ready.then(() => { void image; }));
+  }
+  return warmed.get(url)!;
+}
+const RANKS: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
+/** Decode the whole deck for a theme ahead of time, a few cards per idle moment. */
+export function warmArtwork(theme: Theme): void {
+  if (typeof Image === 'undefined') return;
+  const key = JSON.stringify([theme.card, theme.table.trimColor]);
+  if (key === warmedKey) return;
+  warmedKey = key;
+  warmed.clear();
+  const urls = [cardDataUrl(undefined, theme.card, artOptions(theme))];
+  for (const fourColor of [false, true]) for (const suit of SUITS) for (const rank of RANKS) {
+    urls.push(cardDataUrl({ rank, suit }, theme.card, artOptions(theme, { fourColor })));
+  }
+  const idle = (callback: () => void): void => {
+    const view = globalThis as { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => void };
+    if (view.requestIdleCallback) view.requestIdleCallback(callback, { timeout: 400 }); else setTimeout(callback, 16);
+  };
+  let index = 0;
+  const step = (): void => {
+    if (key !== warmedKey) return;
+    for (const end = Math.min(urls.length, index + 6); index < end; index++) void decodeOnce(urls[index]!).catch(() => undefined);
+    if (index < urls.length) idle(step);
+  };
+  idle(step);
+}
+
 async function prepareArtwork(cards: VisualCard[], theme: Theme, layer: HTMLElement): Promise<void> {
   // SVG resources are decoded BEFORE taking visibility leases. No network or canvas capture.
   const images = new Map<string, HTMLImageElement>();
   for (const image of layer.querySelectorAll('img')) if (typeof image.decode === 'function') images.set(image.src, image);
   const urls = new Set([cardDataUrl(undefined, theme.card, artOptions(theme)), ...cards.map(card => cardDataUrl(card.identity, theme.card, artOptions(theme, card))), ...images.keys()]);
   await Promise.all([...urls].map(async url => {
+    const ready = warmed.get(url);
+    if (ready && !images.has(url)) return ready;
     const image = images.get(url) ?? new Image();
     if (!image.src) image.src = url;
     if (typeof image.decode === 'function') await image.decode();
@@ -50,6 +99,9 @@ async function prepareArtwork(cards: VisualCard[], theme: Theme, layer: HTMLElem
     });
   }));
 }
+
+/** What plays in place of a companion preset when the companion cannot join in. */
+const COMPANION_STAND_IN: Record<'deal' | 'flop' | 'turn' | 'river', string> = { deal: 'deal.storm', flop: 'flop.grand', turn: 'reveal.spotlight', river: 'reveal.spotlight' };
 
 /** The coordinator owns leases, cancellation, budgets and restoration. Presets
  * only own temporary presentation nodes and cannot alter underlying game data.
@@ -88,9 +140,11 @@ export class AnimationCoordinator {
 
     const assigned = theme.animations[street];
     const selection = options.presetId ?? assigned.preset;
-    const preset = resolvePreset(selection, street);
+    let preset = resolvePreset(selection, street);
+    let substituted = false;
+    if (preset?.companion && !options.companionReady) { preset = resolvePreset(COMPANION_STAND_IN[street], street); substituted = true; }
     if (!preset) return completed(options.onProgress);
-    const raw = selection === 'random' ? {} : options.parameters ?? assigned.parameters;
+    const raw = selection === 'random' || substituted ? {} : options.parameters ?? assigned.parameters;
     const parameters: Record<string, number> = {};
     for (const schema of preset.parameters) {
       const value = raw[schema.key];

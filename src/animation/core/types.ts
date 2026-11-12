@@ -57,6 +57,8 @@ export interface AnimationPreset {
   duration: number;
   parameters: ParameterSchema[];
   reducedMotion: 'immediate';
+  /** Performed by a table companion (the puppy): only plays when the companion can join in. */
+  companion?: boolean;
   build: (context: AnimationContext) => TimelineTrack[];
 }
 
@@ -77,4 +79,9 @@ export interface PlayOptions {
   onProgress?: (progress: number) => void;
   /** The original cards have just been hidden and the overlay has taken over. */
   onConcealed?: (sources: HTMLElement[]) => void;
+  /**
+   * Whether a table companion can perform right now. A companion preset never plays
+   * without one (cards would move with nobody moving them): a showpiece plays instead.
+   */
+  companionReady?: boolean;
 }
