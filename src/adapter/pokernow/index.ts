@@ -130,7 +130,9 @@ export class PokerNowAdapter {
         const located = locateTable(this.document, this.options.allowFixture ?? false);
         this.options.onTable(located?.profile.id === 'pokernow' ? readTableState(located.table) : undefined);
       }
-      if (this.unsupportedSince && Date.now() - this.unsupportedSince > 600) {
+      // A street the site is still turning over (three flips 150 ms apart, plus page work on a busy
+      // machine) must not be mistaken for a new table; only a long gap starts a fresh baseline.
+      if (this.unsupportedSince && Date.now() - this.unsupportedSince > 1800) {
         this.last = undefined;
         this.differ.baseline();
       }

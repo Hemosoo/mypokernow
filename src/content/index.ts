@@ -4,8 +4,9 @@ import { loadLibrary, subscribeLibrary } from '../storage/library';
 import { resolveThemeAssets } from '../storage/assets';
 import type { RuntimeStatus } from '../storage/diagnostics';
 import type { Library, Theme } from '../types';
+import type { CompanionModule } from '../puppy/types';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const globals = globalThis as typeof globalThis & { __pncCleanup?: () => void };
 globals.__pncCleanup?.();
 
@@ -25,7 +26,9 @@ function publish(state: RuntimeState, reason: string, layout: ObservedLayout = i
 
 let fontBase: string | undefined;
 try { fontBase = chrome.runtime.getURL('fonts'); } catch { fontBase = undefined; }
-const runtime = new Runtime({ document, fontBase, onStatus: publish });
+// The 3D puppy is a separate module, fetched from the extension only on a Puppy table.
+const loadCompanion = (): Promise<CompanionModule> => import(/* @vite-ignore */ chrome.runtime.getURL('puppy.js')) as Promise<CompanionModule>;
+const runtime = new Runtime({ document, fontBase, onStatus: publish, loadCompanion });
 
 async function applyLibrary(next: Library): Promise<void> {
   const currentRevision = ++revision;

@@ -19,11 +19,13 @@ export interface VisualEvent {id: string; type: VisualEventType; cards: VisualCa
 export interface ParameterSchema {key: string; label: string; min: number; max: number; step: number; default: number; unit?: string}
 export interface CardAppearance {
   aura: { enabled: boolean; color: string; strength: number };
-  face: 'classic' | 'modern' | 'midnight' | 'native';
-  back: 'crosshatch' | 'diamonds' | 'solid' | 'image'; backColor: string; backImage?: string;
+  face: 'classic' | 'modern' | 'midnight' | 'native' | 'puppy';
+  back: 'crosshatch' | 'diamonds' | 'solid' | 'image' | 'paws'; backColor: string; backImage?: string;
   faceColor: string; redColor: string; blackColor: string; borderColor: string; borderRadius: number; shadow: number;
 }
-export type TableEmblem = 'spade' | 'crown' | 'laurel' | 'none';
+export type TableEmblem = 'spade' | 'crown' | 'laurel' | 'paw' | 'none';
+/** Decorative family for the felt, rail, chips and dealer button. */
+export type TableMotif = 'classic' | 'puppy';
 export interface TableAppearance {
   feltColor: string; railColor: string; backgroundColor: string; backgroundImage?: string;
   /** Polished metal used for the table inlay, plates, chips and every accent. */
@@ -31,12 +33,24 @@ export interface TableAppearance {
   /** Optional words set into the felt beneath the board. */
   inscription: string;
   emblem: TableEmblem;
+  motif: TableMotif;
 }
 export interface BoardAppearance {color: string; highlight: string; spacing: number; shadow: number}
 export interface AnimationAssignment {preset: string; parameters: Record<string, number>}
+/** A character who lives on the table and runs the game's animations. */
+export interface CompanionSettings {
+  kind: 'puppy';
+  /** Off keeps the puppy at the table, resting, without running the action. */
+  animations: boolean;
+  intensity: 'subtle' | 'normal' | 'playful';
+  scale: 'small' | 'medium' | 'large';
+}
 export interface Theme {
   version: 2; id: string; name: string; createdAt: string; updatedAt: string;
+  /** One line shown in the theme library. */
+  description?: string;
   card: CardAppearance; table: TableAppearance; board: BoardAppearance; animations: Record<Street, AnimationAssignment>;
+  companion?: CompanionSettings;
 }
 /** Live-table flourishes. Each can be switched off without affecting the skin itself. */
 export interface EffectSettings {
@@ -50,6 +64,6 @@ export interface EffectSettings {
   ambience: boolean;
 }
 export interface Settings {enabled: boolean; reducedMotion: boolean; speed: number; activeThemeId: string; effects: EffectSettings}
-export interface Library {version: 3; settings: Settings; themes: Theme[]}
+export interface Library {version: 4; settings: Settings; themes: Theme[]}
 export const streetForEvent = (type: VisualEventType): Street | undefined => ({HOLE_CARDS_APPEARED: 'deal', FLOP_REVEALED: 'flop', TURN_REVEALED: 'turn', RIVER_REVEALED: 'river'} as Partial<Record<VisualEventType, Street>>)[type];
 export const eventForStreet: Record<Street, VisualEventType> = {deal: 'HOLE_CARDS_APPEARED', flop: 'FLOP_REVEALED', turn: 'TURN_REVEALED', river: 'RIVER_REVEALED'};

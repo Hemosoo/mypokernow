@@ -1,3 +1,13 @@
+# Puppy skin — 2026-11-12
+
+- **Theme model (library v4):** new built-in room `room-puppy` with `description`, `companion` (`kind`, `animations`, `intensity`, `scale`), card face `puppy`, back `paws`, table `motif: 'puppy'`, emblem `paw`. Older themes read `motif` as `classic`. v3 libraries gain the Puppy room once; the active theme is not changed.
+- **3D puppy:** `src/puppy/model.ts` (procedural rig), `pose.ts` (joint pose), `companion.ts` (renderer, screen↔floor mapper, state machine IDLE/WALKING/RUNNING/GRABBING_CARD/PUSHING_CARD/DEALING/FOLDING/PUSHING_CHIPS/CELEBRATING/RETURNING_TO_IDLE, idle behaviours, reactions, resting-spot search). Built as `dist/puppy.js`, imported by the content script only on a companion theme. The `src/puppy/types.ts` contract has no Three.js import.
+- **Choreography:** `src/puppy/plan.ts` is pure screen-space geometry. Presets `deal.puppy`, `flop.puppy`, `turn.puppy` (mouth), `river.puppy` (paw) move cards from it. The Runtime hands the same plan to the companion, because `puppy.js` has its own copy of every module. The companion samples it at the animation handle's progress.
+- **Table moments:** `Stage.setDirector()` lets the companion hold swept bets or folded cards for up to 450 ms until it reaches them. It also receives bet, all-in, turn, award and new-hand moments.
+- **Adapter fix:** the partial-street tolerance was raised from 600 ms to 1800 ms. On slow machines the site's face-down flop could otherwise outlast it, and the flop was skipped.
+- **Verified:** `npm run check` passes (62/62); the Chromium suite passes, with the puppy appearing, idling throttled (~20 fps under software GL), dealing (state sequence), not blocking controls, and being removed on a skin switch. The installed unpacked extension was loaded in Chromium on a stand-in `pokernow.com/games/…` page served by the browser itself: the content script lazy-loaded `puppy.js`, and the puppy rendered and dealt.
+- **Not verified:** a live PokerNow game, real GPU frame rates, and mobile/portrait (the puppy is tuned for landscape).
+
 # Claude continuation — 2026-11-12
 
 Pulled the five Codex commits, then:

@@ -80,7 +80,7 @@ test('version 3 moves untuned house presets to the showpieces once and keeps del
  v2.themes[0]!.animations = { deal: { preset: 'deal.pitch', parameters: pitchDefaults }, flop: { preset: 'flop.cascade', parameters: {} },
    turn: { preset: 'reveal.turnover', parameters: { duration: 1200 } }, river: { preset: 'reveal.slam', parameters: {} } };
  const upgraded = validateLibrary(v2);
- assert.equal(upgraded.version, 3);
+ assert.equal(upgraded.version, 4);
  assert.equal(upgraded.themes[0]!.animations.deal.preset, 'deal.storm');
  assert.equal(upgraded.themes[0]!.animations.flop.preset, 'flop.grand');
  assert.equal(upgraded.themes[0]!.animations.turn.preset, 'reveal.turnover', 'tuned choices are kept');

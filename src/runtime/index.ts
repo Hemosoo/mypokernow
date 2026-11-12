@@ -4,6 +4,8 @@ import { AnimationCoordinator, type AnimationHandle } from '../animation/core/co
 import { Skin } from '../skin';
 import { Stage } from '../stage/stage';
 import type { Settings, Theme, VisualEvent } from '../types';
+import type { Companion, CompanionModule } from '../puppy/types';
+import { planForEvent } from '../puppy/plan';
 
 /** Marks a card the extension has finished deciding about; see `pnc-hold` in the skin. */
 const RELEASED = 'data-pnc-released';
@@ -20,6 +22,11 @@ export interface RuntimeOptions {
   onStatus?(state: RuntimeState, reason: string, layout: ObservedLayout): void;
   /** Called when a card animation starts, so a host can offer pause, progress and replay. */
   onAnimation?(handle: AnimationHandle, event: VisualEvent): void;
+  /**
+   * Loads the table-companion module (the 3D puppy) on demand. Only themes with a
+   * companion call it, so other skins never download or run the 3D renderer.
+   */
+  loadCompanion?(): Promise<CompanionModule>;
 }
 
 /**
@@ -40,7 +47,11 @@ export class Runtime {
   /** Cards handed to an accepted animation; the animation conceals and then restores them. */
   private readonly awaiting = new Set<HTMLElement>();
   private disposed = false;
-  private readonly onGeometry = (): void => this.stage.settle();
+  private readonly surface: HTMLElement;
+  private companion: Companion | undefined;
+  private companionModule: Promise<CompanionModule> | undefined;
+  private companionRevision = 0;
+  private readonly onGeometry = (): void => { this.stage.settle(); this.companion?.geometry(); };
 
   constructor(private readonly options: RuntimeOptions) {
     const document = options.document;
@@ -53,6 +64,7 @@ export class Runtime {
     surface.setAttribute('data-pnc-overlay', 'surface');
     surface.style.cssText = 'position:fixed;inset:0;pointer-events:none;overflow:visible;';
     shadow.append(surface);
+    this.surface = surface;
     document.documentElement.append(this.host);
     this.skin = new Skin(document, { fontBase: options.fontBase });
     this.stage = new Stage(surface, this.skin, document);
@@ -62,7 +74,7 @@ export class Runtime {
       onInvalidate: () => this.coordinator.cancelAll(),
       onPresentation: (snapshot) => { this.appearanceActive = Boolean(snapshot && this.theme); this.table = snapshot?.table; },
       onScanEnd: () => this.releaseCards(),
-      onTable: (state) => this.stage.sync(state),
+      onTable: (state) => { this.stage.sync(state); this.companion?.table(state); },
       onUnsupported: () => this.report('unsupported', describeUnsupported(inspectLayout(document), this.appearanceActive)),
       onSnapshot: (snapshot) => this.report('ready', 'The skin is active and the table is being followed. Cards already on the felt are not replayed.',
         { profile: snapshot.profile, tableCount: 1, boardCount: 1, seatCount: snapshot.seats.length, cardCount: snapshot.board.length + snapshot.holes.length }),
@@ -88,10 +100,12 @@ export class Runtime {
       this.skin.clear();
       root.removeAttribute('data-pnc-cards');
       this.appearanceActive = false;
+      this.releaseCompanion();
       return;
     }
     this.skin.apply(this.theme, settings.reducedMotion);
     this.stage.configure(this.theme, settings.effects, settings.reducedMotion);
+    this.syncCompanion(this.theme, settings);
     // Cards hold for a beat on entry only while an animation could take them over.
     if (settings.reducedMotion) root.removeAttribute('data-pnc-cards');
     else root.setAttribute('data-pnc-cards', 'animated');
@@ -101,6 +115,34 @@ export class Runtime {
 
   scan(): void { if (this.theme) this.adapter.scan(); }
 
+  /** The table companion's state, for tests and diagnostics; undefined when none is present. */
+  companionDebug(): ReturnType<NonNullable<Companion['debug']>> | undefined { return this.companion?.debug?.(); }
+
+  /** Create, update or remove the table companion to match the theme. */
+  private syncCompanion(theme: Theme, settings: Settings): void {
+    if (!theme.companion || !this.options.loadCompanion) { this.releaseCompanion(); return; }
+    if (this.companion) { this.companion.configure(theme, settings); return; }
+    const revision = ++this.companionRevision;
+    this.companionModule ??= this.options.loadCompanion();
+    this.companionModule.then((module) => {
+      // The theme may have changed (or the runtime gone) while the module loaded.
+      if (this.disposed || revision !== this.companionRevision || !this.theme?.companion || this.companion) return;
+      const companion = module.createCompanion(this.surface, this.options.document);
+      if (!companion) return;
+      this.companion = companion;
+      companion.configure(this.theme, this.settings!);
+      this.stage.setDirector(companion.director);
+      this.adapter.scan();
+    }, () => { this.companionModule = undefined; });
+  }
+
+  private releaseCompanion(): void {
+    this.companionRevision++;
+    this.stage.setDirector(undefined);
+    this.companion?.dispose();
+    this.companion = undefined;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -108,6 +150,7 @@ export class Runtime {
     view.removeEventListener('resize', this.onGeometry);
     view.removeEventListener('scroll', this.onGeometry, true);
     this.adapter.stop();
+    this.releaseCompanion();
     this.coordinator.dispose();
     this.stage.dispose();
     this.skin.clear();
@@ -130,6 +173,7 @@ export class Runtime {
         // Once the overlay has taken over, the hold on the originals is no longer needed.
         onConcealed: (concealed) => { for (const source of concealed) release(source); } });
       this.options.onAnimation?.(handle, event);
+      if (handle.progress < 1) this.companion?.animation(handle, event, planForEvent(event.id));
       // A declined event completes at once; its cards are released at the end of this scan.
       if (handle.progress < 1) {
         for (const source of sources) this.awaiting.add(source);

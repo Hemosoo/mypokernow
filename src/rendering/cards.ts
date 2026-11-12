@@ -1,6 +1,7 @@
 import type { CardAppearance, CardIdentity, Suit, Theme, VisualCard } from '../types';
 import { darken, lighten, luminance, metal, mix, rgba, safeHex, svgDataUrl } from './color';
 import { CAP_HEIGHT, glyphs } from './glyphs';
+import { bone, dogPortrait, paw } from './puppy-art';
 
 /**
  * Card artwork. One renderer feeds the live table, the animation engine and
@@ -106,14 +107,23 @@ function faceArt(identity: CardIdentity, appearance: CardAppearance, colors: Pal
   // A fine keyline gives the classic deck its engraved character; the modern deck stays open.
   const frame = classic ? `<rect x="3.6" y="3.6" width="82.8" height="102.8" rx="${n(Math.max(0, radius - 2.2))}" fill="none" stroke="${ink}" stroke-opacity=".16" stroke-width=".5"/>` : '';
   const ornamentInk = dark ? lighten(colors.accent, 0.1) : darken(colors.accent, 0.12);
-  const crown = court ? `<g data-part="art" data-id="crown" data-cx=".66" data-cy=".4" fill="${ornamentInk}"><g transform="translate(59.5 44)">${CROWNS[identity.rank]}</g></g>` : '';
-  const halo = ace ? `<circle cx="58" cy="73" r="27.5" fill="none" stroke="${ornamentInk}" stroke-opacity=".55" stroke-width=".7"/><circle cx="58" cy="73" r="25.2" fill="none" stroke="${ornamentInk}" stroke-opacity=".28" stroke-width=".4" stroke-dasharray=".6 1.8"/>` : '';
+  const puppy = appearance.face === 'puppy';
+  const crown = !court ? '' : puppy
+    // The puppy deck's court cards are dog portraits in the same corner position as the crowns.
+    ? `<g data-part="art" data-id="crown" data-cx=".66" data-cy=".4"><g transform="translate(59.5 42) scale(.92)">${dogPortrait(identity.rank as 'J' | 'Q' | 'K', ornamentInk, colors.paper)}</g></g>`
+    : `<g data-part="art" data-id="crown" data-cx=".66" data-cy=".4" fill="${ornamentInk}"><g transform="translate(59.5 44)">${CROWNS[identity.rank]}</g></g>`;
+  // Two tiny paw prints walk along the puppy deck's frame; they stay clear of the index.
+  const trail = puppy ? `<g fill="${ornamentInk}" fill-opacity=".38">${paw(80.5, 9.5, 3.1, 28)}${paw(76.4, 14.6, 3.1, 28)}${paw(9.6, 100.8, 3.1, 208)}${paw(13.7, 95.7, 3.1, 208)}</g>` : '';
+  const puppyFrame = puppy ? `<rect x="3.4" y="3.4" width="83.2" height="103.2" rx="${n(Math.max(0, radius - 2))}" fill="none" stroke="${ornamentInk}" stroke-opacity=".45" stroke-width=".6"/><rect x="5" y="5" width="80" height="100" rx="${n(Math.max(0, radius - 3.4))}" fill="none" stroke="${ornamentInk}" stroke-opacity=".22" stroke-width=".35" stroke-dasharray="1.2 1.6"/>` : '';
+  const halo = !ace ? '' : puppy
+    ? `<circle cx="58" cy="73" r="27.5" fill="none" stroke="${ornamentInk}" stroke-opacity=".55" stroke-width=".7"/><g fill="${ornamentInk}" fill-opacity=".42">${bone(58, 104.5, 4.2)}</g>`
+    : `<circle cx="58" cy="73" r="27.5" fill="none" stroke="${ornamentInk}" stroke-opacity=".55" stroke-width=".7"/><circle cx="58" cy="73" r="25.2" fill="none" stroke="${ornamentInk}" stroke-opacity=".28" stroke-width=".4" stroke-dasharray=".6 1.8"/>`;
   const suitY = court ? 78 : ace ? 73 : 74.5, suitSize = court ? 36 : ace ? 38 : 43;
   return `<defs>
 <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${lighten(colors.paper, dark ? 0.06 : 0.5)}"/><stop offset=".55" stop-color="${colors.paper}"/><stop offset="1" stop-color="${paperLow}"/></linearGradient>
 <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(ink, dark ? 0.12 : 0.1)}"/><stop offset="1" stop-color="${darken(ink, dark ? 0 : 0.14)}"/></linearGradient>
 </defs>
-<g data-body="1"><rect width="90" height="110" rx="${n(radius)}" fill="url(#paper)"/>${frame}${halo}</g>
+<g data-body="1"><rect width="90" height="110" rx="${n(radius)}" fill="url(#paper)"/>${frame}${puppyFrame}${trail}${halo}</g>
 <g data-part="rank" data-id="rank" data-cx=".25" data-cy=".22" fill="url(#ink)">${rank.markup}</g>
 <g data-part="suit" data-id="index-suit" data-cx=".2" data-cy=".47" fill="url(#ink)">${suitShape(identity.suit, indexSuitX, indexSuitY, 15.5)}</g>
 <g data-part="suit" data-id="suit" data-cx=".64" data-cy=".68" fill="url(#ink)">${suitShape(identity.suit, 58, suitY, suitSize)}</g>
@@ -131,10 +141,15 @@ function backArt(appearance: CardAppearance, colors: Palette, radius: number): s
   } else if (appearance.back === 'crosshatch') {
     // Guilloché lattice: two families of fine arcs crossing, like engraved banknote work.
     field = `<rect x="5" y="5" width="80" height="100" fill="url(#lattice)" clip-path="url(#panel)"/>`;
+  } else if (appearance.back === 'paws') {
+    field = `<rect x="5" y="5" width="80" height="100" fill="url(#paws)" clip-path="url(#panel)"/>`;
   } else if (appearance.back === 'diamonds') {
     field = `<rect x="5" y="5" width="80" height="100" fill="url(#harlequin)" clip-path="url(#panel)"/>`;
   }
-  const medallion = appearance.back === 'image' && image ? '' : `<g transform="translate(45 55)">
+  const medallion = appearance.back === 'image' && image ? '' : appearance.back === 'paws' ? `<g transform="translate(45 55)">
+<circle r="19" fill="${colors.back}" stroke="${line}" stroke-width=".9"/><circle r="16.2" fill="none" stroke="${line}" stroke-opacity=".55" stroke-width=".45" stroke-dasharray="1 1.4"/>
+<g transform="translate(0 1) scale(1.12)">${dogPortrait('J', line, colors.back).replace('<g>', '<g>')}</g>
+</g>` : `<g transform="translate(45 55)">
 <path d="M0-21C6-12 12-6 17 0C12 6 6 12 0 21C-6 12-12 6-17 0C-12-6-6-12 0-21Z" fill="${colors.back}" stroke="${line}" stroke-width=".8"/>
 <path d="M0-15.5C4.4-9 8.6-4.4 12.4 0C8.6 4.4 4.4 9 0 15.5C-4.4 9-8.6 4.4-12.4 0C-8.6-4.4-4.4-9 0-15.5Z" fill="none" stroke="${line}" stroke-opacity=".6" stroke-width=".45"/>
 <g fill="${line}"><g transform="translate(0 -6.2) scale(7)">${SUITS.spades}</g><g transform="rotate(180) translate(0 -6.2) scale(7)">${SUITS.spades}</g><circle r="1.15"/></g>
@@ -143,6 +158,7 @@ function backArt(appearance: CardAppearance, colors: Palette, radius: number): s
 <clipPath id="panel"><rect x="5" y="5" width="80" height="100" rx="${n(inner)}"/></clipPath>
 <radialGradient id="field" cx=".5" cy=".42" r=".8"><stop offset="0" stop-color="${lighten(colors.back, 0.1)}"/><stop offset="1" stop-color="${darken(colors.back, 0.22)}"/></radialGradient>
 <pattern id="lattice" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 5Q2.5 0 5 5T10 5M0 0Q2.5-5 5 0T10 0M0 10Q2.5 5 5 10T10 10M5 0Q0 2.5 5 5T5 10M0 0Q-5 2.5 0 5T0 10M10 0Q5 2.5 10 5T10 10" fill="none" stroke="${line}" stroke-opacity=".34" stroke-width=".42"/><circle cx="5" cy="5" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="0" cy="0" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="10" cy="10" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="10" cy="0" r=".55" fill="${line}" fill-opacity=".5"/><circle cx="0" cy="10" r=".55" fill="${line}" fill-opacity=".5"/></pattern>
+<pattern id="paws" width="20" height="20" patternUnits="userSpaceOnUse"><g fill="${line}" fill-opacity=".32">${paw(5, 6, 5.4, -18)}${paw(15, 15.5, 5.4, 22)}</g><g fill="${line}" fill-opacity=".16">${bone(15, 4.5, 2.4, -30)}${bone(5, 16, 2.4, 25)}</g></pattern>
 <pattern id="harlequin" width="10" height="13.75" patternUnits="userSpaceOnUse"><path d="M5 0L10 6.875L5 13.75L0 6.875Z" fill="${line}" fill-opacity=".1" stroke="${line}" stroke-opacity=".4" stroke-width=".4"/><circle cx="5" cy="6.875" r=".7" fill="${line}" fill-opacity=".55"/></pattern>
 </defs>
 <g data-body="1"><rect width="90" height="110" rx="${n(radius)}" fill="${colors.paper}"/>

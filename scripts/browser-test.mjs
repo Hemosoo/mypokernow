@@ -56,9 +56,9 @@ try {
   await writeFile(`artifacts/assembly-${t}.png`,Buffer.from(shot.data,'base64'));
  }
  await evaluate('globalThis.__assembly.clear()');
- await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".preset-card").length===16');await sleep(500);
- const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,cards:document.querySelectorAll(".preset-card").length})');assert.equal(layout.cards,16);assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');
- for(const name of ['Dealer Flick','Orbit Deal','Triple Spread','Triple Orbit','Crystal Spread','Slam / Impact','Fragment Assembly','Crystallization Reveal','House Pitch','Silk Cascade','Velvet Turnover','River Squeeze',"Dealer's Storm",'Grand Flop','Spotlight','Showdown']) {
+ await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".preset-card").length===20');await sleep(500);
+ const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,cards:document.querySelectorAll(".preset-card").length})');assert.equal(layout.cards,20);assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');
+ for(const name of ['Dealer Flick','Orbit Deal','Triple Spread','Triple Orbit','Crystal Spread','Slam / Impact','Fragment Assembly','Crystallization Reveal','House Pitch','Silk Cascade','Velvet Turnover','River Squeeze',"Dealer's Storm",'Grand Flop','Spotlight','Showdown','Puppy Deal','Puppy Flop','Puppy Fetch','Puppy Paw']) {
   const clicked=await evaluate(`(()=>{const button=[...document.querySelectorAll('.preset-preview-button')].find(x=>x.getAttribute('aria-label').includes(${JSON.stringify(name)}));if(!button)return false;button.click();return true})()`);
   if(!clicked)throw new Error('Missing preview button: '+name);
   await sleep(250);
@@ -70,7 +70,7 @@ try {
  await sleep(250);
  await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
  await sleep(500);
- await call('Page.reload');await until('document.querySelectorAll(".preset-card").length===16');
+ await call('Page.reload');await until('document.querySelectorAll(".preset-card").length===20');
  // Reload selects the studio's initial event, so return to the saved random turn.
  await evaluate(`Array.from(document.querySelectorAll('[role="tab"]')).find(x=>x.textContent==='Turn').click()`);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
@@ -115,11 +115,26 @@ try {
  await writeFile('artifacts/room-motion.png',Buffer.from(motion.data,'base64'));
  await sleep(18000);
  assert.ok(await evaluate('document.querySelectorAll(".table-player.winner").length > 0'),'Scripted hand must reach its winner');
+ // Puppy: the companion appears, idles at a throttled frame rate, runs the deal, and is removed on a skin switch.
+ await evaluate(`(()=>{const select=document.querySelector('select');select.value='room-puppy';select.dispatchEvent(new Event('change'));})()`);
+ await until('!!globalThis.__pncReplica.runtime.companionDebug()?.visible',15000);
+ await sleep(1500);
+ const before=await evaluate('globalThis.__pncReplica.runtime.companionDebug().renders');await sleep(2000);
+ const idleRate=(await evaluate('globalThis.__pncReplica.runtime.companionDebug().renders')-before)/2;
+ assert.ok(idleRate>0&&idleRate<=40,`Idle puppy should render at a throttled rate, got ${idleRate}/s`);
+ const puppyStates=await evaluate(`(async()=>{const R=globalThis.__pncReplica;const seen=new Set();R.play('deal');const t=performance.now();while(performance.now()-t<4200){seen.add(R.runtime.companionDebug()?.state);await new Promise(r=>setTimeout(r,40));}return [...seen];})()`);
+ console.log('Puppy states during the deal:',puppyStates,'idle renders/s:',idleRate);
+ assert.ok(puppyStates.includes('DEALING'),'The puppy must deal the cards');
+ assert.ok(puppyStates.includes('RUNNING'),'The puppy must run to the deck');
+ const puppyShot=await call('Page.captureScreenshot',{format:'png'});await writeFile('artifacts/puppy.png',Buffer.from(puppyShot.data,'base64'));
  await evaluate(`(()=>{const s=globalThis.__pncReplica.scenario;s.state.decisions={attention:true,buttons:[{label:'Check',kind:'check',color:'green'}]};s.render();globalThis.__controlClicks=0;document.querySelector('.action-button').onclick=()=>globalThis.__controlClicks++;})()`);
  const control=await evaluate(`(()=>{const b=document.querySelector('.action-button');const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
  await call('Input.dispatchMouseEvent',{type:'mousePressed',...control,button:'left',clickCount:1});
  await call('Input.dispatchMouseEvent',{type:'mouseReleased',...control,button:'left',clickCount:1});
  assert.equal(await evaluate('globalThis.__controlClicks'),1,'Overlay must not block game controls');
+ await evaluate(`(()=>{const select=document.querySelector('select');select.value='room-monte-carlo';select.dispatchEvent(new Event('change'));})()`);
+ await sleep(400);
+ assert.equal(await evaluate('globalThis.__pncReplica.runtime.companionDebug()'),undefined,'Switching skins must remove the puppy');
  await evaluate('globalThis.__pncReplica.runtime.dispose()');
  assert.equal(await evaluate('document.querySelectorAll("[data-pnc-overlay], [data-pnc-owned]").length'),0);
  assert.deepEqual(errors,[],'Unexpected browser runtime errors');
