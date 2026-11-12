@@ -87,7 +87,7 @@ export function buildSkinCss(theme: Theme, options: SkinOptions = {}): string {
   const backdrop = upload
     ? `radial-gradient(ellipse 80% 66% at 50% 44%,rgba(0,0,0,.25) 0%,rgba(0,0,0,.72) 100%),url("${upload}") center/cover no-repeat`
     : `radial-gradient(ellipse 78% 64% at 50% 44%,transparent 0 52%,rgba(0,0,0,.6) 100%),radial-gradient(ellipse 54% 48% at 50% 42%,${rgba(trim.mid, 0.17)},transparent 72%),url("${roomPatternUrl(table)}"),radial-gradient(ellipse 110% 92% at 50% 38%,${lighten(room, 0.1)},${room} 56%,${darken(room, 0.55)})`;
-  const puck = (letter: string) => `url("${svgDataUrl(puckSvg(table.trimColor, letter))}")`;
+  const puck = (letter: string) => `url("${svgDataUrl(puckSvg(table.trimColor, letter, table.motif))}")`;
   const puckKeyframes = Array.from({ length: 10 }, (_, index) =>
     `@keyframes pnc-puck-${index + 1}{0%{transform:translateY(0) rotate(0) scale(1)}38%{transform:translateY(-.42rem) rotate(-9deg) scale(1.14)}72%{transform:translateY(.03rem) rotate(2deg) scale(.985)}100%{transform:none}}
 ${ROOT} .dealer-button-ctn.dealer-position-${index + 1} .button{animation:pnc-puck-${index + 1} .75s var(--pnc-ease) both}`).join('\n');

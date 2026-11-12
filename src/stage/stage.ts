@@ -7,6 +7,7 @@ import { SKIN_ROOT } from '../skin/css';
 import type { Skin } from '../skin';
 import type { EffectSettings, Rect, Theme } from '../types';
 import { diffTable, winTier, type TableAction, type WinTier } from './actions';
+import type { StageDirector } from '../puppy/types';
 
 /**
  * The stage sits above the table and adds what a web page of numbers lacks:
@@ -64,6 +65,9 @@ export class Stage {
   private potShown = 0;
   private potAwarded = false;
   private potTimer = 0;
+  /** A table companion that may ask chips and folded cards to wait until it reaches them. */
+  private director: StageDirector | undefined;
+  private collectDelay = 0;
   private lastRules = '';
   private readonly art = new Map<string, ChipArt>();
   private disposed = false;
@@ -86,6 +90,8 @@ export class Stage {
     this.root.append(this.veil, this.pressure);
     surface.append(style, this.root);
   }
+
+  setDirector(director: StageDirector | undefined): void { this.director = director; }
 
   configure(theme: Theme | undefined, effects: EffectSettings, reducedMotion: boolean): void {
     const themeChanged = theme !== this.theme;
@@ -140,7 +146,7 @@ export class Stage {
     const pot = this.potAwarded ? 0 : state.pot ?? 0;
     clearTimeout(this.potTimer);
     if (collecting && this.moving && this.effects.chips && pot > this.potShown) {
-      this.potTimer = (this.document.defaultView ?? window).setTimeout(() => { this.potShown = pot; if (this.previous) this.writeRules(this.previous); }, 460 + Math.max(0, state.seats.length - 1) * 38);
+      this.potTimer = (this.document.defaultView ?? window).setTimeout(() => { this.potShown = pot; if (this.previous) this.writeRules(this.previous); }, 460 + this.collectDelay + Math.max(0, state.seats.length - 1) * 38);
     } else this.potShown = pot;
     this.writeRules(state);
     this.updateAmbience(state);
@@ -186,7 +192,7 @@ export class Stage {
     const key = `${kind}:${units}`;
     let art = this.art.get(key);
     if (!art) {
-      art = kind === 'bet' ? betArt(units, this.theme!.table.trimColor) : potArt(units, this.theme!.table.trimColor);
+      art = kind === 'bet' ? betArt(units, this.theme!.table.trimColor, this.theme!.table.motif) : potArt(units, this.theme!.table.trimColor, this.theme!.table.motif);
       if (this.art.size > 80) this.art.delete(this.art.keys().next().value!);
       this.art.set(key, art);
     }
@@ -278,14 +284,28 @@ export class Stage {
   private perform(action: TableAction, before: TableState, after: TableState): void {
     if (!this.moving || !this.theme) return;
     const seat = (position: number): SeatState | undefined => after.seats.find((candidate) => candidate.position === position);
+    const director = this.director;
+    // A companion's wait is advisory and bounded: chips and cards it asks to hold are already resolved by the game.
+    const wait = (ms: number | undefined): number => (Number.isFinite(ms) ? Math.min(450, Math.max(0, ms!)) : 0);
     try {
       switch (action.type) {
-        case 'bet': if (this.effects.chips) this.pushBet(seat(action.position), action.added, action.amount); break;
-        case 'collect': if (this.effects.chips) this.collect(action.bets, after); break;
-        case 'award': this.award(action, before, after); break;
-        case 'all-in': if (this.effects.moments) this.allIn(seat(action.position)); break;
-        case 'fold': if (this.effects.moments && !action.you) this.muck(action.cards, after); break;
-        case 'turn': if (this.effects.moments && action.you) this.cue(seat(action.position)); break;
+        case 'bet': director?.bet(seat(action.position), seat(action.position)?.betRect); if (this.effects.chips) this.pushBet(seat(action.position), action.added, action.amount); break;
+        case 'collect': {
+          if (!this.effects.chips) break;
+          this.collectDelay = wait(director?.collect(action.bets.map((bet) => ({ position: bet.position, rect: bet.rect })), after.potRect));
+          this.collect(action.bets, after, this.collectDelay);
+          break;
+        }
+        case 'award': {
+          this.award(action, before, after);
+          const winners = action.winners.map(seat).filter((value): value is SeatState => Boolean(value));
+          director?.award(winners, before.potRect ?? after.potRect, winTier(this.inBigBlinds(action.pot), action.allIn));
+          break;
+        }
+        case 'all-in': director?.allIn(seat(action.position)); if (this.effects.moments) this.allIn(seat(action.position)); break;
+        case 'fold': if (this.effects.moments && !action.you) this.muck(action.cards, after, wait(director?.fold(action.cards, seat(action.position)))); break;
+        case 'turn': director?.turn(seat(action.position)); if (this.effects.moments && action.you) this.cue(seat(action.position)); break;
+        case 'new-hand': director?.newHand(); break;
         default: break;
       }
     } catch { /* A decorative moment must never interrupt the table. */ }
@@ -309,7 +329,7 @@ export class Stage {
   }
 
   /** The dealer's sweep: every live bet slides into the pot. */
-  private collect(bets: { position: number; amount: number; rect: Rect }[], after: TableState): void {
+  private collect(bets: { position: number; amount: number; rect: Rect }[], after: TableState, delay = 0): void {
     const potArtwork = this.cached('pot', Math.max(after.pot ?? 0, 1));
     const pot = this.potRect(after, potArtwork);
     if (!pot) return;
@@ -325,7 +345,7 @@ export class Stage {
         const travel = easeInOut(t);
         return { x: lerp(from.x, to.x, travel) - start.width / 2, y: lerp(from.y, to.y, travel) - start.height / 2,
           scale: lerp(1, 0.78, travel), opacity: t > 0.84 ? (1 - t) / 0.16 : 1 };
-      }), 460, index * 38);
+      }), 460, delay + index * 38);
     });
   }
 
@@ -343,7 +363,7 @@ export class Stage {
       for (let index = 0; index < count; index++) {
         const winner = winners[index % winners.length]!;
         const tone: ChipTone = tonesList[index % Math.max(1, tonesList.length)] ?? 'crimson';
-        const art = singleChipArt(tone, this.theme!.table.trimColor);
+        const art = singleChipArt(tone, this.theme!.table.trimColor, this.theme!.table.motif);
         const width = art.width * CHIP_REM * rem, height = art.height * CHIP_REM * rem;
         const element = this.sprite(art.url, width, height);
         if (!element) break;
@@ -483,7 +503,8 @@ export class Stage {
   }
 
   /** A fold is quick and quiet: the cards slide toward the muck and are gone. */
-  private muck(cards: Rect[], state: TableState): void {
+  /** A fold: quick and quiet; when a companion bats the cards (`delay`), they tumble further. */
+  private muck(cards: Rect[], state: TableState, delay = 0): void {
     if (!cards.length) return;
     const url = cardDataUrl(undefined, this.theme!.card, artOptions(this.theme!));
     const to = center(state.board ?? state.potRect ?? state.table);
@@ -492,12 +513,14 @@ export class Stage {
       if (!element) return;
       element.style.borderRadius = '7%';
       element.style.boxShadow = '0 2px 8px rgba(0,0,0,.4)';
-      const from = { x: rect.x, y: rect.y }, dx = (to.x - rect.x - rect.width / 2) * 0.24, dy = (to.y - rect.y - rect.height / 2) * 0.24;
-      const tilt = (index % 2 ? 1 : -1) * 7;
-      this.play(element, this.frames(10, (t) => {
-        const travel = easeIn(t);
-        return { x: from.x + dx * travel, y: from.y + dy * travel, rotate: tilt + (index % 2 ? 16 : -16) * travel, scale: lerp(1, 0.84, travel), opacity: 1 - easeIn(clamp(t * 1.05)) };
-      }), 260, index * 24);
+      const batted = delay > 0, reach = batted ? 0.55 : 0.24;
+      const from = { x: rect.x, y: rect.y }, dx = (to.x - rect.x - rect.width / 2) * reach, dy = (to.y - rect.y - rect.height / 2) * reach;
+      const tilt = (index % 2 ? 1 : -1) * 7, turn = batted ? (index % 2 ? 1 : -1) * 220 : (index % 2 ? 16 : -16);
+      this.play(element, this.frames(batted ? 16 : 10, (t) => {
+        const travel = batted ? easeOut(t) : easeIn(t);
+        return { x: from.x + dx * travel, y: from.y + dy * travel - (batted ? Math.sin(Math.PI * t) * rect.height * 0.35 : 0), rotate: tilt + turn * travel,
+          scale: lerp(1, batted ? 0.7 : 0.84, travel), opacity: 1 - easeIn(clamp(t * 1.05)) };
+      }), batted ? 380 : 260, delay + index * 24);
     });
   }
 

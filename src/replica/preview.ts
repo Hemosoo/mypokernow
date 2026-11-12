@@ -23,7 +23,7 @@ scenario.prepare(embedded ? 'turn' : 'river');
 let settings: Settings = createDefaultLibrary().settings;
 type AnimationListener = (handle: AnimationHandle) => void;
 let animationListener: AnimationListener | undefined;
-const runtime = new Runtime({ document, fontBase: './fonts', allowAnyLocation: true, onAnimation: (handle) => animationListener?.(handle) });
+const runtime = new Runtime({ document, fontBase: './fonts', allowAnyLocation: true, onAnimation: (handle) => animationListener?.(handle), loadCompanion: () => import('../puppy') });
 let theme = builtInThemes[0]!;
 runtime.configure(theme, settings);
 

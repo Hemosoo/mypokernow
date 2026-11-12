@@ -42,6 +42,17 @@ Cards → Made-hand aura offers an on/off toggle, color and strength for a stead
 
 Table settings include metal trim, inscription and emblem; Settings independently controls moving chips, celebrations, action feedback and ambience. Four new house presets join the original eight: House Pitch, Silk Cascade, Velvet Turnover and River Squeeze. Existing saved assignments are preserved. Font attribution and licenses ship in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md).
 
+## Puppy skin
+
+Choose **Puppy** in the studio's Themes (or pick it from the table's atmospheres). A procedurally modelled 3D puppy (Three.js, rendered on a transparent, click-through canvas) lives on the table:
+
+- It rests where it covers no cards, chips or name plates, and idles: wagging, blinking, looking around, tilting its head, scratching an ear, play-bowing.
+- It runs the card animations itself. It trots to the deck and paws each hole card out, noses the flop across the felt and paws the cards apart, fetches the turn in its mouth, and slides the river into place with a paw before celebrating. Cards and puppy sample one shared plan at the animation's own progress, so each card moves exactly when it is touched.
+- It noses swept bets into the pot, bats folded cards away, glances at bets and whoever is to act, and celebrates wins (hops, spins, paw-print sparkles), scaled to the pot.
+- The room has a matching paw-print deck, felt with paw prints and a paw emblem, paw chips and a paw dealer button.
+
+Settings live in **Table → Table companion**: puppy on or off, puppy animations on or off, intensity (Subtle / Normal / Playful) and size (Small / Medium / Large). The global **Reduced motion** setting keeps the puppy resting quietly. The 3D module (`puppy.js`) is downloaded only on a Puppy table, renders at a throttled rate when idle, stops while the tab is hidden, and is removed completely when you switch skins. Visual holds for the puppy (chips and folded cards it is about to touch) are capped at about 0.4 s and never delay the game.
+
 ## Random animation mode
 
 In Animation Studio, select an event (deal, flop, turn or river), then choose **Random**. Each new event or replay chooses from that event’s compatible presets using the effect’s default tuning. Choices can repeat. Each event has its own assignment; the mode saves and exports with your theme. Global speed and reduced-motion settings still apply.

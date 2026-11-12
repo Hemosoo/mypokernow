@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Library, Street, Theme } from '../types';
 import { getPreset } from '../animation/registry';
 import { SHOWPIECE_UPGRADES } from '../animation/presets/showpiece';
-import { builtInThemes, DEFAULT_THEME_ID, defaultEffects, LEGACY_BUILT_IN } from './defaults';
+import { builtInThemes, DEFAULT_THEME_ID, defaultEffects, LEGACY_BUILT_IN, ROOMS_SINCE_V4 } from './defaults';
 
 const hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 const asset = z.string().regex(/^asset:[a-zA-Z0-9-]{1,80}$/).optional();
@@ -19,21 +19,27 @@ export const themeSchema = z.object({
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   card: z.object({
     aura: z.object({enabled:z.boolean(),color:hex,strength:finite(0,1)}).strict().default({enabled:true,color:'#d4b274',strength:0.4}),
-    face: z.enum(['classic', 'modern', 'midnight', 'native']), back: z.enum(['crosshatch', 'diamonds', 'solid', 'image']),
+    face: z.enum(['classic', 'modern', 'midnight', 'native', 'puppy']), back: z.enum(['crosshatch', 'diamonds', 'solid', 'image', 'paws']),
     backColor: hex, backImage: asset, faceColor: hex, redColor: hex, blackColor: hex, borderColor: hex,
     borderRadius: finite(0, 14), shadow: finite(0, 1),
   }).strict(),
   table: z.object({
     feltColor: hex, railColor: hex, backgroundColor: hex, backgroundImage: asset,
-    trimColor: hex, inscription, emblem: z.enum(['spade', 'crown', 'laurel', 'none']),
+    trimColor: hex, inscription, emblem: z.enum(['spade', 'crown', 'laurel', 'paw', 'none']),
+    motif: z.enum(['classic', 'puppy']).default('classic'),
   }).strict(),
   board: z.object({ color: hex, highlight: hex, spacing: finite(0, 32), shadow: finite(0, 1) }).strict(),
   animations: z.object({ deal: assignment, flop: assignment, turn: assignment, river: assignment }).strict(),
+  description: z.string().trim().max(140).optional(),
+  companion: z.object({
+    kind: z.literal('puppy'), animations: z.boolean(),
+    intensity: z.enum(['subtle', 'normal', 'playful']), scale: z.enum(['small', 'medium', 'large']),
+  }).strict().optional(),
 }).strict();
 
 const effectsSchema = z.object({ chips: z.boolean(), celebrations: z.boolean(), moments: z.boolean(), ambience: z.boolean() }).strict();
 export const librarySchema = z.object({
-  version: z.literal(3),
+  version: z.literal(4),
   settings: z.object({ enabled: z.boolean(), reducedMotion: z.boolean(), speed: finite(0.25, 3), activeThemeId: z.string().min(1).max(100), effects: effectsSchema }).strict(),
   themes: z.array(themeSchema).min(1).max(100),
 }).strict();
@@ -116,10 +122,19 @@ function upgradeAssignments(theme: unknown): unknown {
   return { ...theme, animations };
 }
 
+/** Version 4 adds the rooms introduced since version 3 (Puppy), once, after the owner's own themes are kept. */
+function addNewRooms(library: Loose): Loose {
+  const themes = Array.isArray(library.themes) ? library.themes : [];
+  const ids = new Set(themes.map((theme) => (isObject(theme) ? theme.id : undefined)));
+  const added = structuredClone(builtInThemes).filter((theme) => ROOMS_SINCE_V4.includes(theme.id) && !ids.has(theme.id));
+  return { ...library, version: 4, themes: [...themes, ...added].slice(0, 100) };
+}
+
 export function migrateLibrary(value: unknown): unknown {
-  const library = migrateLibraryV1(value);
-  if (!isObject(library) || library.version !== 2 || !Array.isArray(library.themes)) return library;
-  return { ...library, version: 3, themes: library.themes.map(upgradeAssignments) };
+  let library = migrateLibraryV1(value);
+  if (isObject(library) && library.version === 2 && Array.isArray(library.themes)) library = { ...library, version: 3, themes: library.themes.map(upgradeAssignments) };
+  if (isObject(library) && library.version === 3 && Array.isArray(library.themes)) library = addNewRooms(library);
+  return library;
 }
 
 export function validateLibrary(value: unknown): Library {

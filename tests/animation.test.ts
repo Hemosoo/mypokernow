@@ -36,7 +36,7 @@ test('motion endpoints and peel derivatives preserve continuity and zero landing
 test('all eight compositions remain finite across extreme schema values and 2/10-player layouts',()=>{
  const {JSDOM}=createRequire(import.meta.url)('jsdom');const dom=new JSDOM('<!doctype html><body></body>');
  Object.assign(globalThis,{document:dom.window.document,HTMLElement:dom.window.HTMLElement,DOMParser:dom.window.DOMParser,XMLSerializer:dom.window.XMLSerializer});
- const theme=createDefaultTheme();assert.equal(presets.length,16);assert.equal(new Set(presets.map(p=>p.id)).size,16);
+ const theme=createDefaultTheme();assert.equal(presets.length,20);assert.equal(new Set(presets.map(p=>p.id)).size,20);
  for(const preset of presets)for(const extreme of ['min','default','max'] as const)for(const seats of [2,10]) {
   const street=preset.supportedEvents[0];const length=street==='deal'?seats*2:street==='flop'?3:1;
   const cards:VisualCard[]=Array.from({length},(_,i)=>({id:`card-${i}`,seatId:`seat-${i%seats}`,round:Math.floor(i/seats),identity:street==='deal'&&i%seats!==0?undefined:{rank:i%2?'K':'8',suit:'hearts'} as CardIdentity,target:{x:250+i*25,y:350,width:65,height:91}}));

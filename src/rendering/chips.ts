@@ -1,5 +1,8 @@
 import { darken, metal, mix, safeHex, svgDataUrl } from './color';
 import { CAP_HEIGHT, glyphs } from './glyphs';
+import { PAW } from './puppy-art';
+
+export type ChipMotif = 'classic' | 'puppy';
 
 /**
  * Casino chips, drawn at a three-quarter angle so a stack reads as an object
@@ -62,11 +65,12 @@ function chipSide(x: number, cy: number, tone: Tone, turn = 0): string {
   return markup;
 }
 
-function chipTop(x: number, cy: number, tone: Tone): string {
+function chipTop(x: number, cy: number, tone: Tone, motif: ChipMotif = 'classic'): string {
   const { width: w, ry } = CHIP, rx = w / 2, cx = x + rx;
   return `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${rx}" ry="${ry}" fill="${tone.face}"/>`
     + `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(rx - 1.5)}" ry="${n(ry - 0.85)}" fill="none" stroke="${tone.insert}" stroke-opacity=".9" stroke-width="2.4" stroke-dasharray="4.1 5.05"/>`
     + `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(rx * 0.56)}" ry="${n(ry * 0.56)}" fill="${tone.inlay}" stroke="${tone.ring}" stroke-opacity=".8" stroke-width=".5"/>`
+    + (motif === 'puppy' ? `<g transform="translate(${n(cx)} ${n(cy + 0.15)}) scale(5.4 3.1)" fill="${tone.ring}" fill-opacity=".9">${PAW}</g>` : '')
     + `<ellipse cx="${n(cx - 2.2)}" cy="${n(cy - 1.6)}" rx="${n(rx * 0.5)}" ry="${n(ry * 0.34)}" fill="#fff" fill-opacity=".1"/>`;
 }
 
@@ -76,7 +80,7 @@ export interface ChipArt { svg: string; width: number; height: number; url: stri
  * Draw one or more adjacent columns. Each column is listed bottom to top.
  * Columns overlap slightly and step back, the way a croupier racks a bet.
  */
-export function chipColumnsArt(columns: ChipTone[][], accent: string): ChipArt {
+export function chipColumnsArt(columns: ChipTone[][], accent: string, motif: ChipMotif = 'classic'): ChipArt {
   const stacks = columns.filter((column) => column.length);
   if (!stacks.length) return { svg: '', width: 0, height: 0, url: '' };
   const { width: w, ry, thickness: t } = CHIP;
@@ -95,7 +99,7 @@ export function chipColumnsArt(columns: ChipTone[][], accent: string): ChipArt {
     column.forEach((tone, level) => {
       const colors = toneColors(tone, accent), cy = base - level * t;
       markup += chipSide(x, cy, colors, level + index * 3);
-      if (level === column.length - 1) markup += chipTop(x, cy, colors);
+      if (level === column.length - 1) markup += chipTop(x, cy, colors, motif);
       else markup += `<path d="M${n(x)} ${n(cy)}A${w / 2} ${ry} 0 0 0 ${n(x + w)} ${n(cy)}" fill="none" stroke="#000" stroke-opacity=".28" stroke-width=".45"/>`;
     });
   });
@@ -112,18 +116,18 @@ export function rack(chips: ChipTone[], perColumn = 5, maxColumns = 3): ChipTone
 }
 
 /** A bet as racked chips. */
-export function betArt(bigBlinds: number, accent: string): ChipArt {
-  return chipColumnsArt(rack(chipsFor(bigBlinds, 10), 5, 2), accent);
+export function betArt(bigBlinds: number, accent: string, motif: ChipMotif = 'classic'): ChipArt {
+  return chipColumnsArt(rack(chipsFor(bigBlinds, 10), 5, 2), accent, motif);
 }
 
 /** The pot as a wider rack: more columns, same language. */
-export function potArt(bigBlinds: number, accent: string): ChipArt {
-  return chipColumnsArt(rack(chipsFor(bigBlinds, 18), 6, 3), accent);
+export function potArt(bigBlinds: number, accent: string, motif: ChipMotif = 'classic'): ChipArt {
+  return chipColumnsArt(rack(chipsFor(bigBlinds, 18), 6, 3), accent, motif);
 }
 
 /** A single chip, used while chips are in motion. */
-export function singleChipArt(tone: ChipTone, accent: string): ChipArt {
-  return chipColumnsArt([[tone]], accent);
+export function singleChipArt(tone: ChipTone, accent: string, motif: ChipMotif = 'classic'): ChipArt {
+  return chipColumnsArt([[tone]], accent, motif);
 }
 
 /** Flat, top-down chip used for the dealer puck and studio swatches. */
@@ -134,7 +138,7 @@ function letterMark(letter: string): string {
   return `<path transform="translate(${n(32 - width / 2 - glyph.x0 * scale)} ${n(25 + height * 0.74 / 2)}) scale(${n(scale)} ${n(scale * 0.74)})" d="${glyph.d}" fill="#1b1d21"/>`;
 }
 
-export function puckSvg(accent: string, letter = 'D'): string {
+export function puckSvg(accent: string, letter = 'D', motif: ChipMotif = 'classic'): string {
   const gold = metal(safeHex(accent, '#d4b274'));
   const ivory = '#f6f1e4', shade = mix(ivory, '#8f8672', 0.55);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56" width="64" height="56">
@@ -146,7 +150,7 @@ export function puckSvg(accent: string, letter = 'D'): string {
 <ellipse cx="32" cy="25" rx="27" ry="18" fill="url(#f)"/>
 <ellipse cx="32" cy="25" rx="23.2" ry="15" fill="none" stroke="url(#g)" stroke-width="1.5"/>
 <ellipse cx="32" cy="25" rx="20.6" ry="13.1" fill="none" stroke="${gold.low}" stroke-opacity=".5" stroke-width=".4"/>
-${letterMark(letter)}
+${motif === 'puppy' ? `<g transform="translate(32 25.5) scale(30 19.5)" fill="${gold.mid}" fill-opacity=".32">${PAW}</g>` : ''}${letterMark(letter)}
 <ellipse cx="24" cy="17" rx="13" ry="5" fill="#fff" fill-opacity=".35"/>
 </svg>`;
 }
