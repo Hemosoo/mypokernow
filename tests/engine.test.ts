@@ -209,6 +209,20 @@ test('semantic layers preserve jumbo index, suits, gradients and coherent crown'
   } finally { env.close(); }
 });
 
+test('a puppy preset never plays without the puppy: a showpiece stands in', async () => {
+  const env = environment();
+  try {
+    env.theme.animations.flop = { preset: 'flop.puppy', parameters: { duration: 4000 } };
+    const alone = env.engine.play(env.fixture(), env.theme);
+    assert.equal(env.host.querySelector<HTMLElement>('[data-pnc-preset]')!.dataset.pncPreset, 'flop.grand');
+    alone.cancel(); await alone.finished;
+    env.step(16); env.step(16);
+    const together = env.engine.play(env.fixture(), env.theme, { companionReady: true });
+    assert.equal(env.host.querySelector<HTMLElement>('[data-pnc-preset]')!.dataset.pncPreset, 'flop.puppy');
+    together.cancel(); await together.finished;
+  } finally { env.close(); }
+});
+
 test('overlapping reusable sequence segments cover one synchronized parent clock', () => {
   const base = [{ start: 0, end: 1, update() {} }];
   const tracks = sequence({ tracks: base }, { tracks: base, overlap: 0.2 });
@@ -221,7 +235,7 @@ test('random mode chooses once per new event from compatible effects with defaul
   try {
     env.theme.animations.flop = { preset: 'random', parameters: {} };
     const { presetsForStreet } = await import('../src/animation/registry');
-    const candidates = presetsForStreet('flop');
+    const candidates = presetsForStreet('flop').filter((preset) => !preset.companion);
     let rolls = 0;
     Math.random = () => { rolls++; return 0; };
     const event = env.fixture();

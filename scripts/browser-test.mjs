@@ -127,6 +127,19 @@ try {
  assert.ok(puppyStates.includes('DEALING'),'The puppy must deal the cards');
  assert.ok(puppyStates.includes('RUNNING'),'The puppy must run to the deck');
  const puppyShot=await call('Page.captureScreenshot',{format:'png'});await writeFile('artifacts/puppy.png',Buffer.from(puppyShot.data,'base64'));
+ // A long think puts the puppy to sleep; the clock running low (PokerNow's red timer) startles it awake.
+ const tank=await evaluate(`(async()=>{const R=globalThis.__pncReplica;R.rest('turn');await new Promise(r=>setTimeout(r,1500));const seat=R.scenario.state.seats[2];seat.deciding=true;seat.timer={normal:60,bank:20};R.scenario.render();R.runtime.scan();
+  const t=performance.now();while(performance.now()-t<12000&&R.runtime.companionDebug().state!=='SLEEPING')await new Promise(r=>setTimeout(r,100));const asleep=R.runtime.companionDebug().state;
+  seat.timer={normal:4,bank:0,red:true};R.scenario.render();const seen=new Set();const u=performance.now();while(performance.now()-u<1200){seen.add(R.runtime.companionDebug().state);await new Promise(r=>setTimeout(r,40));}
+  seat.deciding=false;seat.timer=undefined;R.scenario.render();return {asleep,after:[...seen]};})()`);
+ console.log('Tanking:',tank);
+ assert.equal(tank.asleep,'SLEEPING','A long think should put the puppy to sleep');
+ assert.ok(tank.after.includes('STARTLED'),'The low-time warning should wake the puppy with a start');
+ // A reused board slot (filled and turned over in place) is held again before it can paint.
+ const reused=await evaluate(`(async()=>{const R=globalThis.__pncReplica;R.rest('turn');await new Promise(r=>setTimeout(r,400));const board=document.querySelector('.table-cards');const slot=board.querySelector('.card-container').cloneNode(true);
+  slot.removeAttribute('data-pnc-released');slot.classList.remove('flipped');slot.classList.add('not-visible');board.append(slot);R.runtime.scan();await new Promise(r=>setTimeout(r,300));const released=slot.hasAttribute('data-pnc-released');
+  slot.classList.remove('not-visible');slot.classList.add('flipped');await new Promise(r=>requestAnimationFrame(r));const opacity=getComputedStyle(slot).opacity;slot.remove();return {released,opacity};})()`);
+ assert.ok(reused.released,'An empty slot is released'); assert.equal(reused.opacity,'0','A reused slot must be held when it turns over');
  await evaluate(`(()=>{const s=globalThis.__pncReplica.scenario;s.state.decisions={attention:true,buttons:[{label:'Check',kind:'check',color:'green'}]};s.render();globalThis.__controlClicks=0;document.querySelector('.action-button').onclick=()=>globalThis.__controlClicks++;})()`);
  const control=await evaluate(`(()=>{const b=document.querySelector('.action-button');const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
  await call('Input.dispatchMouseEvent',{type:'mousePressed',...control,button:'left',clickCount:1});
@@ -135,6 +148,14 @@ try {
  await evaluate(`(()=>{const select=document.querySelector('select');select.value='room-monte-carlo';select.dispatchEvent(new Event('change'));})()`);
  await sleep(400);
  assert.equal(await evaluate('globalThis.__pncReplica.runtime.companionDebug()'),undefined,'Switching skins must remove the puppy');
+ // Another room with a puppy animation: the puppy visits for that animation only, then leaves.
+ const visit=await evaluate(`(async()=>{const R=globalThis.__pncReplica;const theme=structuredClone(R.runtime.state.theme);theme.animations.flop={preset:'flop.puppy',parameters:{}};R.configure(theme,R.settings);
+  const t=performance.now();while(!R.runtime.companionDebug()&&performance.now()-t<8000)await new Promise(r=>setTimeout(r,50));await new Promise(r=>setTimeout(r,400));R.rest('turn');await new Promise(r=>setTimeout(r,400));
+  const hiddenBefore=!R.runtime.companionDebug().visible;let shown=false;R.play('flop');const u=performance.now();while(performance.now()-u<3500){shown||=R.runtime.companionDebug().visible;await new Promise(r=>setTimeout(r,50));}
+  const v=performance.now();while(R.runtime.companionDebug().visible&&performance.now()-v<6000)await new Promise(r=>setTimeout(r,100));
+  return {hiddenBefore,shown,goneAfter:!R.runtime.companionDebug().visible,state:R.runtime.companionDebug().state};})()`);
+ console.log('Visiting puppy:',visit);
+ assert.ok(visit.hiddenBefore&&visit.shown&&visit.goneAfter,'A visiting puppy appears for its animation and then leaves');
  await evaluate('globalThis.__pncReplica.runtime.dispose()');
  assert.equal(await evaluate('document.querySelectorAll("[data-pnc-overlay], [data-pnc-owned]").length'),0);
  assert.deepEqual(errors,[],'Unexpected browser runtime errors');

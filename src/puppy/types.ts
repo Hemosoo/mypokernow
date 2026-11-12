@@ -35,11 +35,13 @@ export interface Companion {
    * companion module is loaded separately and has its own copy of every module.
    */
   animation(handle: AnimationHandle, event: VisualEvent, plan?: Choreography): void;
+  /** Whether it can perform a card animation right now. */
+  ready(): boolean;
   /** Window geometry changed (resize, scroll, zoom). */
   geometry(): void;
   dispose(): void;
   /** Read-only state for tests and diagnostics. */
-  debug?(): { state: string; visible: boolean; renders: number; at: { x: number; y: number } };
+  debug?(): { state: string; visible: boolean; renders: number; at: { x: number; y: number }; lag?: number };
 }
 
 export interface CompanionModule {
