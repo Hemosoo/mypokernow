@@ -12,6 +12,8 @@ export interface PokerNowAdapterOptions {
   onTable?(state: TableState | undefined): void;
   onInvalidate?(): void;
   onUnsupported?(): void;
+  /** After every scan, once its events (if any) have been delivered. */
+  onScanEnd?(): void;
   allowFixture?: boolean;
   /** The studio's preview table lives outside a /games/ address. */
   allowAnyLocation?: boolean;
@@ -109,6 +111,10 @@ export class PokerNowAdapter {
   /** Public for deterministic local fixture verification; normal callers use start/stop. */
   scan(): void {
     if (!this.active || this.document.hidden) return;
+    try { this.scanOnce(); } finally { if (this.active) this.options.onScanEnd?.(); }
+  }
+
+  private scanOnce(): void {
     if (!this.options.allowFixture && !this.options.allowAnyLocation && !/^\/games\/[^/]+/.test(this.document.location.pathname)) {
       if (this.last) this.options.onInvalidate?.();
       this.last = undefined;

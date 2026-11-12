@@ -5,6 +5,10 @@ import { Skin } from '../skin';
 import { Stage } from '../stage/stage';
 import type { Settings, Theme, VisualEvent } from '../types';
 
+/** Marks a card the extension has finished deciding about; see `pnc-hold` in the skin. */
+const RELEASED = 'data-pnc-released';
+const release = (card: HTMLElement): void => { if (card.isConnected && !card.hasAttribute(RELEASED)) card.setAttribute(RELEASED, ''); };
+
 export type RuntimeState = 'starting' | 'ready' | 'unsupported' | 'disabled' | 'error';
 
 export interface RuntimeOptions {
@@ -32,6 +36,9 @@ export class Runtime {
   private theme: Theme | undefined;
   private settings: Settings | undefined;
   private appearanceActive = false;
+  private table: HTMLElement | undefined;
+  /** Cards handed to an accepted animation; the animation conceals and then restores them. */
+  private readonly awaiting = new Set<HTMLElement>();
   private disposed = false;
   private readonly onGeometry = (): void => this.stage.settle();
 
@@ -53,7 +60,8 @@ export class Runtime {
     this.adapter = new PokerNowAdapter({
       allowAnyLocation: options.allowAnyLocation,
       onInvalidate: () => this.coordinator.cancelAll(),
-      onPresentation: (snapshot) => { this.appearanceActive = Boolean(snapshot && this.theme); },
+      onPresentation: (snapshot) => { this.appearanceActive = Boolean(snapshot && this.theme); this.table = snapshot?.table; },
+      onScanEnd: () => this.releaseCards(),
       onTable: (state) => this.stage.sync(state),
       onUnsupported: () => this.report('unsupported', describeUnsupported(inspectLayout(document), this.appearanceActive)),
       onSnapshot: (snapshot) => this.report('ready', 'The skin is active and the table is being followed. Cards already on the felt are not replayed.',
@@ -104,6 +112,8 @@ export class Runtime {
     this.stage.dispose();
     this.skin.clear();
     this.options.document.documentElement.removeAttribute('data-pnc-cards');
+    for (const card of this.options.document.querySelectorAll(`[${RELEASED}]`)) card.removeAttribute(RELEASED);
+    this.awaiting.clear();
     this.host.remove();
   }
 
@@ -114,13 +124,38 @@ export class Runtime {
   private animate(event: VisualEvent): void {
     if (!this.theme || !this.settings) return;
     if (event.type === 'TABLE_READY' || event.type === 'HAND_VISUAL_RESET') { this.coordinator.cancelAll(); return; }
+    const sources = event.cards.map((card) => card.source).filter((source): source is HTMLElement => Boolean(source));
     try {
       const handle = this.coordinator.play(event, this.theme, { speed: this.settings.speed, reducedMotion: this.settings.reducedMotion });
       this.options.onAnimation?.(handle, event);
-      void handle.finished.catch(() => this.coordinator.cancelAll());
+      // A declined event completes at once; its cards are released at the end of this scan.
+      if (handle.progress < 1) {
+        for (const source of sources) this.awaiting.add(source);
+        const settle = (): void => { for (const source of sources) { this.awaiting.delete(source); release(source); } };
+        void handle.finished.then(settle, () => { settle(); this.coordinator.cancelAll(); });
+      }
     } catch {
       this.coordinator.cancelAll();
       this.report('error', 'An animation could not start; the original cards remain available.');
+    }
+  }
+
+  /**
+   * New cards stay hidden (see `pnc-hold` in the skin) until the extension has
+   * decided their fate: an animation takes them over, or they are shown now.
+   * Board cards still being turned over by the site wait for the whole street,
+   * so a flop never shows one card early. The stylesheet caps the wait at one
+   * second, so a card can never stay hidden if this code does not run.
+   */
+  private releaseCards(): void {
+    const table = this.table;
+    if (!table || !table.isConnected) return;
+    const boardCards = Array.from(table.querySelectorAll<HTMLElement>('.table-cards .card-container:not(.not-visible)'));
+    const turning = boardCards.some((card) => !card.classList.contains('flipped'));
+    for (const card of table.querySelectorAll<HTMLElement>(`.table-cards .card-container, .table-player-cards .card-container`)) {
+      if (card.hasAttribute(RELEASED) || this.awaiting.has(card)) continue;
+      if (turning && boardCards.includes(card)) continue;
+      release(card);
     }
   }
 }

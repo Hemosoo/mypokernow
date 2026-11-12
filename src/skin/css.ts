@@ -227,12 +227,13 @@ ${ROOT}.portrait .table-player-3 .table-player-bet-value::before,${ROOT}.portrai
 ${ROOT}.portrait .table-player-bet-value{font-size:.56rem;padding:.2rem .44rem}
 
 /*
- * A newly placed card waits a beat before it paints, which gives the animation
- * engine time to take over without the card flashing first. The wait ends by
- * itself, so a card can never stay hidden if the engine does nothing.
+ * A newly placed card stays hidden until the runtime has decided its fate
+ * (an animation takes it over, or it is released to show at once). The hold
+ * ends by itself after one second, so a card can never stay hidden if the
+ * runtime does nothing.
  */
 @keyframes pnc-hold{0%,100%{opacity:0}}
-${ROOT}[data-pnc-cards="animated"] .table-cards .card-container,${ROOT}[data-pnc-cards="animated"] .table-player-cards .card-container{animation:pnc-hold .2s steps(1,end) 1}
+${ROOT}[data-pnc-cards="animated"] .table-cards .card-container:not([data-pnc-released]),${ROOT}[data-pnc-cards="animated"] .table-player-cards .card-container:not([data-pnc-released]){animation:pnc-hold 1s steps(1,end) 1}
 
 ${cardRules(theme)}
 
