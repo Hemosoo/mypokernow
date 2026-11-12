@@ -1,3 +1,4 @@
+import { auraShadow, madeHand } from '../rendering/hand-aura';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type CSSProperties } from 'react';
 import { AnimationCoordinator } from '../animation/core/coordinator';
 import { getPreset } from '../animation/registry';
@@ -214,7 +215,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
       const top = 50 + Math.sin(angle) * 40;
       return <div className={`player-seat ${index === 0 ? 'hero-seat' : ''}`} key={index} style={{ left: `${left}%`, top: `${top}%` }}>
         <div className="seat-cards">{[0, 1].map((round) => <div className="hole-slot" key={round}>
-          {dealt && <div className="canonical-card" style={cardStyle} data-hole={`${index}-${round}`}>
+          {dealt && <div className="canonical-card" style={{...cardStyle,...(index===0&&theme.card.aura.enabled&&madeHand(HERO,BOARD.slice(0,boardCount))?{boxShadow:auraShadow(theme.card.aura.color,theme.card.aura.strength)}:{})}} data-hole={`${index}-${round}`}>
             <img src={cardDataUrl(index === 0 ? HERO[round] : undefined, theme.card, artOptions(theme))}
               alt={index === 0 ? `${HERO[round].rank} of hearts` : 'Face-down opponent card'} draggable={false} />
           </div>}

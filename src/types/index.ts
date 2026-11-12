@@ -9,6 +9,7 @@ export interface VisualCard {id: string; identity?: CardIdentity; target: Rect; 
 export interface VisualEvent {id: string; type: VisualEventType; cards: VisualCard[]; origin: Point3; timestamp: number; seats?: Rect[]}
 export interface ParameterSchema {key: string; label: string; min: number; max: number; step: number; default: number; unit?: string}
 export interface CardAppearance {
+  aura: { enabled: boolean; color: string; strength: number };
   face: 'classic' | 'modern' | 'midnight' | 'native';
   back: 'crosshatch' | 'diamonds' | 'solid' | 'image'; backColor: string; backImage?: string;
   faceColor: string; redColor: string; blackColor: string; borderColor: string; borderRadius: number; shadow: number;

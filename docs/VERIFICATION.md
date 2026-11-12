@@ -1,3 +1,7 @@
+## Made-hand aura follow-up
+
+`npm run check`: **55/55 tests**, typecheck and production build passed. Chromium suite passed, including assembly handoff geometry, all 12 presets, four-room/full-hand rehearsal, actual game-control clicks and cleanup. Aura regression activates a custom-color/strength glow for a visible made pair and verifies disabling it removes the live rule. Screenshot `artifacts/hand-aura.png` inspected. Tests cover made-hand categories, wheel straights, draws, board-only hands, hidden/folded cards, multiple boards, duplicate identities and legacy theme defaults. Live-game testing remains manual.
+
 ## Reveal artifact regression
 
 Follow-up: npm run check passed (52/52 tests, typecheck, production build); Chromium suite passed all 12 presets and the room rehearsal. New assembly-frame checks at progress .8/.94/.96/.984/.985/.999/1 keep identical x/y/width/height (70 × 98 fixture). Inspected screenshots immediately before/after replacement in artifacts/assembly-0.984.png and assembly-0.985.png. Colored finishing halos and cyan impact sprites removed from related presets. Live-game verification remains manual.

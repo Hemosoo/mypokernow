@@ -23,7 +23,7 @@ interface RoomSpec {
 function room(spec: RoomSpec): Theme {
   return {
     version: 2, id: spec.id, name: spec.name, createdAt: timestamp, updatedAt: timestamp,
-    card: { face: spec.face, back: spec.backStyle, backColor: spec.back, faceColor: spec.paper, redColor: spec.red, blackColor: spec.black, borderColor: spec.edge, borderRadius: 7, shadow: 0.5 },
+    card: { aura: { enabled: true, color: spec.trim, strength: 0.4 }, face: spec.face, back: spec.backStyle, backColor: spec.back, faceColor: spec.paper, redColor: spec.red, blackColor: spec.black, borderColor: spec.edge, borderRadius: 7, shadow: 0.5 },
     table: { feltColor: spec.felt, railColor: spec.rail, backgroundColor: spec.room, trimColor: spec.trim, inscription: '', emblem: spec.emblem },
     board: { color: spec.felt, highlight: spec.glow, spacing: 12, shadow: 0.5 },
     animations: signatureAnimations(),

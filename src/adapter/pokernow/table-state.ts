@@ -1,6 +1,6 @@
-import type { Rect } from '../../types';
-import { OWNED_SELECTOR } from './selectors';
-import { isPainted, rectangle } from './snapshot';
+import type { CardIdentity, Rect } from '../../types';
+import { OWNED_SELECTOR, selectorProfiles } from './selectors';
+import { isPainted, rectangle, readVisibleIdentity } from './snapshot';
 
 /**
  * What is happening at the table, read from what the page already shows:
@@ -34,6 +34,7 @@ export interface TableState {
   pot?: number;
   potRect?: Rect;
   bigBlind?: number;
+  heroHand?: { position: number; hole: CardIdentity[]; board: CardIdentity[] };
   boardCount: number;
   board?: Rect;
 }
@@ -96,7 +97,14 @@ export function readTableState(table: HTMLElement): TableState | undefined {
   const bigBlind = chipValue(blinds[blinds.length - 1] ?? null);
   const boards = Array.from(table.querySelectorAll<HTMLElement>('.table-cards'));
   const boardCards = boards.length === 1 ? Array.from(boards[0]!.querySelectorAll('.card-container:not(.not-visible)')) : [];
+  const hero = table.querySelector<HTMLElement>('.table-player.you-player:not(.fold)');
+  const profile = selectorProfiles.find(profile=>profile.id==='pokernow')!;
+  const visible = (elements: Element[]): CardIdentity[] => elements.filter((element): element is HTMLElement=>element instanceof HTMLElement&&isPainted(element)).map(element=>readVisibleIdentity(element,profile)).filter((identity): identity is CardIdentity=>Boolean(identity));
+  const hole=hero?visible(Array.from(hero.querySelectorAll('.table-player-cards:not(.hide-cards) .card-container'))):[];
+  const board=visible(boardCards);
+  const position=seats.find(seat=>seat.you&&!seat.folded)?.position;
   return {
+    ...(position&&hole.length===2&&board.length===boardCards.length&&boards.length===1?{heroHand:{position,hole,board}}:{}),
     table: rectangle(table), seats,
     ...(main ? { pot: chipValue(main), potRect: rectangle(potElement!) } : {}),
     ...(bigBlind && bigBlind > 0 ? { bigBlind } : {}),

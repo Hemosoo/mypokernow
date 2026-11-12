@@ -1,3 +1,4 @@
+import { auraShadow, madeHand } from '../rendering/hand-aura';
 import type { SeatState, TableState } from '../adapter/pokernow/table-state';
 import { artOptions, cardDataUrl } from '../rendering/cards';
 import { betArt, chipsFor, potArt, singleChipArt, type ChipArt, type ChipTone } from '../rendering/chips';
@@ -206,6 +207,10 @@ export class Stage {
         const art = this.cached('pot', this.potShown);
         if (art.url) rules += `${SKIN_ROOT} .table-pot-size{--pnc-chips:url("${art.url}");--pnc-chips-w:${(art.width * CHIP_REM).toFixed(3)}rem;--pnc-chips-h:${(art.height * CHIP_REM).toFixed(3)}rem;--pnc-pot-pad:${(art.width * CHIP_REM + 0.75).toFixed(3)}rem}\n`;
       }
+    }
+    const hero=state.heroHand, aura=this.theme?.card.aura;
+    if(hero&&aura?.enabled&&madeHand(hero.hole,hero.board)) {
+      rules+=`${SKIN_ROOT} .table-player-${hero.position}.you-player .table-player-cards .card-container::after{content:"";position:absolute;inset:0;border-radius:${this.theme!.card.borderRadius}% / ${this.theme!.card.borderRadius*90/110}%;box-shadow:${auraShadow(aura.color,aura.strength)};pointer-events:none}`;
     }
     if (rules === this.lastRules) return;
     this.lastRules = rules;

@@ -1,3 +1,9 @@
+## Customizable made-hand aura
+
+Verified: 55 tests, typecheck/build and Chromium suite passed. Aura activation/custom appearance and disabling checked in the replica; screenshot artifacts/hand-aura.png reviewed.
+
+Added per-theme Cards → Made-hand aura (enabled, color, strength). Static, pointer-transparent glows follow the local player’s native card boxes. The preview and live stage share the same visible-card classifier. Pairs, two pair, trips, straights (including wheel), flushes, full houses, quads and straight flushes are supported. Board-only hands do not trigger; missing/hidden/folded hands, partial board formation, duplicate identities and multiple boards fail closed. No opponent identity reads, draws, odds or game-state writes. Existing v1/v2 theme files receive bounded default aura settings on validation; custom settings export/import with the theme.
+
 ## Reveal artifact follow-up
 
 - Fragment Assembly body fades in at its measured resting geometry, with no body scaling, depth or translation. Its shadow and corners match the complete card at replacement.

@@ -85,6 +85,12 @@ try {
   const image=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
   await writeFile(`artifacts/room-${room}.png`,Buffer.from(image.data,'base64'));
  }
+ await evaluate(`(()=>{const r=globalThis.__pncReplica.runtime;const theme=structuredClone(r.state.theme);theme.card.aura={enabled:true,color:'#f0c77a',strength:.65};r.configure(theme,r.state.settings);r.scan();})()`);
+ assert.ok(await evaluate(`document.querySelector('[data-pnc-owned="live"]').textContent.includes('card-container::after')`),'Made pair must activate hero aura');
+ const aura=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+ await writeFile('artifacts/hand-aura.png',Buffer.from(aura.data,'base64'));
+ await evaluate(`(()=>{const r=globalThis.__pncReplica.runtime;const theme=structuredClone(r.state.theme);theme.card.aura.enabled=false;r.configure(theme,r.state.settings);r.scan();})()`);
+ assert.equal(await evaluate(`document.querySelector('[data-pnc-owned="live"]').textContent.includes('card-container::after')`),false,'Aura toggle must remove glow');
  await evaluate('void globalThis.__pncReplica.scenario.playHand(2)');
  await sleep(2000);
  const motion=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});

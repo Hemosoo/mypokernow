@@ -17,6 +17,7 @@ export const themeSchema = z.object({
   version: z.literal(2), id: z.string().regex(/^[a-zA-Z0-9-]{1,100}$/), name: z.string().trim().min(1).max(80),
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   card: z.object({
+    aura: z.object({enabled:z.boolean(),color:hex,strength:finite(0,1)}).strict().default({enabled:true,color:'#d4b274',strength:0.4}),
     face: z.enum(['classic', 'modern', 'midnight', 'native']), back: z.enum(['crosshatch', 'diamonds', 'solid', 'image']),
     backColor: hex, backImage: asset, faceColor: hex, redColor: hex, blackColor: hex, borderColor: hex,
     borderRadius: finite(0, 14), shadow: finite(0, 1),
