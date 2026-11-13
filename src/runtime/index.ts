@@ -3,13 +3,15 @@ import { describeUnsupported, inspectLayout, type ObservedLayout } from '../adap
 import { AnimationCoordinator, warmArtwork, type AnimationHandle } from '../animation/core/coordinator';
 import { Skin } from '../skin';
 import { Stage } from '../stage/stage';
-import type { Settings, Theme, VisualEvent } from '../types';
+import type { Settings, Theme, VisualCard, VisualEvent } from '../types';
 import type { Companion, CompanionModule } from '../puppy/types';
 import { planForEvent } from '../puppy/plan';
 import { isCompanionPreset } from '../animation/presets/puppy';
 
 /** Marks a card the extension has finished deciding about; see `pnc-hold` in the skin. */
 const RELEASED = 'data-pnc-released';
+/** Longest a card waits to be taken in by the table reading (the stylesheet's own cap is longer). */
+const HOLD_LIMIT = 2200;
 /** What a card shows: a released card that starts showing something else is held again. */
 const showing = (card: Element): string => `${card.classList.contains('flipped') ? 'u' : 'd'}${card.classList.contains('not-visible') ? 'n' : 'v'}`
   + `${card.querySelector('.value')?.textContent ?? ''}${card.querySelector('.suit')?.textContent ?? ''}`;
@@ -50,6 +52,9 @@ export class Runtime {
   private table: HTMLElement | undefined;
   /** Cards handed to an accepted animation; the animation conceals and then restores them. */
   private readonly awaiting = new Set<HTMLElement>();
+  /** Cards in the latest accepted table reading, by element. */
+  private accounted = new Map<HTMLElement, VisualCard>();
+  private readonly heldSince = new WeakMap<HTMLElement, number>();
   private disposed = false;
   private readonly surface: HTMLElement;
   private companion: Companion | undefined;
@@ -80,8 +85,11 @@ export class Runtime {
       onScanEnd: () => this.releaseCards(),
       onTable: (state) => { this.stage.sync(state); this.companion?.table(state); },
       onUnsupported: () => this.report('unsupported', describeUnsupported(inspectLayout(document), this.appearanceActive)),
-      onSnapshot: (snapshot) => this.report('ready', 'The skin is active and the table is being followed. Cards already on the felt are not replayed.',
-        { profile: snapshot.profile, tableCount: 1, boardCount: 1, seatCount: snapshot.seats.length, cardCount: snapshot.board.length + snapshot.holes.length }),
+      onSnapshot: (snapshot) => {
+        this.accounted = new Map([...snapshot.board, ...snapshot.holes].flatMap((card) => card.source ? [[card.source, card] as const] : []));
+        this.report('ready', 'The skin is active and the table is being followed. Cards already on the felt are not replayed.',
+          { profile: snapshot.profile, tableCount: 1, boardCount: 1, seatCount: snapshot.seats.length, cardCount: snapshot.board.length + snapshot.holes.length });
+      },
       onEvent: (event) => this.animate(event),
     }, document);
     const view = document.defaultView ?? window;
@@ -190,6 +198,7 @@ export class Runtime {
     this.watchCards(false);
     for (const card of this.options.document.querySelectorAll(`[${RELEASED}]`)) card.removeAttribute(RELEASED);
     this.awaiting.clear();
+    clearTimeout(this.recheckTimer);
     this.host.remove();
   }
 
@@ -232,10 +241,32 @@ export class Runtime {
     if (!table || !table.isConnected) return;
     const boardCards = Array.from(table.querySelectorAll<HTMLElement>('.table-cards .card-container:not(.not-visible)'));
     const turning = boardCards.some((card) => !card.classList.contains('flipped'));
+    const now = Date.now();
     for (const card of table.querySelectorAll<HTMLElement>(`.table-cards .card-container, .table-player-cards .card-container`)) {
       if (card.hasAttribute(RELEASED) || this.awaiting.has(card)) continue;
-      if (turning && boardCards.includes(card)) continue;
+      // Nothing to see yet: an empty slot, or a hand the site keeps hidden.
+      const unseen = card.classList.contains('not-visible') || Boolean(card.closest('.hide-cards'));
+      if (!unseen) {
+        // A card is shown only once the table reading has taken it in: while it is still
+        // sliding in, turning over or being filled in, a reading can miss it, and showing it
+        // then would give it away a moment before its animation starts.
+        const known = this.accounted.get(card);
+        const pending = (turning && boardCards.includes(card)) || !known || (card.classList.contains('flipped') && !known.identity);
+        if (pending) {
+          const since = this.heldSince.get(card) ?? now;
+          this.heldSince.set(card, since);
+          // Never hold for good: a card the reading cannot take in is shown after a short wait.
+          if (now - since < HOLD_LIMIT) { this.recheck(); continue; }
+        }
+      }
       release(card);
     }
+  }
+
+  /** While a card is held, look again shortly even if the page goes quiet. */
+  private recheckTimer: ReturnType<typeof setTimeout> | undefined;
+  private recheck(): void {
+    if (this.recheckTimer) return;
+    this.recheckTimer = setTimeout(() => { this.recheckTimer = undefined; if (!this.disposed) this.adapter.scan(); }, 120);
   }
 }

@@ -140,6 +140,13 @@ try {
   slot.removeAttribute('data-pnc-released');slot.classList.remove('flipped');slot.classList.add('not-visible');board.append(slot);R.runtime.scan();await new Promise(r=>setTimeout(r,300));const released=slot.hasAttribute('data-pnc-released');
   slot.classList.remove('not-visible');slot.classList.add('flipped');await new Promise(r=>requestAnimationFrame(r));const opacity=getComputedStyle(slot).opacity;slot.remove();return {released,opacity};})()`);
  assert.ok(reused.released,'An empty slot is released'); assert.equal(reused.opacity,'0','A reused slot must be held when it turns over');
+ // A card the table reading cannot take in yet (still growing in) stays hidden until its animation starts.
+ const growing=await evaluate(`(async()=>{const R=globalThis.__pncReplica;R.rest('turn');await new Promise(r=>setTimeout(r,600));let started=null;R.onAnimation(()=>{started??=performance.now();});
+  const board=document.querySelector('.table-cards');const card=board.querySelector('.card-container').cloneNode(true);card.removeAttribute('data-pnc-released');card.querySelector('.value').textContent='Q';card.style.width='2px';
+  let shown=0;const t0=performance.now();const loop=()=>{const cs=getComputedStyle(card);if(started===null&&cs.visibility!=='hidden'&&Number(cs.opacity)>.01)shown++;if(performance.now()-t0<2500)requestAnimationFrame(loop);};
+  board.append(card);requestAnimationFrame(loop);setTimeout(()=>{card.style.width='';},600);await new Promise(r=>setTimeout(r,2700));R.onAnimation(undefined);card.remove();return {shown,animated:started!==null};})()`);
+ console.log('Growing card:',growing);
+ assert.equal(growing.shown,0,'A card still coming in must not show before its animation'); assert.ok(growing.animated,'The growing card must still animate');
  await evaluate(`(()=>{const s=globalThis.__pncReplica.scenario;s.state.decisions={attention:true,buttons:[{label:'Check',kind:'check',color:'green'}]};s.render();globalThis.__controlClicks=0;document.querySelector('.action-button').onclick=()=>globalThis.__controlClicks++;})()`);
  const control=await evaluate(`(()=>{const b=document.querySelector('.action-button');const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
  await call('Input.dispatchMouseEvent',{type:'mousePressed',...control,button:'left',clickCount:1});
