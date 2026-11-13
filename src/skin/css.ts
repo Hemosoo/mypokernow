@@ -233,6 +233,7 @@ ${ROOT}.portrait .table-player-bet-value{font-size:.56rem;padding:.2rem .44rem}
  * runtime does nothing.
  */
 @keyframes pnc-hold{0%,100%{opacity:0}}
+${ROOT} [data-pnc-concealed="true"]{opacity:0!important}
 ${ROOT}[data-pnc-cards="animated"] .table-cards .card-container:not([data-pnc-released]),${ROOT}[data-pnc-cards="animated"] .table-player-cards .card-container:not([data-pnc-released]){animation:pnc-hold 2.5s steps(1,end) 1}
 
 ${cardRules(theme)}

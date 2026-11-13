@@ -12,6 +12,11 @@ import { isCompanionPreset } from '../animation/presets/puppy';
 const RELEASED = 'data-pnc-released';
 /** Longest a card waits to be taken in by the table reading (the stylesheet's own cap is longer). */
 const HOLD_LIMIT = 2200;
+/**
+ * A card the reading has taken in still waits this long before it is shown, in case
+ * its animation is decided a reading or two later (a deal arriving seat by seat).
+ */
+const GRACE = 260;
 /** What a card shows: a released card that starts showing something else is held again. */
 const showing = (card: Element): string => `${card.classList.contains('flipped') ? 'u' : 'd'}${card.classList.contains('not-visible') ? 'n' : 'v'}`
   + `${card.querySelector('.value')?.textContent ?? ''}${card.querySelector('.suit')?.textContent ?? ''}`;
@@ -170,7 +175,7 @@ export class Runtime {
         if (!card || seen.has(card)) continue;
         seen.add(card);
         const was = card.getAttribute(RELEASED);
-        if (was !== null && was !== showing(card) && !card.hasAttribute('data-pnc-concealed')) card.removeAttribute(RELEASED);
+        if (was !== null && was !== showing(card) && !card.hasAttribute('data-pnc-concealed')) { card.removeAttribute(RELEASED); this.heldSince.delete(card as HTMLElement); }
       }
     });
     this.cardWatch.observe(this.options.document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class'] });
@@ -212,8 +217,6 @@ export class Runtime {
     const sources = event.cards.map((card) => card.source).filter((source): source is HTMLElement => Boolean(source));
     try {
       const handle = this.coordinator.play(event, this.theme, { speed: this.settings.speed, reducedMotion: this.settings.reducedMotion,
-        // Once the overlay has taken over, the hold on the originals is no longer needed.
-        onConcealed: (concealed) => { for (const source of concealed) release(source); },
         companionReady: Boolean(this.companion?.ready()) });
       this.options.onAnimation?.(handle, event);
       if (handle.progress < 1) this.companion?.animation(handle, event, planForEvent(event.id));
@@ -251,13 +254,11 @@ export class Runtime {
         // sliding in, turning over or being filled in, a reading can miss it, and showing it
         // then would give it away a moment before its animation starts.
         const known = this.accounted.get(card);
-        const pending = (turning && boardCards.includes(card)) || !known || (card.classList.contains('flipped') && !known.identity);
-        if (pending) {
-          const since = this.heldSince.get(card) ?? now;
-          this.heldSince.set(card, since);
-          // Never hold for good: a card the reading cannot take in is shown after a short wait.
-          if (now - since < HOLD_LIMIT) { this.recheck(); continue; }
-        }
+        const since = this.heldSince.get(card) ?? now;
+        this.heldSince.set(card, since);
+        const pending = (turning && boardCards.includes(card)) || !known || (card.classList.contains('flipped') && !known.identity) || now - since < GRACE;
+        // Never hold for good: a card the reading cannot take in is shown after a short wait.
+        if (pending && now - since < HOLD_LIMIT) { this.recheck(); continue; }
       }
       release(card);
     }
