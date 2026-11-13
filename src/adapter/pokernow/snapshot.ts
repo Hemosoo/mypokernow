@@ -42,7 +42,8 @@ export function isPainted(element: HTMLElement, leased = false, allowEmptyContai
   let current: HTMLElement | null = element;
   while (current) {
     const style = styleOf(current);
-    const transparent = Number(style.opacity || 1) === 0 && (ownOpacity || current !== element);
+    // A card the extension itself is hiding (leased to an animation) still counts as on the table.
+    const transparent = Number(style.opacity || 1) === 0 && (current !== element || (ownOpacity && !leased));
     if (current.hidden || current.getAttribute('aria-hidden') === 'true' ||
       style.display === 'none' || style.contentVisibility === 'hidden' || transparent ||
       ((style.visibility === 'hidden' || style.visibility === 'collapse') && !(leased && current === element))) return false;
