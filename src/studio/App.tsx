@@ -9,7 +9,9 @@ import { createDefaultLibrary, createDefaultTheme } from '../themes/defaults';
 import { exportTheme, importTheme } from '../themes/transfer';
 import type { Library, Street, Theme } from '../types';
 import { STREETS, assignmentLabel, presetName, presetsFor, streetName, streetShort, studioTint } from './catalog';
+import { BeforeAfter, COMPARE_CHAPTERS } from './BeforeAfter';
 import { CommandMenu, ShortcutSheet, type Command } from './CommandMenu';
+import { Home } from './steps/Home';
 import { Board, Deck, Felt, Puppy } from './steps/Appearance';
 import { Moments } from './steps/Moments';
 import { LibraryStep, SettingsStep } from './steps/Workspace';
@@ -17,6 +19,7 @@ import type { NowPlaying, Step, Studio } from './studio-types';
 import { Icon, Kbd, Toggle, type IconName } from './ui';
 
 const STEPS: { id: Step; label: string; icon: IconName; blurb: string }[] = [
+  { id: 'home', label: 'Home', icon: 'home', blurb: 'What the extension does, at a glance' },
   { id: 'moments', label: 'Effects', icon: 'spark', blurb: 'Card animations for each moment of the hand' },
   { id: 'deck', label: 'Deck', icon: 'cards', blurb: 'Card faces, backs and glow' },
   { id: 'felt', label: 'Felt', icon: 'felt', blurb: 'Room, felt colour and trim' },
@@ -33,7 +36,10 @@ export function App() {
   const [library, setLibrary] = useState<Library>(createDefaultLibrary);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [step, setStep] = useState<Step>('moments');
+  const [step, setStep] = useState<Step>('home');
+  const [chapter, setChapter] = useState(-1);
+  const [seek, setSeek] = useState<{ frame: number; at: number } | undefined>();
+  const home = step === 'home';
   const [street, setStreet] = useState<Street>('flop');
   const [players, setPlayers] = useState(6);
   const [playing, setPlaying] = useState(false);
@@ -125,6 +131,7 @@ export function App() {
 
   /* ---------------------------------------------------------- playback */
   function play(nextStreet: Street, presetId?: string) {
+    if (home) setStep('moments');
     handRun.current += 1;
     setStreet(nextStreet);
     setPaused(false);
@@ -151,6 +158,7 @@ export function App() {
   }
   async function playHand() {
     if (playing && nowPlaying?.hand) { stopPlayback(); return; }
+    if (home) setStep('moments');
     const run = ++handRun.current;
     setPendingPreview(null);
     setPaused(false);
@@ -319,7 +327,7 @@ export function App() {
     else if (key.toLowerCase() === 's') setSlow((value) => !value);
     else if (key.toLowerCase() === 'r') replay();
     else if (key.toLowerCase() === 'f') { const id = activeTheme.animations[street].preset; if (id !== 'random') toggleFavorite(id); }
-    else if (key.toLowerCase() === 'c' && !event.repeat && previewMode === 'live') setOriginal(true);
+    else if (key.toLowerCase() === 'c' && !event.repeat && previewMode === 'live' && !home) setOriginal(true);
   };
   useEffect(() => {
     const down = (event: KeyboardEvent) => keys.current(event);
@@ -359,14 +367,15 @@ export function App() {
     <div className="layout">
       <section className="stage" aria-label="Table preview" id="studio">
         <div className="stage-head">
-          <div className="stage-title"><h1>{activeTheme.name}</h1><p>{activeTheme.description || (activeTheme.companion ? 'With the table puppy' : 'Your theme')}</p></div>
-          <div className="stage-tools">
+          {home ? <div className="stage-title"><h1>See the difference</h1><p>One hand, recorded twice: on a plain table and with the Puppy theme. Drag the line to compare.</p></div>
+            : <div className="stage-title"><h1>{activeTheme.name}</h1><p>{activeTheme.description || (activeTheme.companion ? 'With the table puppy' : 'Your theme')}</p></div>}
+          {!home && <div className="stage-tools">
             {liveTableSupported() && <div className="segmented small" role="tablist" aria-label="Preview mode">
               <button type="button" role="tab" aria-selected={previewMode === 'live'} className={previewMode === 'live' ? 'on' : ''} onClick={() => { stopPlayback(); setPreviewMode('live'); }}>Live table</button>
               <button type="button" role="tab" aria-selected={previewMode === 'lab'} className={previewMode === 'lab' ? 'on' : ''} onClick={() => { stopPlayback(); setOriginal(false); setPreviewMode('lab'); }}>Effect lab</button></div>}
             <label className="players">Players<select aria-label="Preview player count" value={players} onChange={(event) => setPlayers(Number(event.target.value))}>
               {Array.from({ length: 9 }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
-          </div>
+          </div>}
         </div>
         <div className={`stage-frame ${original ? 'original' : ''}`} style={{ backgroundColor: original ? '#1a1b1b' : `color-mix(in srgb, ${activeTheme.table.backgroundColor} 22%, #000)` }}>
           {resolvedTheme ? previewMode === 'live'
@@ -374,13 +383,20 @@ export function App() {
               onMoment={(moment) => { if (moment) setNowPlaying({ street: moment, hand: true }); }} onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} />
             : <PreviewTable key="lab" ref={preview as React.RefObject<PreviewHandle>} theme={resolvedTheme} settings={library.settings} street={street} players={players} slow={slow}
               onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} /> : <div className="stage-loading">Setting the table…</div>}
-          {previewMode === 'live' && <button type="button" className={`compare ${original ? 'on' : ''}`} aria-pressed={original} aria-keyshortcuts="C" title="Hold to see the table without your theme"
+          {home && <div className="ba-cover"><BeforeAfter active={home && !menu && !sheet} onChapter={setChapter} seek={seek} /></div>}
+          {previewMode === 'live' && !home && <button type="button" className={`compare ${original ? 'on' : ''}`} aria-pressed={original} aria-keyshortcuts="C" title="Hold to see the table without your theme"
             onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); setOriginal(true); }} onPointerUp={() => setOriginal(false)} onPointerCancel={() => setOriginal(false)}
             onKeyDown={(event) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); setOriginal(true); } }}
             onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') setOriginal(false); }} onBlur={() => setOriginal(false)}>
             <Icon name="eye" size={15} />{original ? 'Without your theme' : 'Hold to compare'}<Kbd>C</Kbd></button>}
         </div>
-        <div className="player" aria-label="Playback">
+        {home ? <div className="player home-bar" aria-label="Comparison chapters">
+          <div className="ba-chapters" role="group" aria-label="Jump to a moment">
+            {COMPARE_CHAPTERS.map((item, index) => <button type="button" key={item.label} className={chapter === index ? 'on' : ''} onClick={() => setSeek({ frame: item.frame, at: Date.now() })}>{item.label}</button>)}
+          </div>
+          <p aria-live="polite">{chapter >= 0 ? COMPARE_CHAPTERS[chapter]!.text : 'Blinds go in and the hand begins. Watch the table on each side of the line.'}</p>
+          <button type="button" className="primary-button" onClick={() => goTo('moments')}>Make it yours<Icon name="chevron" size={15} /></button>
+        </div> : <div className="player" aria-label="Playback">
           <div className="player-buttons">
             <button type="button" className="play" onClick={togglePlayback} aria-label={playing && !paused ? 'Pause animation' : 'Play animation'} aria-keyshortcuts="Space"><Icon name={playing && !paused ? 'pause' : 'play'} size={18} /></button>
             <button type="button" className="icon-button" title="Replay (R)" aria-label="Replay animation" onClick={replay}><Icon name="replay" size={18} /></button>
@@ -393,7 +409,7 @@ export function App() {
             <button type="button" className={`${nowPlaying?.hand && playing ? 'live' : ''}`} title="A whole hand (H)" onClick={() => { void playHand(); }}>Hand</button>
           </div>
           <button type="button" className={`slow ${slow ? 'on' : ''}`} onClick={() => setSlow(!slow)} aria-pressed={slow} title="Slow motion (S)"><Icon name="slow" size={16} />0.4×</button>
-        </div>
+        </div>}
       </section>
 
       <section className="panel" ref={panel} aria-label="Customize">
@@ -405,6 +421,7 @@ export function App() {
           {loadFailed && <div className="recovery-banner" role="alert"><div><strong>Your saved workspace could not be opened.</strong><p>Defaults are shown for preview. Restore them to start saving again.</p></div>
             <button type="button" className="accent-button primary-button" onClick={() => { setLibrary(createDefaultLibrary()); setLoadFailed(false); setNotice('A fresh local workspace is ready.'); }}>Restore defaults</button></div>}
           <header className="panel-head"><h2>{currentStep.label}</h2><p>{currentStep.blurb}</p></header>
+          {step === 'home' && <Home studio={studio} />}
           {step === 'moments' && <Moments studio={studio} />}
           {step === 'deck' && <Deck studio={studio} />}
           {step === 'felt' && <Felt studio={studio} />}

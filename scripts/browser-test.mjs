@@ -56,7 +56,13 @@ try {
   await writeFile(`artifacts/assembly-${t}.png`,Buffer.from(shot.data,'base64'));
  }
  await evaluate('globalThis.__assembly.clear()');
- await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".tile").length>0&&!!document.querySelector(".live-table.is-ready")',15000);await sleep(500);
+ const effectsTab='[...document.querySelectorAll(".step-tab")].find(x=>x.textContent.trim()==="Effects").click()';
+ await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".before-after video").length===2',15000);
+ // Home opens on the before-and-after comparison: both clips play, looped, in step.
+ const comparison=await evaluate(`(async()=>{const [b,a]=document.querySelectorAll('.before-after video');const t=performance.now();while(performance.now()-t<8000&&!(a.currentTime>1.5&&b.currentTime>1.5))await new Promise(r=>setTimeout(r,100));return {a:a.currentTime,b:b.currentTime,loop:a.loop&&b.loop,paused:a.paused||b.paused};})()`);
+ assert.ok(comparison.a>1.5&&!comparison.paused&&comparison.loop,'The comparison plays on its own, looped: '+JSON.stringify(comparison));
+ assert.ok(Math.abs(comparison.a-comparison.b)<0.25,'Both comparison clips stay in step: '+JSON.stringify(comparison));
+ await evaluate(effectsTab);await until('document.querySelectorAll(".tile").length>0&&!!document.querySelector(".live-table.is-ready")',15000);await sleep(500);
  const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,small:[...document.querySelectorAll("body *")].filter(e=>e.offsetParent!==null&&[...e.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())&&parseFloat(getComputedStyle(e).fontSize)<12).length})');
  assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');assert.equal(layout.small,0,'No studio text is smaller than 12px');
  // Every preset plays on the live table from its own street's shelves.
@@ -89,7 +95,7 @@ try {
  assert.equal(await evaluate(`document.querySelector('.live-table-frame').contentDocument.documentElement.hasAttribute('data-pnc-skin')`),false,'Compare shows the plain table');
  await call('Input.dispatchKeyEvent',{type:'keyUp',key:'c',code:'KeyC'});await sleep(400);
  assert.equal(await evaluate(`document.querySelector('.live-table-frame').contentDocument.documentElement.getAttribute('data-pnc-skin')`),'on','Releasing C restores the theme');
- await call('Page.reload');await until('document.querySelectorAll(".tile").length>0');await sleep(300);
+ await call('Page.reload');await until('document.querySelectorAll(".step-tab").length===8');await evaluate(effectsTab);await until('document.querySelectorAll(".tile").length>0');await sleep(300);
  // Reload selects the studio's initial street, so return to the saved shuffled turn.
  await evaluate(`document.querySelectorAll('.track')[2].click()`);await sleep(150);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
@@ -98,7 +104,7 @@ try {
  const settingsTab='[...document.querySelectorAll(".step-tab")].find(x=>x.textContent.trim()==="Settings").click()';
  await evaluate(settingsTab);await sleep(150);
  await evaluate(`document.querySelector('[aria-label="Reduced motion"]').click()`);await sleep(600);
- await call('Page.reload');await until('document.querySelectorAll(".step-tab").length===7');await sleep(500);
+ await call('Page.reload');await until('document.querySelectorAll(".step-tab").length===8');await sleep(500);
  await evaluate(settingsTab);await sleep(150);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Reduced motion"]').getAttribute('aria-checked')`),'true');
  await call('Emulation.setDeviceMetricsOverride',{width:1100,height:900,deviceScaleFactor:1,mobile:false});await sleep(200);

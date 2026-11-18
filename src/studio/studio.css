@@ -107,7 +107,7 @@ body { margin: 0; min-width: 320px; background: #0b0d0c }
 
 /* ------------------------------------------------------------------ panel */
 .panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line) }
-.steps { flex: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--line); padding: 0 6px }
+.steps { flex: none; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); border-bottom: 1px solid var(--line); padding: 0 4px }
 .step-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 11px 2px 10px; color: var(--fg-3); font-size: 12px; font-weight: 500; transition: color .15s }
 .step-tab:hover { color: var(--fg) }
 .step-tab.on { color: var(--fg) }
@@ -334,6 +334,43 @@ body { margin: 0; min-width: 320px; background: #0b0d0c }
 .recovery-banner strong { font-size: 14px }
 .recovery-banner p { color: var(--fg-2); font-size: 13px }
 
+/* ------------------------------------------------------------------ home: before and after */
+.ba-cover { position: absolute; inset: 0; z-index: 4; background: #000 }
+.before-after { position: absolute; inset: 0; cursor: ew-resize; touch-action: pan-y; user-select: none; -webkit-user-select: none }
+.before-after video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none }
+.before-after .ba-after { clip-path: inset(0 0 0 var(--split, 50%)) }
+.ba-handle { position: absolute; top: 0; bottom: 0; left: var(--split, 50%); width: 44px; margin-left: -22px; display: flex; align-items: center; justify-content: center; outline: none }
+.ba-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 12px #000a }
+.ba-knob { position: relative; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #111; box-shadow: 0 6px 20px #000b; transition: transform .15s var(--ease) }
+.before-after:hover .ba-knob, .before-after.dragging .ba-knob, .ba-handle:focus-visible .ba-knob { transform: scale(1.08) }
+.ba-handle:focus-visible .ba-knob { box-shadow: 0 0 0 3px var(--accent), 0 6px 20px #000b }
+.ba-tag { position: absolute; bottom: 14px; padding: 6px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: .03em; pointer-events: none }
+.ba-tag-before { left: 14px; background: #000000b8; color: #fff; backdrop-filter: blur(6px) }
+.ba-tag-after { right: 14px; background: var(--accent); color: var(--accent-ink) }
+.ba-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); height: 44px; padding: 0 18px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600 }
+.home-bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap }
+.ba-chapters { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--raise) }
+.ba-chapters button { height: 32px; padding: 0 11px; border-radius: 7px; font-size: 13px; color: var(--fg-2) }
+.ba-chapters button:hover { color: var(--fg); background: var(--raise-2) }
+.ba-chapters button.on { color: var(--accent); background: var(--raise-2) }
+.home-bar p { flex: 1; min-width: 200px; color: var(--fg-2); font-size: 13px }
+.home-lede { font-size: 16px; line-height: 1.55; color: var(--fg-2) }
+.home-lede em { font-style: normal; color: var(--fg) }
+.starts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.starts li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--raise) }
+.starts b { font-size: 14px; font-weight: 600 }
+.starts p { color: var(--fg-3); font-size: 13px }
+.starts p b { font-size: 13px; color: var(--fg-2) }
+.start-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--raise-2); color: var(--accent); font-weight: 600; font-size: 14px }
+.state-chip { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--fg-3); background: var(--raise-2) }
+.state-chip.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent) }
+.home-puppy { align-self: flex-start }
+.facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.facts li { display: flex; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line) }
+.facts li > svg { flex: none; color: var(--ok); margin-top: 2px }
+.facts b { font-size: 14px; font-weight: 600 }
+.facts p { color: var(--fg-3); font-size: 13px }
+
 /* ------------------------------------------------------------------ overlays */
 .toast { position: fixed; left: 50%; bottom: 24px; z-index: 40; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: min(520px, calc(100vw - 32px));
   padding: 10px 10px 10px 16px; border-radius: 12px; background: #f2f0ea; color: #151716; box-shadow: 0 16px 40px #000a; font-size: 14px; animation: rise .25s var(--ease) }
@@ -410,6 +447,8 @@ body { margin: 0; min-width: 320px; background: #0b0d0c }
 }
 @media (max-width: 460px) {
   .step-tab span { display: none }
+  .starts li { grid-template-columns: 30px minmax(0, 1fr) }
+  .starts li > :last-child { grid-column: 2; justify-self: start }
   .step-tab { padding: 13px 0 }
 }
 @media (prefers-reduced-motion: reduce) {
