@@ -56,30 +56,50 @@ try {
   await writeFile(`artifacts/assembly-${t}.png`,Buffer.from(shot.data,'base64'));
  }
  await evaluate('globalThis.__assembly.clear()');
- await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".preset-card").length===20');await sleep(500);
- const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,cards:document.querySelectorAll(".preset-card").length})');assert.equal(layout.cards,20);assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');
- for(const name of ['Dealer Flick','Orbit Deal','Triple Spread','Triple Orbit','Crystal Spread','Slam / Impact','Fragment Assembly','Crystallization Reveal','House Pitch','Silk Cascade','Velvet Turnover','River Squeeze',"Dealer's Storm",'Grand Flop','Spotlight','Showdown','Puppy Deal','Puppy Flop','Puppy Fetch','Puppy Paw']) {
-  const clicked=await evaluate(`(()=>{const button=[...document.querySelectorAll('.preset-preview-button')].find(x=>x.getAttribute('aria-label').includes(${JSON.stringify(name)}));if(!button)return false;button.click();return true})()`);
+ await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".tile").length>0&&!!document.querySelector(".live-table.is-ready")',15000);await sleep(500);
+ const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,small:[...document.querySelectorAll("body *")].filter(e=>e.offsetParent!==null&&[...e.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())&&parseFloat(getComputedStyle(e).fontSize)<12).length})');
+ assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');assert.equal(layout.small,0,'No studio text is smaller than 12px');
+ // Every preset plays on the live table from its own street's shelves.
+ const streetOf={deal:0,flop:1,turn:2,river:3};
+ for(const [name,street] of [['Dealer Flick','deal'],['Orbit Deal','deal'],['House Pitch','deal'],["Dealer's Storm",'deal'],['Puppy Deal','deal'],['Triple Spread','flop'],['Triple Orbit','flop'],['Crystal Spread','flop'],['Silk Cascade','flop'],['Grand Flop','flop'],['Puppy Flop','flop'],['Slam / Impact Reveal','turn'],['Fragment Assembly','turn'],['Crystallization Reveal','turn'],['Velvet Turnover','turn'],['River Squeeze','turn'],['Spotlight','turn'],['Showdown','turn'],['Puppy Fetch','turn'],['Puppy Paw','turn']]) {
+  await evaluate(`document.querySelectorAll('.track')[${streetOf[street]}].click()`);await sleep(150);
+  await evaluate(`document.querySelector('[aria-label="Pause animation"]')&&document.querySelector('[aria-label="Reset hand"]').click()`);await sleep(100);
+  const clicked=await evaluate(`(()=>{const button=document.querySelector('[aria-label="Preview ${name.replace(/'/g,"\\'")}"]');if(!button)return false;button.click();return true})()`);
   if(!clicked)throw new Error('Missing preview button: '+name);
   await sleep(250);
   await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
  }
+ // A hovered tile plays its recorded clip.
+ const clip=await evaluate(`(async()=>{const tile=document.querySelector('.tile');tile.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));tile.dispatchEvent(new MouseEvent('mouseenter'));
+  const t=performance.now();while(performance.now()-t<6000){const v=tile.querySelector('video');if(v&&v.readyState>=2&&v.currentTime>0)return v.videoWidth;await new Promise(r=>setTimeout(r,100));}const v=tile.querySelector('video');return v?'video '+v.readyState+' '+(v.error&&v.error.code)+' '+v.currentSrc:'no video';})()`);
+ assert.ok(typeof clip==='number'&&clip>0,'A hovered tile plays its clip: '+clip);
+ await evaluate(`document.querySelectorAll('.track')[2].click()`);await sleep(200);
  await evaluate(`document.querySelector('[aria-label="Select Random"]').click()`);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
  await evaluate(`document.querySelector('[aria-label="Replay animation"]').click()`);
  await sleep(250);
  await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
  await sleep(500);
- await call('Page.reload');await until('document.querySelectorAll(".preset-card").length===20');
- // Reload selects the studio's initial event, so return to the saved random turn.
- await evaluate(`Array.from(document.querySelectorAll('[role="tab"]')).find(x=>x.textContent==='Turn').click()`);
+ // A whole hand plays and reports each street as it goes.
+ await evaluate(`document.querySelector('[aria-label="Play a whole hand on the table"]').click()`);
+ await until(`!!document.querySelector('.tracks li.live')`,15000);
+ await evaluate(`document.querySelector('[aria-label="Reset hand"]').click()`);await sleep(300);
+ // Holding C shows the table without the theme, then restores it.
+ await call('Input.dispatchKeyEvent',{type:'keyDown',key:'c',code:'KeyC',text:'c'});await sleep(400);
+ assert.equal(await evaluate(`document.querySelector('.live-table-frame').contentDocument.documentElement.hasAttribute('data-pnc-skin')`),false,'Compare shows the plain table');
+ await call('Input.dispatchKeyEvent',{type:'keyUp',key:'c',code:'KeyC'});await sleep(400);
+ assert.equal(await evaluate(`document.querySelector('.live-table-frame').contentDocument.documentElement.getAttribute('data-pnc-skin')`),'on','Releasing C restores the theme');
+ await call('Page.reload');await until('document.querySelectorAll(".tile").length>0');await sleep(300);
+ // Reload selects the studio's initial street, so return to the saved shuffled turn.
+ await evaluate(`document.querySelectorAll('.track')[2].click()`);await sleep(150);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
  const screenshot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile('artifacts/studio.png',Buffer.from(screenshot.data,'base64'));
  // Settings persist and survive a reload of the standalone development studio.
- await evaluate('[...document.querySelectorAll(".nav-item")].find(x=>x.textContent==="Settings").click()');
+ const settingsTab='[...document.querySelectorAll(".step-tab")].find(x=>x.textContent.trim()==="Settings").click()';
+ await evaluate(settingsTab);await sleep(150);
  await evaluate(`document.querySelector('[aria-label="Reduced motion"]').click()`);await sleep(600);
- await call('Page.reload');await until('document.querySelectorAll(".nav-item").length===6');await sleep(500);
- await evaluate('[...document.querySelectorAll(".nav-item")].find(x=>x.textContent==="Settings").click()');
+ await call('Page.reload');await until('document.querySelectorAll(".step-tab").length===7');await sleep(500);
+ await evaluate(settingsTab);await sleep(150);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Reduced motion"]').getAttribute('aria-checked')`),'true');
  await call('Emulation.setDeviceMetricsOverride',{width:1100,height:900,deviceScaleFactor:1,mobile:false});await sleep(200);
  assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Small desktop horizontal overflow');

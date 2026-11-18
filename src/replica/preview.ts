@@ -6,6 +6,7 @@ import { builtInThemes, createDefaultLibrary } from '../themes/defaults';
 import { validateTheme } from '../themes/schema';
 import type { Settings, Theme } from '../types';
 import type { AnimationHandle } from '../animation/core/coordinator';
+import type { VisualEvent } from '../types';
 
 /**
  * Room rehearsal: the replica table dressed by the very same Runtime the
@@ -21,9 +22,9 @@ const root = document.getElementById('main-container')!;
 const scenario = new Scenario(root, Number(params.get('players')) || 6);
 scenario.prepare(embedded ? 'turn' : 'river');
 let settings: Settings = createDefaultLibrary().settings;
-type AnimationListener = (handle: AnimationHandle) => void;
+type AnimationListener = (handle: AnimationHandle, event?: VisualEvent) => void;
 let animationListener: AnimationListener | undefined;
-const runtime = new Runtime({ document, fontBase: './fonts', allowAnyLocation: true, onAnimation: (handle) => animationListener?.(handle), loadCompanion: () => import('../puppy') });
+const runtime = new Runtime({ document, fontBase: './fonts', allowAnyLocation: true, onAnimation: (handle, event) => animationListener?.(handle, event), loadCompanion: () => import('../puppy') });
 let theme = builtInThemes[0]!;
 runtime.configure(theme, settings);
 
@@ -39,6 +40,8 @@ async function loop(): Promise<void> {
   looping = false;
 }
 function stop(): void { looping = false; scenario.stop(); }
+/** One complete hand, from the blinds to the winner. */
+async function hand(): Promise<boolean> { stop(); return scenario.playHand(); }
 function rest(street: Street = 'river'): void { stop(); scenario.prepare(street); runtime.scan(); }
 async function play(street: Street): Promise<void> {
   stop();
@@ -125,7 +128,7 @@ function configure(nextTheme: Theme, nextSettings: Settings): void {
 }
 function setPlayers(count: number): void { stop(); scenario.setPlayers(count); scenario.prepare('turn'); runtime.scan(); }
 Object.assign(globalThis, { __pncReplica: {
-  scenario, runtime, get settings() { return settings; }, play, loop, stop, rest, configure, setPlayers,
+  scenario, runtime, get settings() { return settings; }, get theme() { return theme; }, play, hand, loop, stop, rest, configure, setPlayers,
   onAnimation(listener: AnimationListener | undefined) { animationListener = listener; },
 } });
 window.addEventListener('pagehide', () => { stop(); runtime.dispose(); }, { once: true });

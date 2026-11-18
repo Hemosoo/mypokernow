@@ -63,7 +63,9 @@ export interface EffectSettings {
   /** Drifting light motes above the felt. */
   ambience: boolean;
 }
-export interface Settings {enabled: boolean; reducedMotion: boolean; speed: number; activeThemeId: string; effects: EffectSettings}
+export interface Settings {enabled: boolean; reducedMotion: boolean; speed: number; activeThemeId: string; effects: EffectSettings;
+  /** Hearted presets. Shuffle ("random") draws from these when any suit the street. */
+  favorites: string[]}
 export interface Library {version: 4; settings: Settings; themes: Theme[]}
 export const streetForEvent = (type: VisualEventType): Street | undefined => ({HOLE_CARDS_APPEARED: 'deal', FLOP_REVEALED: 'flop', TURN_REVEALED: 'turn', RIVER_REVEALED: 'river'} as Partial<Record<VisualEventType, Street>>)[type];
 export const eventForStreet: Record<Street, VisualEventType> = {deal: 'HOLE_CARDS_APPEARED', flop: 'FLOP_REVEALED', turn: 'TURN_REVEALED', river: 'RIVER_REVEALED'};

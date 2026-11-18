@@ -84,4 +84,6 @@ export interface PlayOptions {
    * without one (cards would move with nobody moving them): a showpiece plays instead.
    */
   companionReady?: boolean;
+  /** Hearted presets: shuffle picks among those that suit the street, when there are any. */
+  favorites?: readonly string[];
 }

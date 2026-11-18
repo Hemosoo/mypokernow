@@ -1,142 +1,87 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { presets, getPreset } from '../animation/registry';
 import { PreviewTable, type PreviewHandle } from '../preview/PreviewTable';
 import { LiveTable, liveTableSupported, type LiveTableHandle } from '../preview/LiveTable';
-import { cardDataUrl } from '../rendering/cards';
 import { loadLibrary, saveLibrary } from '../storage/library';
 import { resolveThemeAssets, saveAsset } from '../storage/assets';
 import { inspectRuntime, isExtensionStudio, type RuntimeInspection } from '../storage/diagnostics';
-import { createDefaultLibrary, createDefaultTheme, builtInThemes } from '../themes/defaults';
+import { createDefaultLibrary, createDefaultTheme } from '../themes/defaults';
 import { exportTheme, importTheme } from '../themes/transfer';
 import type { Library, Street, Theme } from '../types';
+import { STREETS, assignmentLabel, presetName, presetsFor, streetName, streetShort, studioTint } from './catalog';
+import { CommandMenu, ShortcutSheet, type Command } from './CommandMenu';
+import { Board, Deck, Felt, Puppy } from './steps/Appearance';
+import { Moments } from './steps/Moments';
+import { LibraryStep, SettingsStep } from './steps/Workspace';
+import type { NowPlaying, Step, Studio } from './studio-types';
+import { Icon, Kbd, Toggle, type IconName } from './ui';
 
-type Section = 'animations' | 'cards' | 'table' | 'board' | 'themes' | 'settings';
-type IconName = 'spark' | 'cards' | 'table' | 'board' | 'palette' | 'settings' | 'arrow' | 'play' | 'pause' | 'replay' | 'check' | 'plus' | 'upload' | 'download' | 'copy' | 'trash' | 'chevron' | 'reset' | 'external' | 'volume';
-const NAV: { id: Section; label: string; icon: IconName }[] = [
-  { id: 'animations', label: 'Animation Studio', icon: 'spark' }, { id: 'cards', label: 'Cards', icon: 'cards' },
-  { id: 'table', label: 'Table', icon: 'table' }, { id: 'board', label: 'Board', icon: 'board' },
-  { id: 'themes', label: 'Themes', icon: 'palette' }, { id: 'settings', label: 'Settings', icon: 'settings' },
+const STEPS: { id: Step; label: string; icon: IconName; blurb: string }[] = [
+  { id: 'moments', label: 'Effects', icon: 'spark', blurb: 'Card animations for each moment of the hand' },
+  { id: 'deck', label: 'Deck', icon: 'cards', blurb: 'Card faces, backs and glow' },
+  { id: 'felt', label: 'Felt', icon: 'felt', blurb: 'Room, felt colour and trim' },
+  { id: 'board', label: 'Board', icon: 'board', blurb: 'Community card plate and spacing' },
+  { id: 'puppy', label: 'Puppy', icon: 'paw', blurb: 'The 3D table companion' },
+  { id: 'library', label: 'Themes', icon: 'library', blurb: 'Your saved looks' },
+  { id: 'settings', label: 'Settings', icon: 'settings', blurb: 'Motion, effects and connection' },
 ];
-const STREETS: Street[] = ['deal', 'flop', 'turn', 'river'];
-const TITLES: Record<Section, [string, string, string]> = {
-  animations: ['YOUR TABLE. YOUR SIGNATURE.', 'Make every reveal', 'a moment.'],
-  cards: ['THE DETAILS MAKE THE DECK.', 'A little character.', 'Every hand.'],
-  table: ['SET THE SCENE.', 'Your seat.', 'Your atmosphere.'],
-  board: ['A STAGE FOR THE REVEAL.', 'Let the board', 'stand out.'],
-  themes: ['COLLECT YOUR FAVORITES.', 'One table.', 'Endless moods.'],
-  settings: ['MADE TO STAY OUT OF THE WAY.', 'Make it', 'feel right.'],
-};
-const prettyStreet = (street: Street) => street === 'deal' ? 'Initial deal' : street[0].toUpperCase() + street.slice(1);
 const uid = () => crypto.randomUUID();
-const FACE_STYLES: Record<Theme['card']['face'], Partial<Theme['card']>> = {
-  native: { face: 'native', faceColor: '#fffdf7', redColor: '#be354a', blackColor: '#24282f', borderColor: '#d7d5cb', borderRadius: 6 },
-  classic: { face: 'classic', faceColor: '#fffdf4', redColor: '#b83348', blackColor: '#25332e', borderColor: '#d8d2bf', borderRadius: 5 },
-  modern: { face: 'modern', faceColor: '#faf8f2', redColor: '#d35165', blackColor: '#22293a', borderColor: '#dcd9ef', borderRadius: 8 },
-  midnight: { face: 'midnight', faceColor: '#181c2c', redColor: '#fd8b9a', blackColor: '#dcdafa', borderColor: '#626a87', borderRadius: 8 },
-  puppy: { face: 'puppy', faceColor: '#fffaf0', redColor: '#c8394a', blackColor: '#2a211c', borderColor: '#ecd9bc', borderRadius: 9 },
-};
-
-function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
-  const paths: Record<IconName, ReactNode> = {
-    spark: <><path d="m12 3 2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3L12 3Z" /><path d="m20 3 .6 1.4L22 5l-1.4.6L20 7l-.6-1.4L18 5l1.4-.6L20 3Z" /></>,
-    cards: <><rect x="7" y="4" width="12" height="16" rx="2" /><path d="m6 7-2 .5a2 2 0 0 0-1.4 2.4l2.6 9.6a2 2 0 0 0 2.4 1.4L11 20M11 8h4m-4 3h2" /></>,
-    table: <><ellipse cx="12" cy="12" rx="10" ry="7" /><ellipse cx="12" cy="12" rx="7" ry="4" /></>,
-    board: <><rect x="2" y="6" width="5" height="12" rx="1.5" /><rect x="9.5" y="6" width="5" height="12" rx="1.5" /><rect x="17" y="6" width="5" height="12" rx="1.5" /></>,
-    palette: <><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.8-2.8 2 2 0 0 1 1.8-2.8H18A4 4 0 0 0 22 11a10 10 0 0 0-10-8Z" /><circle cx="7" cy="11" r=".7" /><circle cx="10" cy="7" r=".7" /><circle cx="15" cy="7" r=".7" /><circle cx="18" cy="11" r=".7" /></>,
-    settings: <><path d="m10 3-.6 2.2-2 .9L5.3 5.5 3.5 8.6 5 10.3v2.4l-1.5 1.7 1.8 3.1 2.1-.6 2 .9L10 20h4l.6-2.2 2-.9 2.1.6 1.8-3.1-1.5-1.7v-2.4l1.5-1.7-1.8-3.1-2.1.6-2-.9L14 3h-4Z" /><circle cx="12" cy="11.5" r="3" /></>,
-    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />, play: <path d="m9 5 11 7-11 7V5Z" />,
-    pause: <><path d="M8 5v14M16 5v14" /></>, replay: <><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6" /></>,
-    check: <path d="m5 12 4 4L19 6" />, plus: <path d="M12 5v14M5 12h14" />,
-    upload: <><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" /></>,
-    download: <><path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4" /></>,
-    copy: <><rect x="8" y="8" width="12" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" /></>,
-    trash: <><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" /></>,
-    chevron: <path d="m9 5 7 7-7 7" />, reset: <><path d="M4 8a8 8 0 1 1-1 8M4 3v5h5" /></>,
-    external: <><path d="M14 3h7v7m0-7L10 14M10 4H4v16h16v-6" /></>,
-    volume: <><path d="M4 9v6h4l5 4V5L8 9H4ZM17 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" /></>,
-  };
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
-}
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
-  return <button className={`toggle ${checked ? 'is-on' : ''}`} role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}><span /></button>;
-}
-
-function Range({ label, value, min, max, step = 1, unit = '', onChange }: {
-  label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (value: number) => void;
-}) {
-  return <label className="range-control"><span><span>{label}</span><output>{Number(value.toFixed(2))}{unit}</output></span>
-    <input type="range" value={value} min={min} max={max} step={step} onChange={(event) => onChange(Number(event.target.value))}
-      style={{ '--range-progress': `${((value - min) / (max - min)) * 100}%` } as CSSProperties} />
-  </label>;
-}
-
-function ColorControl({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : '#142b29';
-  return <label className="color-control"><span>{label}</span><span className="color-value"><input type="color" value={hex} onChange={(event) => onChange(event.target.value)} /><span>{hex.toUpperCase()}</span></span></label>;
-}
-
-function PresetArt({ id }: { id: string }) {
-  return <div className={`preset-art art-${id.replaceAll('.', '-')}`} aria-hidden="true">
-    <div className="art-orbit" /><div className="art-orbit second" />
-    <div className="art-card card-one"><span>A</span><b>♠</b></div>
-    <div className="art-card card-two"><span>K</span><b>♥</b></div>
-    <div className="art-card card-three"><span>7</span><b>♣</b></div>
-    <div className="art-spark a" /><div className="art-spark b" /><div className="art-spark c" />
-    <div className="art-impact" />
-  </div>;
-}
+const defaults = (id: string): Record<string, number> => Object.fromEntries((getPreset(id)?.parameters ?? []).map((parameter) => [parameter.key, parameter.default]));
+const prefersReducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function App() {
   const [library, setLibrary] = useState<Library>(createDefaultLibrary);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [section, setSection] = useState<Section>('animations');
+  const [step, setStep] = useState<Step>('moments');
   const [street, setStreet] = useState<Street>('flop');
   const [players, setPlayers] = useState(6);
   const [playing, setPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
   const [slow, setSlow] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [saveStatus, setSaveStatus] = useState('Loading workspace');
+  const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
+  const [original, setOriginal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('Loading');
   const [notice, setNotice] = useState('');
   const [themeResolution, setThemeResolution] = useState<{ source: Theme; theme: Theme } | null>(null);
   const [pendingPreview, setPendingPreview] = useState<{ street: Street; presetId?: string } | null>(null);
   const [inspection, setInspection] = useState<RuntimeInspection | null>(null);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const [previewMode, setPreviewMode] = useState<'live' | 'lab'>(() => (liveTableSupported() ? 'live' : 'lab'));
   const preview = useRef<PreviewHandle | LiveTableHandle>(null);
+  const handRun = useRef(0);
   const importInput = useRef<HTMLInputElement>(null);
   const uploadBackInput = useRef<HTMLInputElement>(null);
   const uploadTableInput = useRef<HTMLInputElement>(null);
-  const activeTheme = library.themes.find((theme) => theme.id === library.settings.activeThemeId) ?? library.themes[0];
+  const panel = useRef<HTMLDivElement>(null);
+  const activeTheme = library.themes.find((theme) => theme.id === library.settings.activeThemeId) ?? library.themes[0]!;
   const resolvedTheme = themeResolution?.theme;
   const extensionContext = isExtensionStudio();
-  const randomMode = activeTheme.animations[street].preset === 'random';
-  const selectedPreset = getPreset(activeTheme.animations[street].preset) ?? presets[0];
-  const currentParameters = activeTheme.animations[street].parameters;
-  const previewDuration = Math.min(10000, Math.max(120, (currentParameters.duration ?? selectedPreset.duration)
-    / (library.settings.speed * (currentParameters.speed ?? 1) * (slow ? 0.4 : 1))));
+  const motionAllowed = !library.settings.reducedMotion && !prefersReducedMotion();
 
+  /* ---------------------------------------------------------- persistence */
   useEffect(() => {
     let disposed = false;
     loadLibrary().then((value) => {
-      if (!disposed) { setLibrary(value); setLoaded(true); setSaveStatus('All changes saved'); }
+      if (!disposed) { setLibrary(value); setLoaded(true); setSaveStatus('Saved'); }
     }).catch(() => {
-      if (!disposed) { setLoaded(true); setLoadFailed(true); setSaveStatus('Workspace unavailable'); setNotice('Your saved workspace could not be loaded. Restore defaults below to start a new local workspace.'); }
+      if (!disposed) { setLoaded(true); setLoadFailed(true); setSaveStatus('Not saving'); setNotice('Your saved workspace could not be loaded. Restore defaults to start a new local workspace.'); }
     });
     return () => { disposed = true; };
   }, []);
 
   useEffect(() => {
     if (!loaded || loadFailed) return;
-    if (library.themes.some((theme) => !theme.name.trim())) { setSaveStatus('Add a theme name'); return; }
+    if (library.themes.some((theme) => !theme.name.trim())) { setSaveStatus('Name the theme to save'); return; }
     let disposed = false;
-    setSaveStatus('Saving changes…');
+    setSaveStatus('Saving…');
     const timer = window.setTimeout(() => {
-      saveLibrary(library).then(() => { if (!disposed) setSaveStatus('All changes saved'); })
-        .catch(() => { if (!disposed) { setSaveStatus('Save failed'); setNotice('Changes could not be saved. Please check available browser storage and try again.'); } });
+      saveLibrary(library).then(() => { if (!disposed) setSaveStatus('Saved'); })
+        .catch(() => { if (!disposed) { setSaveStatus('Save failed'); setNotice('Changes could not be saved. Check that the browser has storage space, then try again.'); } });
     }, 350);
     return () => { disposed = true; window.clearTimeout(timer); };
   }, [library, loaded, loadFailed]);
@@ -154,62 +99,138 @@ export function App() {
   }, [activeTheme]);
 
   useEffect(() => {
-    // Asset loading has no fixed latency. Start only after the child has received
-    // this exact theme, otherwise its appearance effect would cancel the run.
+    // Asset loading has no fixed latency. Start only after the preview has this exact theme,
+    // otherwise its appearance effect would cancel the run.
     if (!pendingPreview || themeResolution?.source !== activeTheme || !preview.current) return;
     setPendingPreview(null);
     setPaused(false);
     void preview.current.play(pendingPreview.street, pendingPreview.presetId);
   }, [pendingPreview, themeResolution, activeTheme]);
 
+  useEffect(() => { if (!playing) setPaused(false); }, [playing]);
+  useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 6000); return () => clearTimeout(timer); }, [notice]);
+
+  /* ---------------------------------------------------------- theme edits */
   function updateTheme(update: (theme: Theme) => Theme) {
     setLibrary((current) => ({ ...current, themes: current.themes.map((theme) => theme.id === current.settings.activeThemeId
       ? { ...update(theme), updatedAt: new Date().toISOString() } : theme) }));
   }
-  function patchCard(patch: Partial<Theme['card']>) { updateTheme((theme) => ({ ...theme, card: { ...theme.card, ...patch } })); }
-  function patchCompanion(companion: Theme['companion']) { updateTheme((theme) => { const next = { ...theme }; if (companion) next.companion = companion; else delete next.companion; return next; }); }
-  function patchTable(patch: Partial<Theme['table']>) { updateTheme((theme) => ({ ...theme, table: { ...theme.table, ...patch } })); }
-  function patchBoard(patch: Partial<Theme['board']>) { updateTheme((theme) => ({ ...theme, board: { ...theme.board, ...patch } })); }
+  const patchCard = (patch: Partial<Theme['card']>) => updateTheme((theme) => ({ ...theme, card: { ...theme.card, ...patch } }));
+  const patchTable = (patch: Partial<Theme['table']>) => updateTheme((theme) => ({ ...theme, table: { ...theme.table, ...patch } }));
+  const patchBoard = (patch: Partial<Theme['board']>) => updateTheme((theme) => ({ ...theme, board: { ...theme.board, ...patch } }));
+  const patchCompanion = (companion: Theme['companion']) => updateTheme((theme) => { const next = { ...theme }; if (companion) next.companion = companion; else delete next.companion; return next; });
   function setting<K extends keyof Library['settings']>(key: K, value: Library['settings'][K]) {
     setLibrary((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
   }
-  function selectPreset(id: string, play = false) {
+
+  /* ---------------------------------------------------------- playback */
+  function play(nextStreet: Street, presetId?: string) {
+    handRun.current += 1;
+    setStreet(nextStreet);
+    setPaused(false);
+    setNowPlaying({ street: nextStreet, presetId: presetId ?? activeTheme.animations[nextStreet].preset });
+    setPendingPreview({ street: nextStreet, presetId });
+  }
+  function selectPreset(id: string, andPlay = false) {
     if (id === 'random') {
-      updateTheme(theme => ({ ...theme, animations: { ...theme.animations, [street]: {preset:'random',parameters:{}} } }));
-      setPendingPreview(play ? {street,presetId:'random'} : null);
+      updateTheme((theme) => ({ ...theme, animations: { ...theme.animations, [street]: { preset: 'random', parameters: {} } } }));
+      if (andPlay) play(street, 'random');
       return;
     }
     const preset = getPreset(id);
     if (!preset) return;
-    const nextStreet = preset.supportedEvents.includes(street) ? street : preset.supportedEvents[0];
-    const parameters = Object.fromEntries(preset.parameters.map((parameter) => [parameter.key, parameter.default]));
-    setStreet(nextStreet);
-    updateTheme((theme) => ({ ...theme, animations: { ...theme.animations, [nextStreet]: { preset: id, parameters } } }));
-    setPendingPreview(play ? { street: nextStreet, presetId: id } : null);
+    const target = preset.supportedEvents.includes(street) ? street : preset.supportedEvents[0]!;
+    setStreet(target);
+    updateTheme((theme) => ({ ...theme, animations: { ...theme.animations, [target]: { preset: id, parameters: defaults(id) } } }));
+    if (andPlay) play(target, id);
+  }
+  function previewPreset(id: string) {
+    const preset = getPreset(id);
+    if (!preset) return;
+    play(preset.supportedEvents.includes(street) ? street : preset.supportedEvents[0]!, id);
+  }
+  async function playHand() {
+    if (playing && nowPlaying?.hand) { stopPlayback(); return; }
+    const run = ++handRun.current;
+    setPendingPreview(null);
+    setPaused(false);
+    if (previewMode === 'live' && preview.current && 'playHand' in preview.current) {
+      setNowPlaying({ street: 'deal', hand: true });
+      await (preview.current as LiveTableHandle).playHand();
+      if (run === handRun.current) setNowPlaying(null);
+      return;
+    }
+    // The effect lab plays the four moments back to back.
+    for (const item of STREETS) {
+      if (run !== handRun.current || !preview.current) return;
+      setStreet(item);
+      setNowPlaying({ street: item, hand: true });
+      await preview.current.play(item);
+    }
+    if (run === handRun.current) setNowPlaying(null);
+  }
+  function stopPlayback() {
+    handRun.current += 1;
+    setPendingPreview(null);
+    preview.current?.reset();
+    setPaused(false);
+    setPlaying(false);
+    setNowPlaying(null);
+  }
+  function togglePlayback() {
+    if (!playing) play(street);
+    else if (nowPlaying?.hand && previewMode === 'live') stopPlayback();
+    else if (paused) { preview.current?.resume(); setPaused(false); }
+    else { preview.current?.pause(); setPaused(true); }
+  }
+  function replay() {
+    if (nowPlaying?.hand) { void playHand(); return; }
+    setPendingPreview(null);
+    setPaused(false);
+    setNowPlaying({ street, presetId: nowPlaying?.presetId ?? activeTheme.animations[street].preset });
+    void preview.current?.replay();
+  }
+  function cyclePreset(direction: 1 | -1) {
+    const options = presetsFor(street);
+    const current = options.findIndex((preset) => preset.id === activeTheme.animations[street].preset);
+    const next = options[(current + direction + options.length) % options.length];
+    if (next) selectPreset(next.id, true);
+  }
+  function toggleFavorite(id: string) {
+    const favorites = library.settings.favorites;
+    const on = favorites.includes(id);
+    setting('favorites', on ? favorites.filter((item) => item !== id) : [...favorites, id].slice(-64));
+    const preset = getPreset(id);
+    if (preset) setNotice(on ? `${presetName(preset)} removed from favorites.` : `${presetName(preset)} added to favorites.${preset.companion ? '' : ' Shuffle can now pick it.'}`);
   }
   function setParameter(key: string, value: number) {
     updateTheme((theme) => ({ ...theme, animations: { ...theme.animations,
       [street]: { ...theme.animations[street], parameters: { ...theme.animations[street].parameters, [key]: value } } } }));
   }
-  function createTheme() {
-    if (library.themes.length >= 100) { setNotice('Your library can hold 100 themes. Delete a theme before creating another.'); return; }
-    const theme = { ...createDefaultTheme(), id: uid(), name: `Untitled theme ${library.themes.length + 1}` };
+
+  /* ---------------------------------------------------------- library */
+  function switchTheme(id: string) { setting('activeThemeId', id); }
+  function addTheme(theme: Theme) {
+    if (library.themes.length >= 100) { setNotice('Your library can hold 100 themes. Delete one to make room.'); return false; }
     setLibrary((current) => ({ ...current, themes: [...current.themes, theme], settings: { ...current.settings, activeThemeId: theme.id } }));
-    setEditingName(true);
+    return true;
+  }
+  function createTheme() {
+    if (addTheme({ ...createDefaultTheme(), id: uid(), name: `Untitled theme ${library.themes.length + 1}`, description: undefined })) { setStep('library'); setEditingName(true); }
   }
   function duplicateTheme() {
-    if (library.themes.length >= 100) { setNotice('Your library can hold 100 themes. Delete a theme before duplicating another.'); return; }
-    const theme = { ...structuredClone(activeTheme), id: uid(), name: `${activeTheme.name} copy`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    setLibrary((current) => ({ ...current, themes: [...current.themes, theme], settings: { ...current.settings, activeThemeId: theme.id } }));
+    const now = new Date().toISOString();
+    if (addTheme({ ...structuredClone(activeTheme), id: uid(), name: `${activeTheme.name} copy`, createdAt: now, updatedAt: now })) setNotice(`Duplicated as “${activeTheme.name} copy”.`);
   }
   function deleteTheme() {
     const remaining = library.themes.filter((theme) => theme.id !== activeTheme.id);
     if (!remaining.length) remaining.push(createDefaultTheme());
-    setLibrary((current) => ({ ...current, themes: remaining, settings: { ...current.settings, activeThemeId: remaining[0].id } }));
+    setLibrary((current) => ({ ...current, themes: remaining, settings: { ...current.settings, activeThemeId: remaining[0]!.id } }));
+    setNotice(`Deleted “${activeTheme.name}”.`);
   }
   function restoreTheme() {
     updateTheme((theme) => ({ ...createDefaultTheme(), id: theme.id, name: theme.name, createdAt: theme.createdAt }));
-    setNotice('The active theme has been restored to its defaults.');
+    setNotice('This theme is back to its defaults.');
   }
   async function downloadTheme() {
     try {
@@ -218,17 +239,14 @@ export function App() {
       const anchor = document.createElement('a'); anchor.href = url;
       anchor.download = `${activeTheme.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'pokernow-theme'}.json`;
       anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNotice('Theme exported with its uploaded assets.');
+      setNotice('Theme exported, with its uploaded images.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'This theme could not be exported.'); }
   }
   async function readTheme(file?: File) {
     if (!file) return;
-    if (library.themes.length >= 100) { setNotice('Your library can hold 100 themes. Delete a theme before importing another.'); return; }
     try {
       const imported = await importTheme(await file.text());
-      const theme = { ...imported, id: uid() };
-      setLibrary((current) => ({ ...current, themes: [...current.themes, theme], settings: { ...current.settings, activeThemeId: theme.id } }));
-      setNotice(`“${theme.name}” is ready to use.`);
+      if (addTheme({ ...imported, id: uid() })) setNotice(`“${imported.name}” is ready to use.`);
     } catch (error) { setNotice(error instanceof Error ? error.message : 'This file is not a valid theme.'); }
   }
   async function upload(file: File | undefined, target: 'back' | 'table') {
@@ -240,135 +258,168 @@ export function App() {
       setNotice('Image added to your theme.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'This image could not be added.'); }
   }
-  function playStreet(nextStreet: Street) { setStreet(nextStreet); setPaused(false); setPendingPreview({ street: nextStreet }); }
-  function togglePlayback() {
-    if (!playing) playStreet(street);
-    else if (paused) { preview.current?.resume(); setPaused(false); }
-    else { preview.current?.pause(); setPaused(true); }
-  }
-
   async function checkConnection() {
     setCheckingConnection(true);
     try { setInspection(await inspectRuntime()); }
-    catch (error) { setNotice(error instanceof Error ? error.message : 'The PokerNow connection could not be checked. Reload the extension and studio.'); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'The PokerNow connection could not be checked. Reload the extension and the studio.'); }
     finally { setCheckingConnection(false); }
   }
+  function goTo(next: Step) { setStep(next); panel.current?.scrollTo?.({ top: 0 }); }
 
-  const title = TITLES[section];
-  return <div className="studio-app">
-    <aside className="sidebar">
-      <a className="brand" href="#studio" onClick={() => setSection('animations')} aria-label="PokerNow Customizer home"><span className="brand-mark">pn<span>✦</span></span><span className="brand-type">pokernow<small>CUSTOMIZER</small></span></a>
-      <div className="workspace-label">YOUR WORKSPACE <span>V2</span></div>
-      <nav aria-label="Studio sections">{NAV.map((item) => <button key={item.id} aria-label={item.label} title={item.label} className={`nav-item ${section === item.id ? 'active' : ''}`} onClick={() => setSection(item.id)}>
-        <Icon name={item.icon} /><span>{item.label}</span>{section === item.id && <i />}</button>)}</nav>
-      <div className="sidebar-divider" />
-      <div className="theme-sidebar"><span className="eyebrow">ACTIVE THEME</span><button className="current-theme-button" onClick={() => setSection('themes')}><span className="theme-dot" style={{ background: activeTheme.table.feltColor }} /><span>{activeTheme.name}</span><Icon name="chevron" size={14} /></button></div>
-      <div className="sidebar-bottom"><div className="extension-state"><span className={library.settings.enabled ? 'status-light' : 'status-light off'} /><span>Customization {library.settings.enabled ? 'on' : 'off'}</span><Toggle label="Enable customization" checked={library.settings.enabled} onChange={(value) => setting('enabled', value)} /></div>
-        <p>All style. Same game.</p><span className="local-note"><Icon name="check" size={12} /> Local & open source</span></div>
-    </aside>
+  const studio: Studio = {
+    library, theme: activeTheme, display: resolvedTheme ?? activeTheme, street, setStreet, playing, nowPlaying, motionAllowed,
+    updateTheme, patchCard, patchTable, patchBoard, patchCompanion, setting, selectPreset, previewPreset, playStreet: (item) => play(item),
+    playHand: () => { void playHand(); }, toggleFavorite, setParameter, resetParameters: () => selectPreset(activeTheme.animations[street].preset),
+    notify: setNotice, goTo, switchTheme, createTheme, duplicateTheme, deleteTheme, restoreTheme, downloadTheme: () => { void downloadTheme(); },
+    openImport: () => importInput.current?.click(), uploadImage: (target) => (target === 'back' ? uploadBackInput : uploadTableInput).current?.click(),
+    extensionContext, inspection, checkingConnection, checkConnection: () => { void checkConnection(); }, editingName, setEditingName,
+  };
 
-    <div className="workspace">
-      <header className="topbar"><div className="breadcrumb">Workspace <Icon name="chevron" size={12} /><span>{NAV.find((item) => item.id === section)?.label}</span><span className="studio-context">{extensionContext ? 'Extension studio' : 'Browser preview · changes stay here'}</span></div>
-        <div className="topbar-actions"><span className={`save-status ${saveStatus === 'Save failed' ? 'failed' : ''}`} role="status"><span />{saveStatus}</span>
-          <button className="subtle-button compact" onClick={() => void downloadTheme()}><Icon name="download" size={15} /><span>Export theme</span></button></div></header>
+  /* ---------------------------------------------------------- commands and keys */
+  const commands = useMemo<Command[]>(() => [
+    { id: 'hand', group: 'Actions', title: 'Play a whole hand', icon: 'hand', keys: 'H', run: () => { void playHand(); } },
+    ...STREETS.map((item, index): Command => ({ id: `play-${item}`, group: 'Actions', title: `Play the ${item === 'deal' ? 'deal' : item}`, detail: assignmentLabel(activeTheme, item).name, icon: 'play', keys: String(index + 1), run: () => play(item) })),
+    { id: 'slow', group: 'Actions', title: slow ? 'Normal speed preview' : 'Slow-motion preview', icon: 'slow', keys: 'S', run: () => setSlow((value) => !value) },
+    { id: 'export', group: 'Actions', title: 'Export this theme', icon: 'download', run: () => { void downloadTheme(); } },
+    { id: 'new', group: 'Actions', title: 'New theme', icon: 'plus', run: createTheme },
+    { id: 'shortcuts', group: 'Actions', title: 'Keyboard shortcuts', icon: 'keyboard', keys: '?', run: () => setSheet(true) },
+    ...presets.map((preset): Command => {
+      const target = preset.supportedEvents.includes(street) ? street : preset.supportedEvents[0]!;
+      return { id: `fx-${preset.id}`, group: 'Effects', title: presetName(preset), detail: `Use on the ${target === 'deal' ? 'deal' : target}`, icon: preset.companion ? 'paw' : 'spark',
+        keywords: `${preset.description} ${preset.supportedEvents.join(' ')}`, run: () => { setStep('moments'); selectPreset(preset.id, true); } };
+    }),
+    { id: 'fx-random', group: 'Effects', title: 'Shuffle', detail: `Use on the ${street === 'deal' ? 'deal' : street}`, icon: 'shuffle', keywords: 'random surprise', run: () => selectPreset('random', true) },
+    ...library.themes.map((theme): Command => ({ id: `theme-${theme.id}`, group: 'Themes', title: theme.name, detail: theme.id === activeTheme.id ? 'In use' : 'Switch to this theme',
+      swatch: theme.table.feltColor, keywords: theme.description, run: () => switchTheme(theme.id) })),
+    ...STEPS.map((item): Command => ({ id: `go-${item.id}`, group: 'Go to', title: item.label, detail: item.blurb, icon: item.icon, run: () => goTo(item.id) })),
+    { id: 'set-motion', group: 'Settings', title: library.settings.reducedMotion ? 'Turn off reduced motion' : 'Turn on reduced motion', icon: 'settings', run: () => setting('reducedMotion', !library.settings.reducedMotion) },
+    { id: 'set-enabled', group: 'Settings', title: library.settings.enabled ? 'Turn customization off' : 'Turn customization on', detail: 'On PokerNow', icon: 'power', run: () => setting('enabled', !library.settings.enabled) },
+    ...(['chips', 'celebrations', 'moments', 'ambience'] as const).map((key): Command => ({ id: `set-${key}`, group: 'Settings',
+      title: `${library.settings.effects[key] ? 'Turn off' : 'Turn on'} ${({ chips: 'moving chips', celebrations: 'winner celebrations', moments: 'table moments', ambience: 'ambient light' })[key]}`, icon: 'settings',
+      run: () => setting('effects', { ...library.settings.effects, [key]: !library.settings.effects[key] }) })),
+    { id: 'puppy', group: 'Settings', title: activeTheme.companion ? 'Remove the table puppy' : 'Add the table puppy', icon: 'paw',
+      run: () => patchCompanion(activeTheme.companion ? undefined : { kind: 'puppy', animations: true, intensity: 'normal', scale: 'medium' }) },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [library, activeTheme, street, slow, previewMode, playing, nowPlaying]);
 
-      <div className="workspace-body">
-        <main className="main-panel" id="studio">
-          {loadFailed && <div className="recovery-banner" role="alert"><div><strong>Your saved workspace could not be opened.</strong><p>Local defaults are available for preview. Restore them to resume saving changes.</p></div><button className="accent-button" onClick={() => { setLibrary(createDefaultLibrary()); setLoadFailed(false); setNotice('A fresh local workspace is ready.'); }}>Restore local defaults</button></div>}
-          <div className="page-heading"><div><div className="eyebrow accent">{title[0]}</div><h1>{title[1]}<br /><em>{title[2]}</em></h1><p>{section === 'animations' ? 'Cinematic card animations. Completely your own.' : 'A personal touch, without changing the game.'}</p></div><span className="version-pill"><span /> ANIMATION STUDIO</span></div>
+  const keys = useRef<(event: KeyboardEvent) => void>(() => {});
+  keys.current = (event: KeyboardEvent) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setMenu((value) => !value); return; }
+    if (menu || sheet || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest?.('input, textarea, select, [contenteditable="true"], [role="slider"]')) return;
+    const key = event.key;
+    if (key === '/') { event.preventDefault(); setMenu(true); }
+    else if (key === '?') { event.preventDefault(); setSheet(true); }
+    else if (key === ' ') { if (target?.closest?.('button, a, summary')) return; event.preventDefault(); togglePlayback(); }
+    else if (/^[1-4]$/.test(key)) play(STREETS[Number(key) - 1]!);
+    else if (key === ']') cyclePreset(1);
+    else if (key === '[') cyclePreset(-1);
+    else if (key.toLowerCase() === 'h') void playHand();
+    else if (key.toLowerCase() === 's') setSlow((value) => !value);
+    else if (key.toLowerCase() === 'r') replay();
+    else if (key.toLowerCase() === 'f') { const id = activeTheme.animations[street].preset; if (id !== 'random') toggleFavorite(id); }
+    else if (key.toLowerCase() === 'c' && !event.repeat && previewMode === 'live') setOriginal(true);
+  };
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => keys.current(event);
+    const up = (event: KeyboardEvent) => { if (event.key.toLowerCase() === 'c') setOriginal(false); };
+    const blur = () => setOriginal(false);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur); };
+  }, []);
 
-          <div className="preview-shell">
-            <div className="preview-topline"><div className="preview-mode" role="tablist" aria-label="Preview mode">
-                {liveTableSupported() && <button role="tab" aria-selected={previewMode === 'live'} className={previewMode === 'live' ? 'selected' : ''} onClick={() => { preview.current?.reset(); setPreviewMode('live'); }}>Live table</button>}
-                <button role="tab" aria-selected={previewMode === 'lab'} className={previewMode === 'lab' ? 'selected' : ''} onClick={() => { preview.current?.reset(); setPreviewMode('lab'); }}>Effect lab</button></div>
-              {previewMode === 'live' ? <button className="text-button hand-button" onClick={() => { setPendingPreview(null); setPaused(false); (preview.current as LiveTableHandle | null)?.playHand?.(); }}><Icon name="play" size={12} /> Play full hands</button>
-                : <span><Icon name="table" size={15} /> EFFECT LAB</span>}
-              <label className="player-picker">Players <select aria-label="Preview player count" value={players} onChange={(event) => setPlayers(Number(event.target.value))}>{Array.from({ length: 9 }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count}</option>)}</select></label></div>
-            {resolvedTheme ? previewMode === 'live'
-              ? <LiveTable key="live" ref={preview as React.RefObject<LiveTableHandle>} theme={resolvedTheme} settings={library.settings} players={players} slow={slow}
-                onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} />
-              : <PreviewTable key="lab" ref={preview as React.RefObject<PreviewHandle>} theme={resolvedTheme} settings={library.settings} street={street} players={players} slow={slow}
-                onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} /> : <div className="preview-loading">Preparing your table…</div>}
-            <div className="playback-bar"><div className="playback-primary"><button className="play-button" onClick={togglePlayback} aria-label={playing && !paused ? 'Pause animation' : 'Play animation'}><Icon name={playing && !paused ? 'pause' : 'play'} size={17} /></button><button className="icon-button" title="Replay animation" aria-label="Replay animation" onClick={() => { setPendingPreview(null); setPaused(false); void preview.current?.replay(); }}><Icon name="replay" size={17} /></button><button className="icon-button" title="Reset hand" aria-label="Reset hand" onClick={() => { setPendingPreview(null); preview.current?.reset(); setPaused(false); }}><Icon name="reset" size={16} /></button></div>
-              <div className="preview-timeline"><span className="timeline-dot" /><div className="timeline-track"><span style={{ width: `${progress * 100}%` }} /></div><span className="timeline-time">{randomMode ? 'Random' : `${(previewDuration / 1000).toFixed(1)}s`}</span></div>
-              <button className={`slow-button ${slow ? 'active' : ''}`} onClick={() => setSlow(!slow)} aria-pressed={slow}><span>0.4×</span> Slow motion</button></div>
-          </div>
+  /* ---------------------------------------------------------- render */
+  const label = nowPlaying ? (nowPlaying.hand ? 'A whole hand' : nowPlaying.presetId && nowPlaying.presetId !== 'random'
+    ? presetName(getPreset(nowPlaying.presetId) ?? presets[0]!) : assignmentLabel(activeTheme, nowPlaying.street).name) : assignmentLabel(activeTheme, street).name;
+  const labelStreet = nowPlaying ? (nowPlaying.hand ? `Now: ${streetName(nowPlaying.street)}` : streetName(nowPlaying.street)) : streetName(street);
+  const currentStep = STEPS.find((item) => item.id === step)!;
+  const tint = studioTint(activeTheme) as CSSProperties;
 
-          {section === 'animations' && <>
-            <div className="event-selector"><span>ANIMATE THE</span><div className="street-tabs" role="tablist" aria-label="Poker event">{STREETS.map((item) => <button role="tab" aria-selected={street === item} key={item} className={street === item ? 'selected' : ''} onClick={() => setStreet(item)}>{prettyStreet(item)}{street === item && <span />}</button>)}</div><button className="text-button event-play" onClick={() => playStreet(street)}>Preview {prettyStreet(street).toLowerCase()}<Icon name="arrow" size={15} /></button></div>
-            <div className="section-heading"><div><h2>Find your signature.</h2><p>{presets.length} distinct effects, from quiet to showstopping. One unforgettable table.</p></div><span className="count-pill">{presets.length} PRESETS</span></div>
-            <div className="editor-card"><div className="setting-row"><div><h3>Random</h3><p className="helper-text">Pick a compatible animation each time this event happens. Each effect uses its default tuning.</p></div><button className={randomMode ? 'accent-button' : 'subtle-button'} aria-label="Select Random" aria-pressed={randomMode} onClick={()=>selectPreset('random')}>{randomMode ? 'Random selected' : 'Choose Random'}</button></div></div>
-            <div className="preset-grid">{presets.map((preset, index) => {
-              const assigned = activeTheme.animations[street].preset === preset.id;
-              const compatible = preset.supportedEvents.includes(street);
-              return <article className={`preset-card ${assigned ? 'selected' : ''} ${!compatible ? 'other-event' : ''}`} key={preset.id}>
-                <button className="preset-select" onClick={() => selectPreset(preset.id)} aria-label={`Select ${preset.name}`} aria-pressed={assigned}>
-                  <PresetArt id={preset.id} /><span className="preset-number">0{index + 1}</span><span className="preset-category">{preset.supportedEvents[0] === 'deal' ? 'DEAL' : preset.supportedEvents[0] === 'flop' ? 'FLOP' : 'TURN / RIVER'}</span>
-                  {assigned && <span className="selected-check"><Icon name="check" size={12} /></span>}
-                  <span className="preset-name">{preset.name}</span><span className="preset-description">{preset.description}</span>
-                </button><button className="preset-preview-button" aria-label={`Preview ${preset.name}`} onClick={() => selectPreset(preset.id, true)}><Icon name="play" size={12} /><span>Preview</span></button>
-              </article>;
-            })}</div>
-          </>}
-
-          {section === 'cards' && <div className="appearance-section"><div className="section-heading"><div><h2>Build your deck.</h2><p>Artwork shared by every animation and your table.</p></div></div>
-            <div className="face-style-grid">{(['native', 'classic', 'modern', 'midnight'] as const).map((face) => <button className={`face-style-card ${activeTheme.card.face === face ? 'selected' : ''}`} key={face} onClick={() => patchCard(FACE_STYLES[face])}><img src={cardDataUrl({ rank: 'A', suit: 'spades' }, { ...(resolvedTheme ?? activeTheme).card, ...FACE_STYLES[face] })} alt={`${face} ace of spades`} /><span>{face === 'native' ? 'PokerNow native' : face[0].toUpperCase() + face.slice(1)}</span>{activeTheme.card.face === face && <Icon name="check" size={14} />}</button>)}</div>
-            <div className="editor-card"><h3>Made-hand aura</h3><p className="helper-text">A quiet glow when your visible cards make a pair or better. Shared board hands alone do not trigger it.</p><Toggle label="Made-hand aura" checked={activeTheme.card.aura.enabled} onChange={enabled=>patchCard({aura:{...activeTheme.card.aura,enabled}})} /><ColorControl label="Aura color" value={activeTheme.card.aura.color} onChange={color=>patchCard({aura:{...activeTheme.card.aura,color}})} /><Range label="Aura strength" value={activeTheme.card.aura.strength} min={0} max={1} step={0.05} onChange={strength=>patchCard({aura:{...activeTheme.card.aura,strength}})} /></div>
-            <p className="helper-text">Native artwork is preserved on supported PokerNow cards. This preview shows a local equivalent.</p>
-            <div className="editor-grid"><div className="editor-card"><h3>Card back</h3><div className="choice-row">{(['crosshatch', 'diamonds', 'solid'] as const).map((back) => <button key={back} className={activeTheme.card.back === back ? 'selected' : ''} onClick={() => patchCard({ back })}>{back[0].toUpperCase() + back.slice(1)}</button>)}</div><ColorControl label="Back color" value={activeTheme.card.backColor} onChange={(backColor) => patchCard({ backColor })} /><button className="subtle-button wide" onClick={() => uploadBackInput.current?.click()}><Icon name="upload" size={15} />Upload back image</button>{activeTheme.card.backImage && <button className="text-button" onClick={() => patchCard({ backImage: undefined, back: 'crosshatch' })}>Remove uploaded image</button>}</div>
-              <div className="editor-card"><h3>Face & finish</h3><ColorControl label="Card background" value={activeTheme.card.faceColor} onChange={(faceColor) => patchCard({ faceColor })} /><ColorControl label="Hearts & diamonds" value={activeTheme.card.redColor} onChange={(redColor) => patchCard({ redColor })} /><ColorControl label="Spades & clubs" value={activeTheme.card.blackColor} onChange={(blackColor) => patchCard({ blackColor })} /><ColorControl label="Border" value={activeTheme.card.borderColor} onChange={(borderColor) => patchCard({ borderColor })} /><Range label="Corner radius" value={activeTheme.card.borderRadius} min={0} max={14} unit="px" onChange={(borderRadius) => patchCard({ borderRadius })} /><Range label="Card shadow" value={activeTheme.card.shadow} min={0} max={1} step={0.05} onChange={(shadow) => patchCard({ shadow })} /></div></div></div>}
-
-          {section === 'table' && <div className="appearance-section"><div className="section-heading"><div><h2>Choose an atmosphere.</h2><p>From a quiet night game to a signature felt.</p></div></div><div className="table-theme-grid">{builtInThemes.map((theme) => <button className="table-theme-card" key={theme.id} onClick={() => patchTable(theme.table)}><span className="mini-table-scene" style={{ background: theme.table.backgroundColor }}><i style={{ background: theme.table.feltColor, borderColor: theme.table.railColor }} /></span><span>{theme.name}</span><Icon name="arrow" size={14} /></button>)}</div><div className="editor-grid"><div className="editor-card"><h3>Table finish</h3><ColorControl label="Felt" value={activeTheme.table.feltColor} onChange={(feltColor) => patchTable({ feltColor })} /><ColorControl label="Metal trim" value={activeTheme.table.trimColor} onChange={(trimColor) => patchTable({ trimColor })} /><ColorControl label="Rail" value={activeTheme.table.railColor} onChange={(railColor) => patchTable({ railColor })} /><ColorControl label="Surroundings" value={activeTheme.table.backgroundColor} onChange={(backgroundColor) => patchTable({ backgroundColor })} /></div><div className="editor-card"><h3>Make it personal</h3><label className="text-field">Felt inscription<input aria-label="Felt inscription" maxLength={28} value={activeTheme.table.inscription} onChange={(event) => { const inscription = event.target.value; if (/^[\p{L}\p{N} .,'’&·+\-]*$/u.test(inscription)) patchTable({ inscription }); }} /></label><label className="text-field">Emblem<select aria-label="Table emblem" value={activeTheme.table.emblem} onChange={(event) => patchTable({ emblem: event.target.value as Theme['table']['emblem'] })}>{['spade','crown','laurel','paw','none'].map(value => <option key={value}>{value}</option>)}</select></label><label className="text-field">Decor<select aria-label="Table decor" value={activeTheme.table.motif} onChange={(event) => patchTable({ motif: event.target.value as Theme['table']['motif'] })}><option value="classic">Classic</option><option value="puppy">Puppy: paw prints, paw chips</option></select></label><p className="helper-text">Use a local image for your table surroundings. Your image stays in this browser and travels with exported themes.</p><button className="subtle-button wide" onClick={() => uploadTableInput.current?.click()}><Icon name="upload" size={15} />Upload background</button>{activeTheme.table.backgroundImage && <button className="text-button" onClick={() => patchTable({ backgroundImage: undefined })}>Remove background image</button>}</div>
-            <div className="editor-card companion-card"><h3>Table companion</h3><p className="helper-text">A 3D puppy who lives on your table: it deals, reveals the board, sweeps the chips and celebrates wins. It always rests where it covers no cards, chips or names.</p>
-              <div className="choice-row" role="radiogroup" aria-label="Table companion">{([['none', 'None'], ['puppy', 'Puppy']] as const).map(([value, label]) => <button key={value} role="radio" aria-checked={(activeTheme.companion ? 'puppy' : 'none') === value} className={(activeTheme.companion ? 'puppy' : 'none') === value ? 'selected' : ''} onClick={() => patchCompanion(value === 'puppy' ? (activeTheme.companion ?? { kind: 'puppy', animations: true, intensity: 'normal', scale: 'medium' }) : undefined)}>{label}</button>)}</div>
-              {activeTheme.companion && <>
-                <div className="setting-row compact"><div><h3>Puppy animations</h3><p>Let the puppy run the deal, the board, the chips and the celebrations.</p></div><Toggle label="Puppy animations" checked={activeTheme.companion.animations} onChange={(animations) => patchCompanion({ ...activeTheme.companion!, animations })} /></div>
-                <span className="eyebrow">ANIMATION INTENSITY</span><div className="choice-row" role="radiogroup" aria-label="Puppy animation intensity">{(['subtle', 'normal', 'playful'] as const).map((value) => <button key={value} role="radio" aria-checked={activeTheme.companion!.intensity === value} className={activeTheme.companion!.intensity === value ? 'selected' : ''} onClick={() => patchCompanion({ ...activeTheme.companion!, intensity: value })}>{value[0]!.toUpperCase() + value.slice(1)}</button>)}</div>
-                <span className="eyebrow">PUPPY SIZE</span><div className="choice-row" role="radiogroup" aria-label="Puppy size">{(['small', 'medium', 'large'] as const).map((value) => <button key={value} role="radio" aria-checked={activeTheme.companion!.scale === value} className={activeTheme.companion!.scale === value ? 'selected' : ''} onClick={() => patchCompanion({ ...activeTheme.companion!, scale: value })}>{value[0]!.toUpperCase() + value.slice(1)}</button>)}</div>
-                <p className="helper-text">Reduced motion in Settings keeps the puppy resting quietly at its spot.</p>
-              </>}
-            </div></div></div>}
-
-          {section === 'board' && <div className="appearance-section"><div className="section-heading"><div><h2>Frame the action.</h2><p>Small details that make your reveals feel considered.</p></div></div><div className="editor-grid"><div className="editor-card"><h3>Community board</h3><ColorControl label="Backplate" value={activeTheme.board.color} onChange={(color) => patchBoard({ color })} /><ColorControl label="Highlight" value={activeTheme.board.highlight} onChange={(highlight) => patchBoard({ highlight })} /><Range label="Card spacing" value={activeTheme.board.spacing} min={4} max={24} unit="px" onChange={(spacing) => patchBoard({ spacing })} /><Range label="Card shadows" value={activeTheme.board.shadow} min={0} max={1} step={0.05} onChange={(shadow) => patchBoard({ shadow })} /></div><div className="editor-card quiet-card"><Icon name="board" size={32} /><h3>Always in the right place.</h3><p>Live animations finish at PokerNow’s measured card positions. Preview spacing lets you explore the look without changing the game layout.</p><div className="small-status"><span /> Canonical layout preserved</div></div></div></div>}
-
-          {section === 'themes' && <div className="appearance-section"><div className="section-heading"><div><h2>Your collection.</h2><p>Save a mood. Share your signature.</p></div><button className="accent-button" onClick={createTheme}><Icon name="plus" size={15} />New theme</button></div><div className="theme-library">{library.themes.map((theme) => <button className={`theme-library-card ${theme.id === activeTheme.id ? 'selected' : ''}`} key={theme.id} onClick={() => setting('activeThemeId', theme.id)}><span className="theme-library-art" style={{ background: theme.table.backgroundColor }}><i style={{ background: theme.table.feltColor, borderColor: theme.table.railColor }} /><b style={{ background: theme.card.backColor }} /><b style={{ background: theme.card.faceColor }} /></span><span className="theme-library-info"><strong>{theme.name}</strong>{theme.description && <em className="theme-description">{theme.description}</em>}<small>{theme.id === activeTheme.id ? 'Active theme' : 'Click to use theme'}</small></span>{theme.id === activeTheme.id && <span className="selected-check"><Icon name="check" size={12} /></span>}</button>)}</div><div className="theme-actions"><button className="subtle-button" onClick={() => importInput.current?.click()}><Icon name="upload" size={15} />Import theme</button><button className="subtle-button" onClick={() => void downloadTheme()}><Icon name="download" size={15} />Export active theme</button><span>Portable JSON · images included</span></div><div className="editor-card theme-details"><div className="details-title"><h3>Active theme details</h3><span className="count-pill">SCHEMA V2</span></div><label className="text-field">Theme name<input key={activeTheme.id} aria-label="Theme name" value={activeTheme.name} autoFocus={editingName} onBlur={() => setEditingName(false)} maxLength={80} onChange={(event) => updateTheme((theme) => ({ ...theme, name: event.target.value }))} /></label><div className="button-row"><button className="subtle-button" onClick={duplicateTheme}><Icon name="copy" size={14} />Duplicate</button><button className="subtle-button" onClick={restoreTheme}><Icon name="reset" size={14} />Restore defaults</button><button className="subtle-button danger" onClick={deleteTheme}><Icon name="trash" size={14} />Delete theme</button></div></div></div>}
-
-          {section === 'settings' && <div className="appearance-section"><div className="section-heading"><div><h2>A few final touches.</h2><p>Keep the experience comfortable and under your control.</p></div></div><div className="editor-card settings-card"><div className="setting-row"><div><h3>Enable customization</h3><p>Apply your visual theme and animations on supported PokerNow tables.</p></div><Toggle label="Enable customization in settings" checked={library.settings.enabled} onChange={(value) => setting('enabled', value)} /></div><div className="setting-row"><div><h3>Reduced motion</h3><p>Skip large movement, fragment flights, shake, and impact effects.</p></div><Toggle label="Reduced motion" checked={library.settings.reducedMotion} onChange={(value) => setting('reducedMotion', value)} /></div>{(['chips', 'celebrations', 'moments', 'ambience'] as const).map(effect => <div className="setting-row" key={effect}><div><h3>{({ chips: 'Moving chips', celebrations: 'Winner celebrations', moments: 'Action feedback', ambience: 'Ambient light' })[effect]}</h3></div><Toggle label={`Enable ${effect}`} checked={library.settings.effects[effect]} onChange={value => setting('effects', { ...library.settings.effects, [effect]: value })} /></div>)}<Range label="Playback speed" value={library.settings.speed} min={0.5} max={2} step={0.1} unit="×" onChange={(value) => setting('speed', value)} /><div className="setting-note"><Icon name="check" size={17} /><p>Your settings and images stay local. Themes contain appearance data only. The extension never changes gameplay or accesses hidden cards.</p></div></div><div className="integration-note"><Icon name="external" size={18} /><div><strong>Preview and live support are verified separately.</strong><p>The studio runs all twelve effects using sample cards. Live PokerNow compatibility depends on observable page structure; see the included compatibility report.</p></div></div></div>}
-
-          {section === 'settings' && <div className="editor-card connection-card">
-            <h3>PokerNow connection</h3>
-            {!extensionContext && <p className="helper-text">This browser preview saves changes only on this website. To apply customization to PokerNow, open the installed extension using its Chrome toolbar icon.</p>}
-            <button className="subtle-button" onClick={() => void checkConnection()} disabled={checkingConnection}>{checkingConnection ? 'Checking connection…' : 'Check PokerNow connection'}</button>
-            {inspection && <div className="connection-results" role="status">
-              {inspection.context === 'standalone' ? <p>Browser preview only. Open the extension studio from the Chrome toolbar to connect to PokerNow.</p>
-                : !inspection.statuses.length ? <p>No PokerNow content script responded. Open a PokerNow table, refresh its tab after installing or reloading the extension, and check again.</p>
-                  : inspection.statuses.map((status, index) => <div className={`connection-result state-${status.state}`} key={status.tabId ?? index}>
-                    <strong>{status.state === 'ready' ? 'Connected' : status.state[0].toUpperCase() + status.state.slice(1)}</strong>
-                    <p>{status.reason}</p>
-                    <small>{status.tableCount} table · {status.seatCount} seats · {status.boardCount} boards · {status.cardCount} card elements</small>
-                  </div>)}
-            </div>}
-          </div>}
-
-          <footer className="main-footer"><span><Icon name="spark" size={13} /> A little more magic. The same game.</span><span>POKERNOW CUSTOMIZER / V2</span></footer>
-        </main>
-
-        <aside className="inspector"><div className="inspector-label"><span>{section === 'animations' ? 'ANIMATION PROPERTIES' : 'YOUR WORKSPACE'}</span><Icon name="settings" size={15} /></div>
-          {section === 'animations' ? <>
-            <div className="inspector-preset"><PresetArt id={selectedPreset.id} /><div className="eyebrow accent">{prettyStreet(street).toUpperCase()} EFFECT</div><h2>{randomMode ? 'Random' : selectedPreset.name}</h2><p>{randomMode ? 'A fresh compatible choice for each preview and live event.' : selectedPreset.description}</p></div>
-            <div className="inspector-content"><div className="inspector-section-title">Make it yours<button className="text-button" onClick={() => selectPreset(randomMode ? 'random' : selectedPreset.id)}>Reset</button></div>
-              {!randomMode && selectedPreset.parameters.map((parameter) => <Range key={parameter.key} label={parameter.label} value={currentParameters[parameter.key] ?? parameter.default} min={parameter.min} max={parameter.max} step={parameter.step} unit={parameter.unit} onChange={(value) => setParameter(parameter.key, value)} />)}
-              <div className="parameter-divider" /><Range label="Playback speed" value={library.settings.speed} min={0.5} max={2} step={0.1} unit="×" onChange={(value) => setting('speed', value)} />
-              <div className="inspector-toggle"><span>Reduced motion</span><Toggle label="Inspector reduced motion" checked={library.settings.reducedMotion} onChange={(value) => setting('reducedMotion', value)} /></div>
-              <button className="accent-button wide preview-effect" onClick={() => playStreet(street)}><Icon name="play" size={15} />Preview effect</button>
-            </div>
-            <div className="assignments"><div className="eyebrow">YOUR HAND, CHOREOGRAPHED</div>{STREETS.map((item) => <button key={item} className={item === street ? 'active' : ''} onClick={() => setStreet(item)}><span className="assignment-dot" /><span>{prettyStreet(item)}<small>{activeTheme.animations[item].preset === 'random' ? 'Random' : getPreset(activeTheme.animations[item].preset)?.name ?? 'Default'}</small></span><Icon name="chevron" size={13} /></button>)}</div>
-          </> : <><div className="workspace-inspector-art"><span className="inspector-monogram">pn<sup>✦</sup></span><span>YOUR TABLE, REIMAGINED.</span></div><div className="inspector-content"><div className="eyebrow accent">ACTIVE THEME</div><h2 className="theme-inspector-title">{activeTheme.name}</h2><p className="helper-text">Every change is saved automatically. Take the whole look with you in a portable theme.</p><button className="subtle-button wide" onClick={() => void downloadTheme()}><Icon name="download" size={15} />Export this theme</button><button className="subtle-button wide" onClick={duplicateTheme}><Icon name="copy" size={15} />Duplicate theme</button><div className="parameter-divider" /><div className="eyebrow">QUICK PREVIEW</div><div className="quick-preview-grid">{STREETS.map((item) => <button key={item} onClick={() => playStreet(item)}><Icon name="play" size={12} />{prettyStreet(item)}</button>)}</div></div><div className="inspector-tip"><Icon name="spark" size={18} /><p>Switch back to Animation Studio to fine-tune each moment of the hand.</p></div></>}
-          <div className="inspector-footnote"><span /><p>Presentation only.<br />PokerNow stays in control.</p></div>
-        </aside>
+  return <div className="studio" style={tint}>
+    <header className="topbar">
+      <a className="brand" href="#studio" onClick={() => goTo('moments')} aria-label="PokerNow Customizer, effects"><span className="brand-mark">pn</span><span className="brand-name">Customizer</span></a>
+      <nav className="theme-dots" aria-label="Themes">
+        {library.themes.slice(0, 8).map((theme) => <button type="button" key={theme.id} className={`theme-dot ${theme.id === activeTheme.id ? 'on' : ''}`} aria-pressed={theme.id === activeTheme.id}
+          aria-label={`Use theme ${theme.name}`} title={theme.name} onClick={() => switchTheme(theme.id)}
+          style={{ '--felt': theme.table.feltColor, '--rail': theme.table.railColor, '--trim': theme.table.trimColor } as CSSProperties} />)}
+        {library.themes.length > 8 && <button type="button" className="theme-more" onClick={() => goTo('library')}>+{library.themes.length - 8}</button>}
+        <button type="button" className="theme-add" aria-label="New theme" title="New theme" onClick={createTheme}><Icon name="plus" size={14} /></button>
+      </nav>
+      <button type="button" className="search" onClick={() => setMenu(true)} aria-label="Search the studio" aria-keyshortcuts="Meta+K Control+K /"><Icon name="search" size={16} /><span>Search effects, themes, settings</span><Kbd>⌘K</Kbd></button>
+      <div className="topbar-end">
+        {!extensionContext && <span className="studio-context" title="Open the studio from the extension’s toolbar icon to apply changes to PokerNow">Browser preview · changes stay here</span>}
+        <span className={`save-status ${saveStatus === 'Save failed' ? 'failed' : ''}`} role="status"><i />{saveStatus}</span>
+        <label className="power" title="Apply your theme on PokerNow tables"><span>On PokerNow</span><Toggle label="Enable customization" checked={library.settings.enabled} onChange={(value) => setting('enabled', value)} /></label>
       </div>
+    </header>
+
+    <div className="layout">
+      <section className="stage" aria-label="Table preview" id="studio">
+        <div className="stage-head">
+          <div className="stage-title"><h1>{activeTheme.name}</h1><p>{activeTheme.description || (activeTheme.companion ? 'With the table puppy' : 'Your theme')}</p></div>
+          <div className="stage-tools">
+            {liveTableSupported() && <div className="segmented small" role="tablist" aria-label="Preview mode">
+              <button type="button" role="tab" aria-selected={previewMode === 'live'} className={previewMode === 'live' ? 'on' : ''} onClick={() => { stopPlayback(); setPreviewMode('live'); }}>Live table</button>
+              <button type="button" role="tab" aria-selected={previewMode === 'lab'} className={previewMode === 'lab' ? 'on' : ''} onClick={() => { stopPlayback(); setOriginal(false); setPreviewMode('lab'); }}>Effect lab</button></div>}
+            <label className="players">Players<select aria-label="Preview player count" value={players} onChange={(event) => setPlayers(Number(event.target.value))}>
+              {Array.from({ length: 9 }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
+          </div>
+        </div>
+        <div className={`stage-frame ${original ? 'original' : ''}`} style={{ backgroundColor: original ? '#1a1b1b' : `color-mix(in srgb, ${activeTheme.table.backgroundColor} 22%, #000)` }}>
+          {resolvedTheme ? previewMode === 'live'
+            ? <LiveTable key="live" ref={preview as React.RefObject<LiveTableHandle>} theme={resolvedTheme} settings={library.settings} players={players} slow={slow} original={original}
+              onMoment={(moment) => { if (moment) setNowPlaying({ street: moment, hand: true }); }} onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} />
+            : <PreviewTable key="lab" ref={preview as React.RefObject<PreviewHandle>} theme={resolvedTheme} settings={library.settings} street={street} players={players} slow={slow}
+              onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} /> : <div className="stage-loading">Setting the table…</div>}
+          {previewMode === 'live' && <button type="button" className={`compare ${original ? 'on' : ''}`} aria-pressed={original} aria-keyshortcuts="C" title="Hold to see the table without your theme"
+            onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); setOriginal(true); }} onPointerUp={() => setOriginal(false)} onPointerCancel={() => setOriginal(false)}
+            onKeyDown={(event) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); setOriginal(true); } }}
+            onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') setOriginal(false); }} onBlur={() => setOriginal(false)}>
+            <Icon name="eye" size={15} />{original ? 'Without your theme' : 'Hold to compare'}<Kbd>C</Kbd></button>}
+        </div>
+        <div className="player" aria-label="Playback">
+          <div className="player-buttons">
+            <button type="button" className="play" onClick={togglePlayback} aria-label={playing && !paused ? 'Pause animation' : 'Play animation'} aria-keyshortcuts="Space"><Icon name={playing && !paused ? 'pause' : 'play'} size={18} /></button>
+            <button type="button" className="icon-button" title="Replay (R)" aria-label="Replay animation" onClick={replay}><Icon name="replay" size={18} /></button>
+            <button type="button" className="icon-button" title="Reset the table" aria-label="Reset hand" onClick={stopPlayback}><Icon name="reset" size={18} /></button>
+          </div>
+          <div className="player-now"><b>{label}</b><small>{labelStreet}</small></div>
+          <div className="player-track" aria-hidden="true"><span style={{ transform: `scaleX(${playing || progress === 1 ? progress : 0})` }} /></div>
+          <div className="player-streets" role="group" aria-label="Play a street">
+            {STREETS.map((item, index) => <button type="button" key={item} className={`${street === item ? 'on' : ''} ${playing && nowPlaying?.street === item ? 'live' : ''}`} aria-keyshortcuts={String(index + 1)} title={`${streetName(item)} (${index + 1})`} onClick={() => play(item)}>{streetShort(item)}</button>)}
+            <button type="button" className={`${nowPlaying?.hand && playing ? 'live' : ''}`} title="A whole hand (H)" onClick={() => { void playHand(); }}>Hand</button>
+          </div>
+          <button type="button" className={`slow ${slow ? 'on' : ''}`} onClick={() => setSlow(!slow)} aria-pressed={slow} title="Slow motion (S)"><Icon name="slow" size={16} />0.4×</button>
+        </div>
+      </section>
+
+      <section className="panel" ref={panel} aria-label="Customize">
+        <nav className="steps" aria-label="Studio sections">
+          {STEPS.map((item) => <button type="button" key={item.id} aria-current={step === item.id ? 'page' : undefined} className={`step-tab ${step === item.id ? 'on' : ''}`} onClick={() => goTo(item.id)}>
+            <Icon name={item.icon} size={16} /><span>{item.label}</span></button>)}
+        </nav>
+        <div className="panel-body">
+          {loadFailed && <div className="recovery-banner" role="alert"><div><strong>Your saved workspace could not be opened.</strong><p>Defaults are shown for preview. Restore them to start saving again.</p></div>
+            <button type="button" className="accent-button primary-button" onClick={() => { setLibrary(createDefaultLibrary()); setLoadFailed(false); setNotice('A fresh local workspace is ready.'); }}>Restore defaults</button></div>}
+          <header className="panel-head"><h2>{currentStep.label}</h2><p>{currentStep.blurb}</p></header>
+          {step === 'moments' && <Moments studio={studio} />}
+          {step === 'deck' && <Deck studio={studio} />}
+          {step === 'felt' && <Felt studio={studio} />}
+          {step === 'board' && <Board studio={studio} />}
+          {step === 'puppy' && <Puppy studio={studio} />}
+          {step === 'library' && <LibraryStep studio={studio} />}
+          {step === 'settings' && <SettingsStep studio={studio} />}
+          <footer className="panel-foot"><button type="button" className="text-button" onClick={() => setSheet(true)}><Icon name="keyboard" size={15} />Keyboard shortcuts</button><span>Presentation only. PokerNow stays in control of the game.</span></footer>
+        </div>
+      </section>
     </div>
-    {notice && <div className="toast" role="status"><Icon name="spark" size={17} /><p>{notice}</p><button onClick={() => setNotice('')} aria-label="Dismiss notification">×</button></div>}
+
+    {menu && <CommandMenu commands={commands} onClose={() => setMenu(false)} />}
+    {sheet && <ShortcutSheet onClose={() => setSheet(false)} />}
+    {notice && <div className="toast" role="status"><p>{notice}</p><button type="button" onClick={() => setNotice('')} aria-label="Dismiss notification"><Icon name="close" size={15} /></button></div>}
     <input hidden ref={importInput} type="file" accept="application/json,.json" onChange={(event) => { void readTheme(event.target.files?.[0]); event.target.value = ''; }} />
     <input hidden ref={uploadBackInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void upload(event.target.files?.[0], 'back'); event.target.value = ''; }} />
     <input hidden ref={uploadTableInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void upload(event.target.files?.[0], 'table'); event.target.value = ''; }} />

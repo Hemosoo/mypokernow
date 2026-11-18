@@ -140,7 +140,7 @@ export class AnimationCoordinator {
 
     const assigned = theme.animations[street];
     const selection = options.presetId ?? assigned.preset;
-    let preset = resolvePreset(selection, street);
+    let preset = resolvePreset(selection, street, Math.random, options.favorites);
     let substituted = false;
     if (preset?.companion && !options.companionReady) { preset = resolvePreset(COMPANION_STAND_IN[street], street); substituted = true; }
     if (!preset) return completed(options.onProgress);
