@@ -56,55 +56,72 @@ try {
   await writeFile(`artifacts/assembly-${t}.png`,Buffer.from(shot.data,'base64'));
  }
  await evaluate('globalThis.__assembly.clear()');
- const effectsTab='[...document.querySelectorAll(".step-tab")].find(x=>x.textContent.trim()==="Effects").click()';
+ const go=(label)=>`[...document.querySelectorAll(".rail-item")].find(x=>x.textContent.trim()===${JSON.stringify(label)}).click()`;
+ const effectsTab=go('Effects');
  await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".before-after video").length===2',15000);
- // Home opens on the before-and-after comparison: both clips play, looped, in step.
+ // Discover opens on the before-and-after comparison: both clips play, looped, in step, with no live table behind them.
  const comparison=await evaluate(`(async()=>{const [b,a]=document.querySelectorAll('.before-after video');const t=performance.now();while(performance.now()-t<8000&&!(a.currentTime>1.5&&b.currentTime>1.5))await new Promise(r=>setTimeout(r,100));return {a:a.currentTime,b:b.currentTime,loop:a.loop&&b.loop,paused:a.paused||b.paused};})()`);
  assert.ok(comparison.a>1.5&&!comparison.paused&&comparison.loop,'The comparison plays on its own, looped: '+JSON.stringify(comparison));
  assert.ok(Math.abs(comparison.a-comparison.b)<0.25,'Both comparison clips stay in step: '+JSON.stringify(comparison));
- await evaluate(effectsTab);await until('document.querySelectorAll(".tile").length>0&&!!document.querySelector(".live-table.is-ready")',15000);await sleep(500);
+ assert.equal(await evaluate('document.querySelectorAll(".live-table-frame").length'),0,'Discover renders no hidden preview table');
+ await evaluate(effectsTab);await until('document.querySelectorAll(".fx-card").length>0&&!!document.querySelector(".live-table.is-ready")',15000);await sleep(500);
  const layout=await evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,small:[...document.querySelectorAll("body *")].filter(e=>e.offsetParent!==null&&[...e.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())&&parseFloat(getComputedStyle(e).fontSize)<12).length})');
  assert.ok(layout.scroll<=layout.width,'Desktop horizontal overflow');assert.equal(layout.small,0,'No studio text is smaller than 12px');
- // Every preset plays on the live table from its own street's shelves.
+ // Every preset plays on the live table, tried from its own moment.
  const streetOf={deal:0,flop:1,turn:2,river:3};
- for(const [name,street] of [['Dealer Flick','deal'],['Orbit Deal','deal'],['House Pitch','deal'],["Dealer's Storm",'deal'],['Puppy Deal','deal'],['Triple Spread','flop'],['Triple Orbit','flop'],['Crystal Spread','flop'],['Silk Cascade','flop'],['Grand Flop','flop'],['Puppy Flop','flop'],['Slam / Impact Reveal','turn'],['Fragment Assembly','turn'],['Crystallization Reveal','turn'],['Velvet Turnover','turn'],['River Squeeze','turn'],['Spotlight','turn'],['Showdown','turn'],['Puppy Fetch','turn'],['Puppy Paw','turn']]) {
-  await evaluate(`document.querySelectorAll('.track')[${streetOf[street]}].click()`);await sleep(150);
-  await evaluate(`document.querySelector('[aria-label="Pause animation"]')&&document.querySelector('[aria-label="Reset hand"]').click()`);await sleep(100);
-  const clicked=await evaluate(`(()=>{const button=document.querySelector('[aria-label="Preview ${name.replace(/'/g,"\\'")}"]');if(!button)return false;button.click();return true})()`);
-  if(!clicked)throw new Error('Missing preview button: '+name);
+ for(const [name,street] of [['Dealer Flick','deal'],['Orbit Deal','deal'],['House Pitch','deal'],["Dealer's Storm",'deal'],['Puppy Deal','deal'],['Triple Spread','flop'],['Triple Orbit','flop'],['Crystal Spread','flop'],['Silk Cascade','flop'],['Grand Flop','flop'],['Puppy Flop','flop'],['Slam','turn'],['Fragment Assembly','turn'],['Crystallization','turn'],['Velvet Turnover','turn'],['River Squeeze','turn'],['Spotlight','turn'],['Showdown','turn'],['Puppy Fetch','turn'],['Puppy Paw','turn']]) {
+  await evaluate(`document.querySelectorAll('.event-tab')[${streetOf[street]}].click()`);await sleep(150);
+  await evaluate(`document.querySelector('[aria-label="Pause animation"]')&&document.querySelector('[aria-label="Reset the table"]').click()`);await sleep(100);
+  const clicked=await evaluate(`(()=>{const button=document.querySelector('[aria-label="Try ${name.replace(/'/g,"\\'")} on the table"]');if(!button)return false;button.click();return true})()`);
+  if(!clicked)throw new Error('Missing try button: '+name);
   await sleep(250);
   await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
  }
- // A hovered tile plays its recorded clip.
- const clip=await evaluate(`(async()=>{const tile=document.querySelector('.tile');tile.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));tile.dispatchEvent(new MouseEvent('mouseenter'));
+ // A hovered effect card plays its recorded clip.
+ const clip=await evaluate(`(async()=>{const tile=document.querySelector('.fx-card');tile.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));tile.dispatchEvent(new MouseEvent('mouseenter'));
   const t=performance.now();while(performance.now()-t<6000){const v=tile.querySelector('video');if(v&&v.readyState>=2&&v.currentTime>0)return v.videoWidth;await new Promise(r=>setTimeout(r,100));}const v=tile.querySelector('video');return v?'video '+v.readyState+' '+(v.error&&v.error.code)+' '+v.currentSrc:'no video';})()`);
- assert.ok(typeof clip==='number'&&clip>0,'A hovered tile plays its clip: '+clip);
- await evaluate(`document.querySelectorAll('.track')[2].click()`);await sleep(200);
- await evaluate(`document.querySelector('[aria-label="Select Random"]').click()`);
- assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
+ assert.ok(typeof clip==='number'&&clip>0,'A hovered effect card plays its clip: '+clip);
+ await evaluate(`document.querySelectorAll('.event-tab')[2].click()`);await sleep(200);
+ await evaluate(`document.querySelector('[aria-label="Shuffle the turn"]').click()`);
+ assert.equal(await evaluate(`document.querySelector('[aria-label="Shuffle the turn"]').getAttribute('aria-checked')`),'true');
  await evaluate(`document.querySelector('[aria-label="Replay animation"]').click()`);
  await sleep(250);
  await until(`!document.querySelector('[aria-label="Pause animation"]')`,12000);
  await sleep(500);
  // A whole hand plays and reports each street as it goes.
- await evaluate(`document.querySelector('[aria-label="Play a whole hand on the table"]').click()`);
- await until(`!!document.querySelector('.tracks li.live')`,15000);
- await evaluate(`document.querySelector('[aria-label="Reset hand"]').click()`);await sleep(300);
+ await evaluate(`[...document.querySelectorAll('.player-streets button')].find(b=>b.textContent.trim()==='Hand').click()`);
+ await until(`/^Now: /.test(document.querySelector('.player-now small').textContent)`,15000);
+ await evaluate(`document.querySelector('[aria-label="Reset the table"]').click()`);await sleep(300);
  // Holding C shows the table without the theme, then restores it.
  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'c',code:'KeyC',text:'c'});await sleep(400);
  assert.equal(await evaluate(`document.querySelector('.live-table-frame').contentDocument.documentElement.hasAttribute('data-pnc-skin')`),false,'Compare shows the plain table');
  await call('Input.dispatchKeyEvent',{type:'keyUp',key:'c',code:'KeyC'});await sleep(400);
  assert.equal(await evaluate(`document.querySelector('.live-table-frame').contentDocument.documentElement.getAttribute('data-pnc-skin')`),'on','Releasing C restores the theme');
- await call('Page.reload');await until('document.querySelectorAll(".step-tab").length===8');await evaluate(effectsTab);await until('document.querySelectorAll(".tile").length>0');await sleep(300);
+ // A theme previewed from the gallery reaches the live table without being applied.
+ await evaluate(go('Themes'));await sleep(400);
+ await evaluate(`document.querySelector('[aria-label="Preview Neon on the table"]').click()`);
+ await until(`!!document.querySelector('.stage-banner')&&document.querySelector('.live-table-frame').contentWindow.__pncReplica.theme.id==='room-neon'`,8000);
+ assert.equal(await evaluate(`document.querySelector('.switcher-text b').textContent`),'Monte Carlo','Previewing does not apply');
+ await evaluate(`document.querySelector('.stage-banner .ghost-button').click()`);await sleep(300);
+ // The companion acts on request on the live table.
+ await evaluate(`document.querySelector('[aria-label="Use Puppy"]').click()`);await sleep(300);
+ await evaluate(go('Companion'));
+ await until(`!!document.querySelector('.live-table-frame')?.contentWindow?.__pncReplica?.runtime.companionDebug?.()?.visible`,20000);await sleep(800);
+ await evaluate(`[...document.querySelectorAll('.trick')].find(b=>b.textContent==='Celebrate').click()`);
+ await until(`document.querySelector('.live-table-frame').contentWindow.__pncReplica.runtime.companionDebug().state!=='IDLE'`,5000);
+ await evaluate(`[...document.querySelectorAll('.swatch')].find(b=>b.textContent==='Midnight').click()`);await sleep(400);
+ await evaluate(go('Themes'));await sleep(300);
+ await evaluate(`document.querySelector('[aria-label="Use Monte Carlo"]').click()`);await sleep(400);
+ await call('Page.reload');await until('document.querySelectorAll(".rail-item").length===7');await evaluate(effectsTab);await until('document.querySelectorAll(".fx-card").length>0');await sleep(300);
  // Reload selects the studio's initial street, so return to the saved shuffled turn.
- await evaluate(`document.querySelectorAll('.track')[2].click()`);await sleep(150);
- assert.equal(await evaluate(`document.querySelector('[aria-label="Select Random"]').getAttribute('aria-pressed')`),'true');
+ await evaluate(`document.querySelectorAll('.event-tab')[2].click()`);await sleep(150);
+ assert.equal(await evaluate(`document.querySelector('[aria-label="Shuffle the turn"]').getAttribute('aria-checked')`),'true');
  const screenshot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile('artifacts/studio.png',Buffer.from(screenshot.data,'base64'));
  // Settings persist and survive a reload of the standalone development studio.
- const settingsTab='[...document.querySelectorAll(".step-tab")].find(x=>x.textContent.trim()==="Settings").click()';
+ const settingsTab=go('Settings');
  await evaluate(settingsTab);await sleep(150);
  await evaluate(`document.querySelector('[aria-label="Reduced motion"]').click()`);await sleep(600);
- await call('Page.reload');await until('document.querySelectorAll(".step-tab").length===8');await sleep(500);
+ await call('Page.reload');await until('document.querySelectorAll(".rail-item").length===7');await sleep(500);
  await evaluate(settingsTab);await sleep(150);
  assert.equal(await evaluate(`document.querySelector('[aria-label="Reduced motion"]').getAttribute('aria-checked')`),'true');
  await call('Emulation.setDeviceMetricsOverride',{width:1100,height:900,deviceScaleFactor:1,mobile:false});await sleep(200);

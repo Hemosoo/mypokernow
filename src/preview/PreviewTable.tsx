@@ -30,7 +30,8 @@ interface Props {
   settings: Settings;
   street: Street;
   players: number;
-  slow: boolean;
+  /** Preview playback rate; multiplies the gameplay speed setting. */
+  rate: number;
   onPlaying: (playing: boolean) => void;
   onProgress: (progress: number) => void;
   onError: (message: string) => void;
@@ -42,7 +43,7 @@ function rectangle(element: HTMLElement): Rect {
 }
 
 export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTable(props, ref) {
-  const { theme, settings, street, players, slow, onPlaying, onProgress } = props;
+  const { theme, settings, street, players, rate, onPlaying, onProgress } = props;
   const [boardCount, setBoardCount] = useState(3);
   const [dealt, setDealt] = useState(true);
   const scene = useRef<HTMLDivElement>(null);
@@ -100,7 +101,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
     onPlaying(false);
     // The engine owns per-frame work; appearance changes only invalidate a run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, players, settings.reducedMotion, settings.enabled, settings.speed, slow]);
+  }, [theme, players, settings.reducedMotion, settings.enabled, settings.speed, rate]);
 
   async function play(nextStreet: Street, override?: string) {
     const version = ++generation.current;
@@ -157,7 +158,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
         : assignment.parameters;
       const handle = coordinator.current.play(event, options.theme, {
         presetId: override ?? assignment.preset, parameters,
-        speed: options.settings.speed * (options.slow ? 0.4 : 1),
+        speed: options.settings.speed * options.rate,
         reducedMotion: options.settings.reducedMotion, favorites: options.settings.favorites,
         onProgress: (progress: number) => { if (version === generation.current) options.onProgress(progress); },
       });

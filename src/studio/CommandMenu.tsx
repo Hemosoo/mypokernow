@@ -78,10 +78,10 @@ export function CommandMenu({ commands, onClose }: { commands: Command[]; onClos
 }
 
 export const SHORTCUTS: [string, string][] = [
-  ['⌘K or /', 'Search the studio'], ['Space', 'Play or pause'], ['1 – 4', 'Play the deal, flop, turn or river'],
-  ['[ and ]', 'Previous or next effect for this street'], ['H', 'Play a whole hand'], ['F', 'Heart this effect'],
-  ['S', 'Slow motion'], ['R', 'Replay'], ['Hold C', 'See the table without your theme'], ['?', 'Show these shortcuts'],
-];
+  ['⌘K or /', 'Search the studio'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo'], ['Space', 'Play or pause'], ['1 – 4', 'Play the deal, flop, turn or river'],
+  ['[ and ]', 'Try the previous or next effect'], ['H', 'Play a whole hand'], ['F', 'Heart the effect on the table'],
+  ['R', 'Replay'], ['Hold C', 'See the table without your theme'], ['Esc', 'Stop previewing a theme'], ['?', 'Show these shortcuts'],
+]
 
 export function ShortcutSheet({ onClose }: { onClose: () => void }) {
   const close = useRef<HTMLButtonElement>(null);

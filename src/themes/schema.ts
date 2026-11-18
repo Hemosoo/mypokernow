@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Library, Street, Theme } from '../types';
 import { getPreset } from '../animation/registry';
 import { SHOWPIECE_UPGRADES } from '../animation/presets/showpiece';
-import { builtInThemes, DEFAULT_THEME_ID, defaultEffects, LEGACY_BUILT_IN, ROOMS_SINCE_V4 } from './defaults';
+import { builtInThemes, DEFAULT_THEME_ID, defaultEffects, LEGACY_BUILT_IN, ROOMS_SINCE_V4, ROOMS_SINCE_V5 } from './defaults';
 
 const hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 const asset = z.string().regex(/^asset:[a-zA-Z0-9-]{1,80}$/).optional();
@@ -19,14 +19,14 @@ export const themeSchema = z.object({
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   card: z.object({
     aura: z.object({enabled:z.boolean(),color:hex,strength:finite(0,1)}).strict().default({enabled:true,color:'#d4b274',strength:0.4}),
-    face: z.enum(['classic', 'modern', 'midnight', 'native', 'puppy']), back: z.enum(['crosshatch', 'diamonds', 'solid', 'image', 'paws']),
+    face: z.enum(['classic', 'modern', 'midnight', 'native', 'puppy', 'neon', 'sakura']), back: z.enum(['crosshatch', 'diamonds', 'solid', 'image', 'paws', 'circuit', 'petals']),
     backColor: hex, backImage: asset, faceColor: hex, redColor: hex, blackColor: hex, borderColor: hex,
     borderRadius: finite(0, 14), shadow: finite(0, 1),
   }).strict(),
   table: z.object({
     feltColor: hex, railColor: hex, backgroundColor: hex, backgroundImage: asset,
-    trimColor: hex, inscription, emblem: z.enum(['spade', 'crown', 'laurel', 'paw', 'none']),
-    motif: z.enum(['classic', 'puppy']).default('classic'),
+    trimColor: hex, inscription, emblem: z.enum(['spade', 'crown', 'laurel', 'paw', 'blossom', 'bolt', 'none']),
+    motif: z.enum(['classic', 'puppy', 'neon', 'sakura']).default('classic'),
   }).strict(),
   board: z.object({ color: hex, highlight: hex, spacing: finite(0, 32), shadow: finite(0, 1) }).strict(),
   animations: z.object({ deal: assignment, flop: assignment, turn: assignment, river: assignment }).strict(),
@@ -34,14 +34,16 @@ export const themeSchema = z.object({
   companion: z.object({
     kind: z.literal('puppy'), animations: z.boolean(),
     intensity: z.enum(['subtle', 'normal', 'playful']), scale: z.enum(['small', 'medium', 'large']),
+    coat: z.enum(['golden', 'chocolate', 'cream', 'midnight', 'silver']).optional(), collar: z.enum(['ruby', 'sapphire', 'emerald', 'violet']).optional(),
   }).strict().optional(),
 }).strict();
 
 const effectsSchema = z.object({ chips: z.boolean(), celebrations: z.boolean(), moments: z.boolean(), ambience: z.boolean() }).strict();
 export const librarySchema = z.object({
-  version: z.literal(4),
+  version: z.literal(5),
   settings: z.object({ enabled: z.boolean(), reducedMotion: z.boolean(), speed: finite(0.25, 3), activeThemeId: z.string().min(1).max(100), effects: effectsSchema,
-    favorites: z.array(z.string().regex(/^[a-z0-9.-]{1,80}$/)).max(64).default([]) }).strict(),
+    favorites: z.array(z.string().regex(/^[a-z0-9.-]{1,80}$/)).max(64).default([]),
+    recent: z.array(z.string().regex(/^[a-zA-Z0-9-]{1,100}$/)).max(12).default([]) }).strict(),
   themes: z.array(themeSchema).min(1).max(100),
 }).strict();
 
@@ -123,18 +125,22 @@ function upgradeAssignments(theme: unknown): unknown {
   return { ...theme, animations };
 }
 
-/** Version 4 adds the rooms introduced since version 3 (Puppy), once, after the owner's own themes are kept. */
-function addNewRooms(library: Loose): Loose {
+/**
+ * Versions 4 and 5 each add the rooms introduced with them (Puppy; Neon and
+ * Sakura), once, after the owner's own themes are kept. Nothing is replaced.
+ */
+function addNewRooms(library: Loose, rooms: string[], version: number): Loose {
   const themes = Array.isArray(library.themes) ? library.themes : [];
   const ids = new Set(themes.map((theme) => (isObject(theme) ? theme.id : undefined)));
-  const added = structuredClone(builtInThemes).filter((theme) => ROOMS_SINCE_V4.includes(theme.id) && !ids.has(theme.id));
-  return { ...library, version: 4, themes: [...themes, ...added].slice(0, 100) };
+  const added = structuredClone(builtInThemes).filter((theme) => rooms.includes(theme.id) && !ids.has(theme.id));
+  return { ...library, version, themes: [...themes, ...added].slice(0, 100) };
 }
 
 export function migrateLibrary(value: unknown): unknown {
   let library = migrateLibraryV1(value);
   if (isObject(library) && library.version === 2 && Array.isArray(library.themes)) library = { ...library, version: 3, themes: library.themes.map(upgradeAssignments) };
-  if (isObject(library) && library.version === 3 && Array.isArray(library.themes)) library = addNewRooms(library);
+  if (isObject(library) && library.version === 3 && Array.isArray(library.themes)) library = addNewRooms(library, ROOMS_SINCE_V4, 4);
+  if (isObject(library) && library.version === 4 && Array.isArray(library.themes)) library = addNewRooms(library, ROOMS_SINCE_V5, 5);
   return library;
 }
 

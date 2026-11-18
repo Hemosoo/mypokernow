@@ -5,7 +5,7 @@ import type { AnimationHandle } from '../animation/core/coordinator';
 import type { SeatState, TableState } from '../adapter/pokernow/table-state';
 import { paw } from '../rendering/puppy-art';
 import { metal, rgba, svgDataUrl } from '../rendering/color';
-import { streetForEvent, type CompanionSettings, type Rect, type Settings, type Theme, type VisualEvent } from '../types';
+import { streetForEvent, type CompanionAction, type CompanionSettings, type Rect, type Settings, type Theme, type VisualEvent } from '../types';
 import { buildPuppy, type PuppyRig } from './model';
 import { planForEvent, type Choreography, type Pt, type PuppyCue } from './plan';
 import { applyPose, neutralPose, type PuppyPose } from './pose';
@@ -138,6 +138,8 @@ export class PuppyCompanion implements Companion {
   private presenceGoal = 1;
   /** 0 awake … 1 fast asleep. */
   private sleep = 0;
+  /** A nap asked for from the studio, until this time. */
+  private napUntil = 0;
   private zzzNext = 0;
   /** The seat currently deciding, since when, and whether its clock has run low. */
   private decider: number | undefined;
@@ -222,6 +224,7 @@ export class PuppyCompanion implements Companion {
       if (!resident) this.setState('AWAY');
     }
     this.reduced = settings.reducedMotion || (typeof this.view.matchMedia === 'function' && this.view.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    this.rig.paint(this.settings.coat ?? 'golden', this.settings.collar ?? 'ruby');
     this.computeScale();
     this.schedule();
   }
@@ -247,6 +250,28 @@ export class PuppyCompanion implements Companion {
     this.rig.root.visible = this.presence > 0.01;
     this.watchClock(state);
     this.schedule();
+  }
+
+  perform(action: CompanionAction): boolean {
+    if (this.disposed || !this.layout || !this.resident || this.reduced || !this.settings.animations || this.card) return false;
+    const now = performance.now();
+    if (action !== 'nap') this.napUntil = 0;
+    if (action === 'celebrate') {
+      const hero = this.layout.hero ?? this.layout.seats[0];
+      this.director.award(hero ? [hero] : [], this.layout.pot, 'medium');
+    } else if (action === 'nap') {
+      this.tasks = []; this.idleAction = undefined; this.napUntil = now + 7000;
+    } else if (action === 'bark') {
+      const face = this.layout.hero ? centre(this.layout.hero.plate) : centre(this.layout.table);
+      this.tasks = [{ kind: this.sleep > 0.25 ? 'startle' : 'perk', started: now, to: this.at, face, arrive: 0, act: 1500, part: 'body' }];
+      this.exclaim();
+      this.excite = 1;
+    } else {
+      this.tasks = []; this.sleep = 0;
+      this.idleAction = { kind: action, until: now + ({ scratch: 2200, tilt: 1600, stretch: 1700 }[action]) };
+    }
+    this.schedule();
+    return true;
   }
 
   /** Whether a puppy card animation can be performed right now (otherwise another preset plays). */
@@ -817,7 +842,7 @@ export class PuppyCompanion implements Companion {
         this.presenceGoal = 0;
         this.setState('AWAY');
       } else {
-        const drowsy = this.decider !== undefined && !this.alarmed && !this.urgent && now - this.decidingSince > SLEEP_AFTER;
+        const drowsy = (this.decider !== undefined && !this.alarmed && !this.urgent && now - this.decidingSince > SLEEP_AFTER) || now < this.napUntil;
         this.sleep = approach(this.sleep, drowsy ? 1 : 0, drowsy ? 1.1 : 5, dt);
         this.setState(this.sleep > 0.5 ? 'SLEEPING' : 'IDLE');
         if (this.sleep < 0.05) this.idle(now, p);

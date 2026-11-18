@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { AnimationHandle } from '../animation/core/coordinator';
 import { getPreset } from '../animation/registry';
-import { streetForEvent, type Settings, type Street, type Theme, type VisualEvent } from '../types';
+import { streetForEvent, type CompanionAction, type Settings, type Street, type Theme, type VisualEvent } from '../types';
 import type { PreviewHandle } from './PreviewTable';
 import './preview.css';
 
@@ -21,18 +21,25 @@ interface ReplicaControl {
   stop(): void;
   rest(street?: Street): void;
   onAnimation(listener: ((handle: AnimationHandle, event?: VisualEvent) => void) | undefined): void;
+  companion(action: CompanionAction): boolean;
+  companionAt(): { x: number; y: number } | undefined;
 }
 
 export interface LiveTableHandle extends PreviewHandle {
   /** One complete scripted hand; resolves when the winner has been shown. */
   playHand: () => Promise<void>;
+  /** Ask the table companion to act something out. False when it cannot right now. */
+  companion: (action: CompanionAction) => boolean;
+  /** Where the companion stands, as fractions (0–1) of the table frame; undefined when absent. */
+  companionAt: () => { x: number; y: number } | undefined;
 }
 
 interface Props {
   theme: Theme;
   settings: Settings;
   players: number;
-  slow: boolean;
+  /** Preview playback rate (1 = as on PokerNow). Multiplies the gameplay speed setting; never saved. */
+  rate: number;
   /** Show the table exactly as PokerNow draws it, without the theme (hold-to-compare). */
   original?: boolean;
   /** During a full hand: the street whose animation is playing now. */
@@ -40,6 +47,8 @@ interface Props {
   onPlaying: (playing: boolean) => void;
   onProgress: (progress: number) => void;
   onError: (message: string) => void;
+  /** The frame has loaded and the table can play. */
+  onReady?: () => void;
 }
 
 /** jsdom and some embedded browsers cannot load frames; the studio falls back to the effect lab there. */
@@ -57,8 +66,8 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
   const [ready, setReady] = useState(false);
 
   const settingsFor = (override?: Partial<Settings>): Settings => {
-    const { settings, slow, original } = current.current;
-    return { ...settings, ...(original ? { enabled: false } : {}), ...override, speed: Math.max(0.25, settings.speed * (slow ? 0.4 : 1)) };
+    const { settings, rate, original } = current.current;
+    return { ...settings, ...(original ? { enabled: false } : {}), ...override, speed: Math.max(0.25, settings.speed * rate) };
   };
 
   // Attach to the frame once its page has published its control surface.
@@ -72,6 +81,7 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
       replica.configure(structuredClone(current.current.theme), settingsFor());
       replica.setPlayers(current.current.players);
       setReady(true);
+      current.current.onReady?.();
     };
     attach();
     return () => {
@@ -86,7 +96,7 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
 
   useEffect(() => { if (ready) control.current?.configure(structuredClone(props.theme), settingsFor()); },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, props.theme, props.settings, props.slow, props.original]);
+    [ready, props.theme, props.settings, props.rate, props.original]);
   useEffect(() => { if (ready) control.current?.setPlayers(props.players); }, [ready, props.players]);
 
   function finish(version: number): void {
@@ -153,6 +163,12 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
       control.current?.rest('deal');
       current.current.onPlaying(false);
       current.current.onProgress(0);
+    },
+    companion: (action) => control.current?.companion(action) ?? false,
+    companionAt: () => {
+      const at = control.current?.companionAt(), box = frame.current;
+      if (!at || !box || !box.clientWidth || !box.clientHeight) return undefined;
+      return { x: at.x / box.clientWidth, y: at.y / box.clientHeight };
     },
     pause: () => active.current?.pause(),
     resume: () => active.current?.resume(),

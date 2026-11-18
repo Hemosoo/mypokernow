@@ -25,13 +25,14 @@ test('Puppy is a valid built-in theme with a companion, puppy deck, paw table an
   const theme = validateTheme(structuredClone(puppyTheme));
   assert.equal(theme.name, 'Puppy');
   assert.equal(theme.description, 'A playful 3D puppy brings your poker table to life.');
-  assert.deepEqual(theme.companion, { kind: 'puppy', animations: true, intensity: 'normal', scale: 'medium' });
+  assert.deepEqual(theme.companion, { kind: 'puppy', animations: true, intensity: 'normal', scale: 'medium', coat: 'golden', collar: 'ruby' });
   assert.equal(theme.card.face, 'puppy'); assert.equal(theme.card.back, 'paws');
   assert.equal(theme.table.motif, 'puppy'); assert.equal(theme.table.emblem, 'paw');
   assert.deepEqual(Object.values(theme.animations).map((a) => a.preset), ['deal.puppy', 'flop.puppy', 'turn.puppy', 'river.puppy']);
   assert.ok(builtInThemes.some((room) => room.id === 'room-puppy'));
-  // Other rooms are untouched: no companion, classic decor.
-  for (const room of builtInThemes.filter((r) => r.id !== 'room-puppy')) { assert.equal(room.companion, undefined); assert.equal(room.table.motif, 'classic'); }
+  // Other rooms have no companion; each keeps its own felt pattern (Neon and Sakura have theirs).
+  for (const room of builtInThemes.filter((r) => r.id !== 'room-puppy')) { assert.equal(room.companion, undefined); assert.notEqual(room.table.motif, 'puppy'); }
+  assert.deepEqual(builtInThemes.map((room) => room.table.motif), ['classic', 'classic', 'classic', 'classic', 'neon', 'sakura', 'puppy']);
   assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'puppy', animations: true, intensity: 'wild', scale: 'medium' } }));
   assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium' } }));
 });
@@ -42,7 +43,7 @@ test('library v4 adds the Puppy room once, keeps the owner\'s themes and choice,
   v3.themes = v3.themes.filter((theme) => theme.id !== 'room-puppy');
   v3.settings.activeThemeId = 'room-rouge';
   const upgraded = validateLibrary(v3);
-  assert.equal(upgraded.version, 4);
+  assert.equal(upgraded.version, 5);
   assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-puppy').length, 1);
   assert.equal(upgraded.settings.activeThemeId, 'room-rouge', 'the active theme is not switched');
   // A theme missing `motif` (saved before this release) reads as classic.

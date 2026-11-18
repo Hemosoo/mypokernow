@@ -3,6 +3,7 @@ import type { AnimationPreset } from '../animation/registry';
 import type { Street, Theme } from '../types';
 
 export const STREETS: Street[] = ['deal', 'flop', 'turn', 'river'];
+export const streetLower = (street: Street): string => street === 'deal' ? 'deal' : street;
 export const streetName = (street: Street): string => street === 'deal' ? 'Initial deal' : street[0]!.toUpperCase() + street.slice(1);
 export const streetShort = (street: Street): string => street === 'deal' ? 'Deal' : street[0]!.toUpperCase() + street.slice(1);
 
@@ -17,11 +18,32 @@ const MOODS: Record<string, Mood> = {
   'turn.puppy': 'puppy', 'river.puppy': 'puppy',
 };
 export const moodOf = (preset: AnimationPreset): Mood => preset.companion ? 'puppy' : MOODS[preset.id] ?? 'clean';
-export const SHELVES: { mood: Mood; title: string; note: string }[] = [
-  { mood: 'showstopper', title: 'Showstoppers', note: 'Big, cinematic moments.' },
-  { mood: 'clean', title: 'Clean and quick', note: 'Elegant, out of the way, fast.' },
-  { mood: 'puppy', title: 'With the puppy', note: 'The puppy performs it. In other rooms it drops in just for this.' },
+/** Effects at or under this length count as fast. */
+export const FAST_MS = 1250;
+export type EffectFilter = 'all' | 'cinematic' | 'minimal' | 'companion' | 'favorites' | 'fast';
+export const EFFECT_FILTERS: { id: EffectFilter; label: string }[] = [
+  { id: 'all', label: 'All' }, { id: 'cinematic', label: 'Cinematic' }, { id: 'minimal', label: 'Minimal' },
+  { id: 'companion', label: 'Companion' }, { id: 'favorites', label: 'Favorites' }, { id: 'fast', label: 'Fast' },
 ];
+export const MOOD_LABEL: Record<Mood, string> = { showstopper: 'Cinematic', clean: 'Minimal', puppy: 'Companion' };
+export function matchesFilter(preset: AnimationPreset, filter: EffectFilter, favorites: string[]): boolean {
+  if (filter === 'cinematic') return moodOf(preset) === 'showstopper';
+  if (filter === 'minimal') return moodOf(preset) === 'clean';
+  if (filter === 'companion') return moodOf(preset) === 'puppy';
+  if (filter === 'favorites') return favorites.includes(preset.id);
+  if (filter === 'fast') return preset.duration <= FAST_MS;
+  return true;
+}
+export type EffectSort = 'featured' | 'shortest' | 'longest' | 'name';
+/** The house order: cinematic first, then minimal, then the companion's own. */
+export function sortEffects(list: AnimationPreset[], sort: EffectSort): AnimationPreset[] {
+  const order: Mood[] = ['showstopper', 'clean', 'puppy'];
+  const copy = [...list];
+  if (sort === 'shortest') return copy.sort((a, b) => a.duration - b.duration);
+  if (sort === 'longest') return copy.sort((a, b) => b.duration - a.duration);
+  if (sort === 'name') return copy.sort((a, b) => presetName(a).localeCompare(presetName(b)));
+  return copy.sort((a, b) => order.indexOf(moodOf(a)) - order.indexOf(moodOf(b)));
+}
 
 /** Short display names; a few registry names carry their technique in the title. */
 export const presetName = (preset: AnimationPreset): string =>
@@ -90,10 +112,22 @@ export const METALS: { name: string; trim: string; aura: string }[] = [
   { name: 'Bronze', trim: '#b98a5a', aura: '#d9a46a' },
 ];
 
-/** Studio chrome takes its hue from the felt and its accent from the table's metal. */
-export function studioTint(theme: Theme): Record<string, string> {
-  const felt = hexToHsl(theme.table.feltColor);
-  const trim = hexToHsl(theme.table.trimColor);
-  const accent = hslToHex({ h: trim.h, s: Math.min(70, Math.max(trim.s, 28)), l: Math.max(66, Math.min(78, trim.l)) });
-  return { '--hue': String(Math.round(felt.h)), '--tint': String(felt.s < 8 ? 4 : 12), '--accent': accent };
-}
+
+/** Coordinated table palettes: felt, rail, trim, room, card back and board plate chosen together. */
+export interface Palette { name: string; felt: string; rail: string; trim: string; room: string; back: string }
+export const PALETTES: Palette[] = [
+  { name: 'Emerald', felt: '#0e5a41', rail: '#1c1613', trim: '#d4b274', room: '#0a0e0c', back: '#0c3a2c' },
+  { name: 'Claret', felt: '#6a1626', rail: '#201210', trim: '#e2bd7c', room: '#0c0607', back: '#4b0f1b' },
+  { name: 'Midnight', felt: '#133a60', rail: '#10171f', trim: '#dea97f', room: '#05080d', back: '#0e2d4d' },
+  { name: 'Graphite', felt: '#20252b', rail: '#0d0e10', trim: '#cfd5dd', room: '#060708', back: '#101216' },
+  { name: 'Lagoon', felt: '#0f5257', rail: '#0f1a1c', trim: '#d9c49a', room: '#061012', back: '#0b3a3e' },
+  { name: 'Plum', felt: '#432255', rail: '#170d1c', trim: '#d6b0d8', room: '#0b060d', back: '#2f173c' },
+  { name: 'Walnut', felt: '#2f6b52', rail: '#6b3f24', trim: '#e8b86a', room: '#170f0a', back: '#c8794a' },
+  { name: 'Ember', felt: '#7a3a12', rail: '#1d120c', trim: '#f0c27a', room: '#0e0805', back: '#5a280b' },
+  { name: 'Night city', felt: '#121a3a', rail: '#07070d', trim: '#43e3ff', room: '#05040c', back: '#140d2e' },
+  { name: 'Dusk', felt: '#2d3c5a', rail: '#2b1a1c', trim: '#e9b2bf', room: '#110c12', back: '#8e3a55' },
+];
+
+/** Same look, ignoring names and timestamps: used to tell whether a built-in has been changed. */
+export const sameLook = (a: Theme, b: Theme): boolean =>
+  JSON.stringify([a.card, a.table, a.board, a.animations, a.companion ?? null]) === JSON.stringify([b.card, b.table, b.board, b.animations, b.companion ?? null]);

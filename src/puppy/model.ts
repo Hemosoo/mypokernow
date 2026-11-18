@@ -1,3 +1,5 @@
+import type { PuppyCoat, PuppyCollar } from '../types';
+import { COATS, COLLARS } from './coats';
 import {
   CanvasTexture, CapsuleGeometry, CircleGeometry, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshPhysicalMaterial,
   PlaneGeometry, SphereGeometry, TorusGeometry, type BufferGeometry, type Material, type Object3D,
@@ -27,8 +29,11 @@ export interface PuppyRig {
   shadow: Mesh;
   /** Joints the brain reads world positions from. */
   sockets: { nose: Object3D; mouth: Object3D; pawL: Object3D; pawR: Object3D };
+  /** Recolour the fur and collar in place; no geometry is rebuilt. */
+  paint(coat: PuppyCoat, collar: PuppyCollar): void;
   dispose(): void;
 }
+
 
 export const PALETTE = {
   fur: '#e2a15c', furDeep: '#c9843f', cream: '#fff2dc', ear: '#9c5a33', nose: '#2a1c18', eye: '#1c120e',
@@ -175,6 +180,13 @@ export function buildPuppy(): PuppyRig {
   root.traverse((object) => { object.matrixAutoUpdate = true; });
   return {
     root, body, neck, head, jaw, tongue, eyes, ears, tail, legs, shadow, sockets,
+    paint(coat, collarColor) {
+      const colors = COATS[coat] ?? COATS.golden;
+      fur.color.set(colors.fur); fur.sheenColor.set(colors.sheen);
+      cream.color.set(colors.cream);
+      earFur.color.set(colors.ear); earFur.sheenColor.set(colors.earSheen);
+      collar.color.set(COLLARS[collarColor] ?? COLLARS.ruby);
+    },
     dispose() {
       root.removeFromParent();
       for (const g of geometries) g.dispose();
