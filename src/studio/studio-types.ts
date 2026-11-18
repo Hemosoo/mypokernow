@@ -1,7 +1,7 @@
 import type { RuntimeInspection } from '../storage/diagnostics';
 import type { Library, Street, Theme } from '../types';
 
-export type Step = 'moments' | 'deck' | 'felt' | 'board' | 'puppy' | 'library' | 'settings';
+export type Step = 'home' | 'moments' | 'deck' | 'felt' | 'board' | 'puppy' | 'library' | 'settings';
 
 /** What is on the stage right now, for the player bar and the track list. */
 export interface NowPlaying { street: Street; presetId?: string; hand?: boolean }

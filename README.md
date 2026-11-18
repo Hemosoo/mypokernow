@@ -15,6 +15,8 @@ npm run dev
 
 Open the localhost URL printed by Vite. The studio runs independently of PokerNow and uses exactly the same registry, artwork, fragment system, timeline, and coordinator as the content script.
 
+The studio opens on **Home**: the same hand recorded on a plain table and with the Puppy theme, looping side by side behind a divider you can drag, with chapters for the deal, each street and the win. The clips (`public/media/compare-*.webm`) are recorded from the replica table frame by frame. Below the comparison is a short guide to getting started.
+
 The studio is one screen. The live table stays pinned on the left with a player bar (play, replay, the four streets, a whole hand, slow motion); the steps sit on the right: **Effects, Deck, Felt, Board, Puppy, Themes, Settings**.
 
 - **Effects** shows your hand as four tracks (deal, flop, turn, river). Pick a track, then pick an effect from the shelves below: each tile shows a poster and plays a short recording of the effect when you hover it. Click a tile to use it; the play button on a tile previews it on the table without changing anything. Heart the effects you like.

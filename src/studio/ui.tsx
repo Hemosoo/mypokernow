@@ -2,7 +2,7 @@ import { useId, type CSSProperties, type ReactNode } from 'react';
 
 export type IconName = 'spark' | 'cards' | 'felt' | 'board' | 'paw' | 'library' | 'settings' | 'play' | 'pause' | 'replay' | 'reset'
   | 'check' | 'plus' | 'upload' | 'download' | 'copy' | 'trash' | 'chevron' | 'down' | 'search' | 'heart' | 'heart-fill' | 'shuffle'
-  | 'eye' | 'close' | 'slow' | 'keyboard' | 'hand' | 'external' | 'power';
+  | 'eye' | 'close' | 'slow' | 'keyboard' | 'hand' | 'external' | 'power' | 'home';
 
 const PATHS: Record<IconName, ReactNode> = {
   spark: <><path d="m12 3 2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3L12 3Z" /></>,
@@ -35,6 +35,7 @@ const PATHS: Record<IconName, ReactNode> = {
   hand: <><rect x="3" y="6" width="8" height="12" rx="1.5" transform="rotate(-8 7 12)" /><rect x="12" y="6" width="8" height="12" rx="1.5" transform="rotate(8 16 12)" /></>,
   external: <><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5" /></>,
   power: <><path d="M12 3v8" /><path d="M7 6.3a7.5 7.5 0 1 0 10 0" /></>,
+  home: <><path d="M4 11 12 4l8 7" /><path d="M6 9.5V20h12V9.5M10 20v-5h4v5" /></>,
 };
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
