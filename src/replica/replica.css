@@ -109,6 +109,31 @@ a{color:inherit}
 .action-button{height:3.5rem;padding:0 1.2rem;font-size:.8rem;font-weight:700;text-transform:uppercase;border:.08rem solid currentColor;border-radius:.3rem;background:transparent;color:#fff;cursor:pointer}
 .action-button.green{color:#39af6b}.action-button.red{color:#fc4117}
 
+/*
+ * A plain table for when no theme is applied: a generic green felt, a dark
+ * rail, white cards with ordinary suit symbols and a patterned back. Authored
+ * for this project as a neutral stand-in for PokerNow's standard look; it is
+ * not PokerNow's artwork. Themed tables never see it.
+ */
+html:not([data-pnc-skin]) .game-main-container{background:radial-gradient(ellipse at 50% 45%,#2c2f2e 0,#1a1b1b 70%)}
+html:not([data-pnc-skin]) .table::before{content:"";position:absolute;inset:11% 10.5% 13%;border-radius:999px;background:radial-gradient(ellipse at 50% 40%,#3d7a5b 0,#2f6249 60%,#28553f 100%);border:.85rem solid #3b3b3b;box-shadow:0 0 0 .12rem #4a4a4a,0 1.2rem 2.2rem rgba(0,0,0,.55),inset 0 0 2.4rem rgba(0,0,0,.35)}
+html:not([data-pnc-skin]) .card-container .front{background:#fff repeating-linear-gradient(45deg,#b23a3a 0 .18rem,#c74848 .18rem .36rem);border:.22rem solid #fff;box-shadow:0 .1rem .3rem rgba(0,0,0,.4)}
+html:not([data-pnc-skin]) .card-container .card{font-family:Georgia,"Times New Roman",serif;box-shadow:0 .1rem .3rem rgba(0,0,0,.35)}
+html:not([data-pnc-skin]) .card-container.card-h .card,html:not([data-pnc-skin]) .card-container.card-d .card{color:#d22f3a}
+html:not([data-pnc-skin]) .card .suit{font-size:0}
+html:not([data-pnc-skin]) .card .suit::after{font-size:2.2rem;line-height:1}
+html:not([data-pnc-skin]) .table-player .card .suit::after{font-size:1.6rem}
+html:not([data-pnc-skin]) .card-h .card .suit::after{content:"\2665"}
+html:not([data-pnc-skin]) .card-d .card .suit::after{content:"\2666"}
+html:not([data-pnc-skin]) .card-s .card .suit::after{content:"\2660"}
+html:not([data-pnc-skin]) .card-c .card .suit::after{content:"\2663"}
+html:not([data-pnc-skin]) .table-cards .card .suit{top:40%;left:30%}
+html:not([data-pnc-skin]) .table-player .card .suit{top:36%;left:28%}
+html:not([data-pnc-skin]) .table-pot-size .main-value{color:#fff}
+html:not([data-pnc-skin]) .table-player-name a,html:not([data-pnc-skin]) .table-player-name{text-decoration:none}
+html:not([data-pnc-skin]) .dealer-button-ctn .button{position:relative;box-shadow:0 .1rem .25rem rgba(0,0,0,.5)}
+html:not([data-pnc-skin]) .dealer-button-ctn .button::after{content:"D";position:absolute;inset:0;text-indent:0;display:flex;align-items:center;justify-content:center;font:700 .8rem/1 Georgia,serif;color:#333}
+
 /* Rehearsal controls, matched to the studio. */
 .replica-toolbar{position:fixed;z-index:2147483647;left:16px;bottom:16px;display:flex;align-items:center;gap:6px;padding:6px;border-radius:14px;background:rgba(14,16,16,.82);border:1px solid rgba(212,178,116,.22);box-shadow:0 12px 40px rgba(0,0,0,.55);backdrop-filter:blur(10px);font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.02em}
 .replica-toolbar button,.replica-toolbar select{height:34px;padding:0 14px;border-radius:9px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#ece6d8;font:inherit;cursor:pointer;transition:background .2s,border-color .2s,color .2s}

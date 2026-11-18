@@ -4,6 +4,7 @@ import { AnimationCoordinator } from '../animation/core/coordinator';
 import { getPreset } from '../animation/registry';
 import { artOptions, cardDataUrl } from '../rendering/cards';
 import type { CardIdentity, Rect, Settings, Street, Theme, VisualCard, VisualEvent } from '../types';
+import './preview.css';
 
 const BOARD: CardIdentity[] = [
   { rank: 'A', suit: 'spades' }, { rank: 'K', suit: 'hearts' },
@@ -62,6 +63,15 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
       coordinator.current?.dispose();
       coordinator.current = null;
     };
+  }, []);
+
+  // Everything in the scene is drawn in --u, 1% of its width.
+  useEffect(() => {
+    const element = scene.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => { if (entry) element.style.setProperty('--u', `${entry.contentRect.width / 100}px`); });
+    observer.observe(element);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -148,7 +158,7 @@ export const PreviewTable = forwardRef<PreviewHandle, Props>(function PreviewTab
       const handle = coordinator.current.play(event, options.theme, {
         presetId: override ?? assignment.preset, parameters,
         speed: options.settings.speed * (options.slow ? 0.4 : 1),
-        reducedMotion: options.settings.reducedMotion,
+        reducedMotion: options.settings.reducedMotion, favorites: options.settings.favorites,
         onProgress: (progress: number) => { if (version === generation.current) options.onProgress(progress); },
       });
       active.current = handle;

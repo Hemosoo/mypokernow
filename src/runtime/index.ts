@@ -217,7 +217,7 @@ export class Runtime {
     const sources = event.cards.map((card) => card.source).filter((source): source is HTMLElement => Boolean(source));
     try {
       const handle = this.coordinator.play(event, this.theme, { speed: this.settings.speed, reducedMotion: this.settings.reducedMotion,
-        companionReady: Boolean(this.companion?.ready()) });
+        companionReady: Boolean(this.companion?.ready()), favorites: this.settings.favorites });
       this.options.onAnimation?.(handle, event);
       if (handle.progress < 1) this.companion?.animation(handle, event, planForEvent(event.id));
       // A declined event completes at once; its cards are released at the end of this scan.

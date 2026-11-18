@@ -18,10 +18,15 @@ export const getPreset = (id: string): AnimationPreset | undefined => byId.get(i
 export const presetsForStreet = (street: Street): AnimationPreset[] => presets.filter(preset => preset.supportedEvents.includes(street));
 
 /** Resolve once per event; random mode never mixes incompatible streets. */
-export function resolvePreset(id: string, street: Street, random: () => number = Math.random): AnimationPreset | undefined {
+export function resolvePreset(id: string, street: Street, random: () => number = Math.random, favorites: readonly string[] = []): AnimationPreset | undefined {
   const compatible = presetsForStreet(street);
   // A surprise never summons the puppy: that is chosen deliberately, per street.
-  if (id === 'random') { const pool = compatible.filter((preset) => !preset.companion); return pool[Math.floor(random() * pool.length)]; }
+  if (id === 'random') {
+    const pool = compatible.filter((preset) => !preset.companion);
+    const hearted = pool.filter((preset) => favorites.includes(preset.id));
+    const from = hearted.length ? hearted : pool;
+    return from[Math.floor(random() * from.length)];
+  }
   const preset = getPreset(id);
   return preset?.supportedEvents.includes(street) ? preset : compatible[0];
 }

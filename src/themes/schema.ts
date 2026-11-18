@@ -40,7 +40,8 @@ export const themeSchema = z.object({
 const effectsSchema = z.object({ chips: z.boolean(), celebrations: z.boolean(), moments: z.boolean(), ambience: z.boolean() }).strict();
 export const librarySchema = z.object({
   version: z.literal(4),
-  settings: z.object({ enabled: z.boolean(), reducedMotion: z.boolean(), speed: finite(0.25, 3), activeThemeId: z.string().min(1).max(100), effects: effectsSchema }).strict(),
+  settings: z.object({ enabled: z.boolean(), reducedMotion: z.boolean(), speed: finite(0.25, 3), activeThemeId: z.string().min(1).max(100), effects: effectsSchema,
+    favorites: z.array(z.string().regex(/^[a-z0-9.-]{1,80}$/)).max(64).default([]) }).strict(),
   themes: z.array(themeSchema).min(1).max(100),
 }).strict();
 

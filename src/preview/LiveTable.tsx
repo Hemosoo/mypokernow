@@ -1,8 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { AnimationHandle } from '../animation/core/coordinator';
 import { getPreset } from '../animation/registry';
-import type { Settings, Street, Theme } from '../types';
+import { streetForEvent, type Settings, type Street, type Theme, type VisualEvent } from '../types';
 import type { PreviewHandle } from './PreviewTable';
+import './preview.css';
 
 /**
  * The studio's live preview: the replica table inside a same-origin frame,
@@ -16,13 +17,15 @@ interface ReplicaControl {
   setPlayers(count: number): void;
   play(street: Street): Promise<void>;
   loop(): Promise<void>;
+  hand(): Promise<boolean>;
   stop(): void;
   rest(street?: Street): void;
-  onAnimation(listener: ((handle: AnimationHandle) => void) | undefined): void;
+  onAnimation(listener: ((handle: AnimationHandle, event?: VisualEvent) => void) | undefined): void;
 }
 
 export interface LiveTableHandle extends PreviewHandle {
-  playHand: () => void;
+  /** One complete scripted hand; resolves when the winner has been shown. */
+  playHand: () => Promise<void>;
 }
 
 interface Props {
@@ -30,6 +33,10 @@ interface Props {
   settings: Settings;
   players: number;
   slow: boolean;
+  /** Show the table exactly as PokerNow draws it, without the theme (hold-to-compare). */
+  original?: boolean;
+  /** During a full hand: the street whose animation is playing now. */
+  onMoment?: (street: Street | undefined) => void;
   onPlaying: (playing: boolean) => void;
   onProgress: (progress: number) => void;
   onError: (message: string) => void;
@@ -50,8 +57,8 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
   const [ready, setReady] = useState(false);
 
   const settingsFor = (override?: Partial<Settings>): Settings => {
-    const { settings, slow } = current.current;
-    return { ...settings, ...override, speed: Math.max(0.25, settings.speed * (slow ? 0.4 : 1)) };
+    const { settings, slow, original } = current.current;
+    return { ...settings, ...(original ? { enabled: false } : {}), ...override, speed: Math.max(0.25, settings.speed * (slow ? 0.4 : 1)) };
   };
 
   // Attach to the frame once its page has published its control surface.
@@ -79,7 +86,7 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
 
   useEffect(() => { if (ready) control.current?.configure(structuredClone(props.theme), settingsFor()); },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, props.theme, props.settings, props.slow]);
+    [ready, props.theme, props.settings, props.slow, props.original]);
   useEffect(() => { if (ready) control.current?.setPlayers(props.players); }, [ready, props.players]);
 
   function finish(version: number): void {
@@ -139,6 +146,8 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
     replay: () => play(last.current.street, last.current.presetId),
     reset: () => {
       generation.current += 1;
+      control.current?.onAnimation(undefined);
+      current.current.onMoment?.(undefined);
       active.current?.cancel();
       active.current = null;
       control.current?.rest('deal');
@@ -147,12 +156,35 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
     },
     pause: () => active.current?.pause(),
     resume: () => active.current?.resume(),
-    playHand: () => {
-      generation.current += 1;
+    playHand: async () => {
+      const replica = control.current;
+      const version = ++generation.current;
       active.current?.cancel();
       active.current = null;
-      current.current.onPlaying(false);
-      void control.current?.loop();
+      if (!replica) return;
+      current.current.onProgress(0);
+      current.current.onPlaying(true);
+      replica.configure(structuredClone(current.current.theme), settingsFor());
+      replica.onAnimation((handle, event) => {
+        if (version !== generation.current) return;
+        active.current = handle;
+        current.current.onMoment?.(event ? streetForEvent(event.type) : undefined);
+        const tick = (): void => {
+          if (version !== generation.current || active.current !== handle) return;
+          current.current.onProgress(handle.progress);
+          if (handle.progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      try { await replica.hand(); } finally {
+        if (version === generation.current) {
+          replica.onAnimation(undefined);
+          active.current = null;
+          current.current.onMoment?.(undefined);
+          current.current.onPlaying(false);
+          current.current.onProgress(1);
+        }
+      }
     },
   }));
 
