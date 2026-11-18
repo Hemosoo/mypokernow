@@ -80,7 +80,7 @@ test('version 3 moves untuned house presets to the showpieces once and keeps del
  v2.themes[0]!.animations = { deal: { preset: 'deal.pitch', parameters: pitchDefaults }, flop: { preset: 'flop.cascade', parameters: {} },
    turn: { preset: 'reveal.turnover', parameters: { duration: 1200 } }, river: { preset: 'reveal.slam', parameters: {} } };
  const upgraded = validateLibrary(v2);
- assert.equal(upgraded.version, 4);
+ assert.equal(upgraded.version, 5);
  assert.equal(upgraded.themes[0]!.animations.deal.preset, 'deal.storm');
  assert.equal(upgraded.themes[0]!.animations.flop.preset, 'flop.grand');
  assert.equal(upgraded.themes[0]!.animations.turn.preset, 'reveal.turnover', 'tuned choices are kept');
@@ -88,4 +88,36 @@ test('version 3 moves untuned house presets to the showpieces once and keeps del
  // A house preset chosen after the upgrade stays chosen.
  const later = structuredClone(upgraded); later.themes[0]!.animations.deal = { preset: 'deal.pitch', parameters: {} };
  assert.equal(validateLibrary(later).themes[0]!.animations.deal.preset, 'deal.pitch');
+});
+
+test('library v5 adds Neon and Sakura once, keeps every saved theme and choice, and reads older companions', () => {
+ const v4 = structuredClone(createDefaultLibrary()) as unknown as { version: number; settings: Record<string, unknown>; themes: Record<string, unknown>[] };
+ v4.version = 4;
+ delete v4.settings.recent;
+ v4.themes = v4.themes.filter((theme) => theme.id !== 'room-neon' && theme.id !== 'room-sakura');
+ const own: Record<string, unknown> = { ...structuredClone(v4.themes[0]!), id: 'mine-1', name: 'Friday club' };
+ // A puppy saved before coats existed.
+ own.companion = { kind: 'puppy', animations: true, intensity: 'playful', scale: 'large' };
+ v4.themes.push(own);
+ v4.settings.activeThemeId = 'mine-1';
+ const upgraded = validateLibrary(v4);
+ assert.equal(upgraded.version, 5);
+ assert.deepEqual(upgraded.settings.recent, [], 'Older libraries gain an empty recent list');
+ assert.equal(upgraded.settings.activeThemeId, 'mine-1', 'The owner keeps their theme');
+ assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-neon').length, 1);
+ assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-sakura').length, 1);
+ const kept = upgraded.themes.find((theme) => theme.id === 'mine-1')!;
+ assert.equal(kept.name, 'Friday club');
+ assert.deepEqual(kept.companion, { kind: 'puppy', animations: true, intensity: 'playful', scale: 'large' }, 'Nothing is added to a saved companion');
+ // Deleting a new room later is final: a v5 library is not re-migrated.
+ const deleted = structuredClone(upgraded); deleted.themes = deleted.themes.filter((theme) => theme.id !== 'room-neon');
+ assert.equal(validateLibrary(deleted).themes.some((theme) => theme.id === 'room-neon'), false);
+ // The new decks, backs, felt patterns and emblems all validate and render.
+ for (const id of ['room-neon', 'room-sakura']) {
+  const theme = upgraded.themes.find((item) => item.id === id)!;
+  assert.deepEqual(validateTheme(theme), theme);
+  assert.ok(cardSvg({ rank: 'K', suit: 'hearts' }, theme.card).includes('data-part="rank"'));
+  assert.ok(cardSvg(undefined, theme.card).includes('pattern'));
+ }
+ assert.throws(() => validateTheme({ ...createDefaultTheme(), companion: { kind: 'puppy', animations: true, intensity: 'normal', scale: 'medium', coat: 'tartan' } }));
 });

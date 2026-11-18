@@ -1,6 +1,7 @@
 import type { TableAppearance, TableEmblem } from '../types';
 import { darken, lighten, luminance, metal, mix, rgba, safeHex, shade, svgDataUrl } from '../rendering/color';
 import { PAW, bone, paw } from '../rendering/puppy-art';
+import { BLOSSOM, BOLT, blossom, fallingPetal } from '../rendering/motifs';
 
 /**
  * The table, drawn rather than photographed: padded leather rail with twin
@@ -35,6 +36,8 @@ const EMBLEMS: Record<Exclude<TableEmblem, 'none'>, string> = {
   crown: '<path d="M-24 17L-28-9L-14 3L0-17L14 3L28-9L24 17Z"/><circle cx="-28" cy="-13" r="3.4"/><circle cx="0" cy="-21" r="3.8"/><circle cx="28" cy="-13" r="3.4"/><rect x="-24" y="20" width="48" height="4.6" rx="2.3"/>',
   laurel: '<g fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M-6 24C-22 18-30 4-28-14"/><path d="M6 24C22 18 30 4 28-14"/></g><g><ellipse cx="-27" cy="-9" rx="3.2" ry="7" transform="rotate(-12 -27 -9)"/><ellipse cx="-25.5" cy="3" rx="3.2" ry="7" transform="rotate(-38 -25.5 3)"/><ellipse cx="-19" cy="13.5" rx="3.2" ry="7" transform="rotate(-62 -19 13.5)"/><ellipse cx="27" cy="-9" rx="3.2" ry="7" transform="rotate(12 27 -9)"/><ellipse cx="25.5" cy="3" rx="3.2" ry="7" transform="rotate(38 25.5 3)"/><ellipse cx="19" cy="13.5" rx="3.2" ry="7" transform="rotate(62 19 13.5)"/><path d="M0-13C1.6-9.4 12.5-2.6 12.5 4C12.5 8 9.5 10 6.8 10C4.2 10 2.2 8.8 1 6.8C1.5 9.6 2.5 11.6 4.8 13L-4.8 13C-2.5 11.6-1.5 9.6-1 6.8C-2.2 8.8-4.2 10-6.8 10C-9.5 10-12.5 8-12.5 4C-12.5-2.6-1.6-9.4 0-13Z"/></g>',
   paw: `<g transform="translate(0 -4) scale(64)">${PAW}</g>`,
+  blossom: `<g transform="scale(60)">${BLOSSOM}</g><circle r="4.2"/>`,
+  bolt: `<g transform="scale(58)">${BOLT}</g>`,
 };
 
 function emblem(kind: TableEmblem, x: number, y: number, scale: number, m: Materials): string {
@@ -68,6 +71,8 @@ function sharedDefs(m: Materials, feltClip: string): string {
 <filter id="softer" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="34"/></filter>
 <filter id="glint" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="5"/></filter>
 <clipPath id="feltClip">${feltClip}</clipPath>
+<pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse"><path d="M0 .5H64M.5 0V64" fill="none" stroke="${m.high}" stroke-opacity=".34" stroke-width="1"/><circle cx=".5" cy=".5" r="2" fill="${m.spec}" fill-opacity=".55"/></pattern>
+<pattern id="petalfelt" width="170" height="170" patternUnits="userSpaceOnUse" patternTransform="rotate(8)"><g fill="${m.high}" fill-opacity=".5">${fallingPetal(30, 36, 16, -30)}${fallingPetal(120, 70, 13, 40)}${fallingPetal(70, 140, 15, 110)}${fallingPetal(150, 150, 11, -70)}</g><g fill="${m.high}" fill-opacity=".34">${blossom(96, 22, 20, 12)}${blossom(22, 112, 17, -20)}</g></pattern>
 <pattern id="pawfelt" width="150" height="150" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)"><g fill="${m.feltMark}" fill-opacity=".55">${paw(36, 40, 26, -20)}${paw(108, 112, 26, 18)}</g><g fill="${m.feltMark}" fill-opacity=".32">${bone(110, 34, 13, -32)}${bone(36, 116, 13, 28)}</g></pattern>`;
 }
 
@@ -102,6 +107,31 @@ function railPaws(cx: number, cy: number, rx: number, ry: number, m: Materials):
   return `<g fill="${m.thread}" fill-opacity=".42">${prints}</g>`;
 }
 
+/** Blossoms set into the rail between the stitching, every so often. */
+function railBlossoms(cx: number, cy: number, rx: number, ry: number, m: Materials): string {
+  let flowers = '';
+  const count = 18;
+  for (let index = 0; index < count; index++) {
+    const angle = (index / count) * Math.PI * 2 + 0.09;
+    flowers += blossom(cx + Math.cos(angle) * rx, cy + Math.sin(angle) * ry, 15, index * 23);
+  }
+  return `<g fill="${m.high}" fill-opacity=".5">${flowers}</g>`;
+}
+
+/** A lit tube around the rail: a soft halo with a bright core. */
+function neonTube(shape: (attrs: string) => string, m: Materials): string {
+  return `${shape(`fill="none" stroke="${m.high}" stroke-opacity=".55" stroke-width="9" filter="url(#glint)"`)}
+${shape(`fill="none" stroke="${m.spec}" stroke-opacity=".95" stroke-width="2.2"`)}`;
+}
+
+/** The felt's own pattern for decorative rooms: paw prints, a lit grid or petals. */
+function feltPattern(motif: TableAppearance['motif'], shape: (attrs: string) => string): string {
+  if (motif === 'puppy') return shape('fill="url(#pawfelt)" clip-path="url(#feltClip)" opacity=".5"');
+  if (motif === 'neon') return shape('fill="url(#grid)" clip-path="url(#feltClip)" opacity=".42"');
+  if (motif === 'sakura') return shape('fill="url(#petalfelt)" clip-path="url(#feltClip)" opacity=".5"');
+  return '';
+}
+
 export function landscapeTableSvg(table: TableAppearance): string {
   const m = materials(table);
   const puppy = table.motif === 'puppy';
@@ -122,13 +152,15 @@ ${ellipse(cx, cy - 2, 630, 320, 'fill="none" stroke="url(#sheen)" stroke-width="
 ${ellipse(cx, cy + 5, 643, 330, `fill="none" stroke="${m.thread}" stroke-opacity=".62" stroke-width="1.7" stroke-dasharray="9 7" stroke-linecap="round"`)}
 ${ellipse(cx, cy + 1, 619, 310, `fill="none" stroke="${m.thread}" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="8 7" stroke-linecap="round"`)}
 ${puppy ? railPaws(cx, cy + 3, 631, 320, m) : ''}
+${table.motif === 'sakura' ? railBlossoms(cx, cy + 3, 631, 320, m) : ''}
+${table.motif === 'neon' ? neonTube((attrs) => ellipse(cx, cy + 3, 631, 320, attrs), m) : ''}
 ${ellipse(cx, cy + 1.5, 611, 303, 'fill="#000" fill-opacity=".55"')}
 ${ellipse(cx, cy, 609, 301, 'fill="url(#metal)"')}
 ${ellipse(cx, cy, 609, 301, `fill="none" stroke="${m.spec}" stroke-opacity=".55" stroke-width=".8"`)}
 ${ellipse(cx, cy, rx + 1, ry + 1, 'fill="#000" fill-opacity=".7"')}
 ${ellipse(cx, cy, rx, ry, 'fill="url(#felt)"')}
 ${ellipse(cx, cy, rx, ry, 'fill="#fff" filter="url(#cloth)" opacity=".085"')}
-${puppy ? ellipse(cx, cy, rx, ry, 'fill="url(#pawfelt)" clip-path="url(#feltClip)" opacity=".5"') : ''}
+${feltPattern(table.motif, (attrs) => ellipse(cx, cy, rx, ry, attrs))}
 <g clip-path="url(#feltClip)">
 ${ellipse(cx, cy, rx + 6, ry + 6, 'fill="none" stroke="#000" stroke-opacity=".62" stroke-width="42" filter="url(#soft)"')}
 ${ellipse(cx, cy - 8, rx, ry, 'fill="none" stroke="#000" stroke-opacity=".3" stroke-width="10" filter="url(#glint)"')}
@@ -158,7 +190,8 @@ ${rect(53, 78, 396, 656, 58, 'fill="url(#metal)"')}
 ${rect(56, 81, 390, 650, 55, 'fill="#000" fill-opacity=".7"')}
 ${rect(57, 82, 388, 648, 54, 'fill="url(#felt)"')}
 ${rect(57, 82, 388, 648, 54, 'fill="#fff" filter="url(#cloth)" opacity=".085"')}
-${table.motif === 'puppy' ? rect(57, 82, 388, 648, 54, 'fill="url(#pawfelt)" clip-path="url(#feltClip)" opacity=".5"') : ''}
+${feltPattern(table.motif, (attrs) => rect(57, 82, 388, 648, 54, attrs))}
+${table.motif === 'neon' ? neonTube((attrs) => rect(46, 70, 410, 672, 64, attrs), m) : ''}
 <g clip-path="url(#feltClip)">
 ${rect(53, 78, 396, 656, 58, 'fill="none" stroke="#000" stroke-opacity=".6" stroke-width="26" filter="url(#soft)"')}
 <ellipse cx="251" cy="330" rx="170" ry="210" fill="#fff" fill-opacity=".05" filter="url(#softer)"/>

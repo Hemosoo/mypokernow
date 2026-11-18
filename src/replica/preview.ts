@@ -4,7 +4,7 @@ import { fitReplica } from './markup';
 import { Runtime } from '../runtime';
 import { builtInThemes, createDefaultLibrary } from '../themes/defaults';
 import { validateTheme } from '../themes/schema';
-import type { Settings, Theme } from '../types';
+import type { CompanionAction, Settings, Theme } from '../types';
 import type { AnimationHandle } from '../animation/core/coordinator';
 import type { VisualEvent } from '../types';
 
@@ -127,8 +127,12 @@ function configure(nextTheme: Theme, nextSettings: Settings): void {
   runtime.configure(theme, settings);
 }
 function setPlayers(count: number): void { stop(); scenario.setPlayers(count); scenario.prepare('turn'); runtime.scan(); }
+/** Ask the table companion to act something out; false when there is none or it cannot right now. */
+function companion(action: CompanionAction): boolean { return runtime.companionPerform(action); }
+/** Where the companion stands, in the frame's pixels; undefined when there is none. */
+function companionAt(): { x: number; y: number } | undefined { const debug = runtime.companionDebug(); return debug?.visible ? debug.at : undefined; }
 Object.assign(globalThis, { __pncReplica: {
-  scenario, runtime, get settings() { return settings; }, get theme() { return theme; }, play, hand, loop, stop, rest, configure, setPlayers,
+  scenario, runtime, get settings() { return settings; }, get theme() { return theme; }, play, hand, loop, stop, rest, configure, setPlayers, companion, companionAt,
   onAnimation(listener: AnimationListener | undefined) { animationListener = listener; },
 } });
 window.addEventListener('pagehide', () => { stop(); runtime.dispose(); }, { once: true });

@@ -4,7 +4,8 @@ import { createRequire } from 'node:module';
 import { act, createElement } from 'react';
 import { App } from '../src/studio/App';
 import { AnimationCoordinator } from '../src/animation/core/coordinator';
-import { presets, resolvePreset } from '../src/animation/registry';
+import { getPreset, presets, resolvePreset } from '../src/animation/registry';
+import { presetName } from '../src/studio/catalog';
 import { validateLibrary } from '../src/themes/schema';
 import { createDefaultLibrary } from '../src/themes/defaults';
 const wait=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -40,102 +41,149 @@ test('Studio plays every effect through the engine, saves choices, and manages t
  const key=async(init:KeyboardEventInit,target:EventTarget=window)=>{await act(async()=>{target.dispatchEvent(new dom.window.KeyboardEvent('keydown',{bubbles:true,...init}));});await settle();};
  const stored=()=>validateLibrary(JSON.parse(localStorage.getItem(KEY)!));
  const save=async()=>{await act(async()=>{await wait(450);});};
- const streetIndex={deal:0,flop:1,turn:2,river:3} as const;
  try {
   await act(async()=>{root.render(createElement(App));await wait(30);});await act(async()=>{await wait(30);});
-  // The studio opens on Home: the before-and-after comparison, then the way in.
-  assert.equal(document.querySelector('.step-tab[aria-current="page"]')!.textContent!.trim(),'Home');
+  const nav=(label:string)=>clickText('.rail-item span',label);
+  const tryLabel=(id:string)=>`[aria-label="Try ${presetName(getPreset(id)!)} on the table"]`;
+  // The studio opens on Discover: the looping before-and-after, and no preview table running behind it.
+  assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Discover');
   assert.deepEqual([...document.querySelectorAll<HTMLVideoElement>('.before-after video')].map(v=>v.getAttribute('src')),['./media/compare-plain.webm','./media/compare-puppy.webm']);
   assert.ok([...document.querySelectorAll<HTMLVideoElement>('.before-after video')].every(v=>v.loop&&v.muted),'The comparison loops, muted');
-  await clickText('.ba-chapters button','Flop');
-  await clickText('.home-bar .primary-button','Make it yours');
-  assert.ok(!document.querySelector('.before-after'),'Leaving Home shows the live table again');
-  assert.equal(document.querySelectorAll('.tile').length,presets.filter(p=>p.supportedEvents.includes('flop')).length,'The flop shelves show every flop effect');
-  assert.equal(document.querySelectorAll('.player-seat').length,6);
-  assert.match(document.querySelector('.studio-context')!.textContent!, /Browser preview.*changes stay here/);
-  assert.equal(document.querySelectorAll('.tile-media img').length,document.querySelectorAll('.tile').length,'Every tile has its own poster');
-  assert.equal(new Set([...document.querySelectorAll<HTMLImageElement>('.tile-media img')].map(i=>i.getAttribute('src'))).size,document.querySelectorAll('.tile').length,'No two tiles share a poster');
+  assert.ok(!document.querySelector('.player-seat'),'Discover runs no preview table');
+  assert.match(document.querySelector('.power')!.textContent!,/Preview only/,'A browser preview says it does not reach PokerNow');
+  await clickText('.hero-actions .primary-button','Browse themes');
+  assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Themes');
+  assert.equal(document.querySelectorAll('.theme-card').length,7,'Seven built-in themes, Neon and Sakura included');
 
-  // Every effect, from its own street's shelves, through the shared engine.
+  // Effects: event tabs, then cards for that moment, each with its own poster.
+  await nav('Effects');
+  const flopEffects=presets.filter(p=>p.supportedEvents.includes('flop'));
+  assert.equal(document.querySelectorAll('.fx-card').length,flopEffects.length,'Every flop effect has a card');
+  assert.equal(document.querySelectorAll('.player-seat').length,6);
+  assert.equal(new Set([...document.querySelectorAll<HTMLImageElement>('.fx-media img')].map(i=>i.getAttribute('src'))).size,flopEffects.length,'No two cards share a poster');
+
+  // Every effect, tried from its own moment, through the shared engine.
   for(const preset of presets) {
-   const tracks=document.querySelectorAll<HTMLButtonElement>('.track');
-   await act(async()=>{tracks[streetIndex[preset.supportedEvents[0]!]]!.click();});await settle();
-   await click(`[aria-label="Preview ${preset.name}"]`);
+   await clickText('.event-tab .event-name',{deal:'Deal',flop:'Flop',turn:'Turn',river:'River'}[preset.supportedEvents[0]!]);
+   await click(tryLabel(preset.id));
    assert.equal(runs.at(-1),preset.id,`${preset.id} did not reach the shared engine`);
    assert.equal(document.querySelectorAll('[data-pnc-concealed]').length,0,'source was not restored');
   }
-  // Previewing never changes what is assigned; selecting does.
+  // Trying never changes what is equipped; equipping does.
   await save();
   assert.equal(stored().themes[0].animations.flop.preset,'flop.grand');
-  await clickText('.track-title small','Initial deal');
-  await click('[aria-label="Select Puppy Deal"]');
+  await clickText('.event-tab .event-name','Deal');
+  await click(tryLabel('deal.puppy'));
   assert.equal(runs.at(-1),'deal.puppy');
+  assert.match(document.querySelector('.stage-banner.trial')!.textContent!,/Not equipped/,'The table says a tried effect is not equipped');
+  await save();assert.equal(stored().themes[0].animations.deal.preset,'deal.storm');
+  await clickText('.fx-detail .primary-button','Equip for the deal');
   await save();assert.equal(stored().themes[0].animations.deal.preset,'deal.puppy');
+  assert.ok(!document.querySelector('.stage-banner.trial'),'Equipping clears the try-on banner');
 
   // Shuffle on the turn, replayed, and saved.
-  await clickText('.track-title small','Turn');
-  await click('[aria-label="Select Random"]');
-  assert.equal(document.querySelector('[aria-label="Select Random"]')?.getAttribute('aria-pressed'),'true');
+  await clickText('.event-tab .event-name','Turn');
+  await click('[aria-label="Shuffle the turn"]');
+  assert.equal(document.querySelector('[aria-label="Shuffle the turn"]')?.getAttribute('aria-checked'),'true');
   await click('[aria-label="Replay animation"]');
   assert.equal(runs.at(-1),'random','Replay must use the current shuffle assignment');
   await save();assert.equal(stored().themes[0].animations.turn.preset,'random');
 
-  // Hearts are saved and change what Shuffle describes.
+  // Hearts are saved, change what Shuffle describes, and feed the Favorites filter.
   await click('[aria-label="Add Slam to favorites"]');
   await save();assert.deepEqual(stored().settings.favorites,['reveal.slam']);
-  assert.match(document.querySelector('.shuffle-row')!.textContent!,/1 hearted effect/);
+  assert.match(document.querySelector('.shuffle-line')!.textContent!,/your 1 favorite\b/);
+  await clickText('.filter','Favorites1');
+  assert.equal(document.querySelectorAll('.fx-card').length,1,'Favorites shows only hearted effects');
+  await clickText('.filter',`All${presets.filter(p=>p.supportedEvents.includes('turn')).length}`);
+  const searchEffects=document.querySelector<HTMLInputElement>('.search-field input')!;
+  const type=async(input:HTMLInputElement,value:string)=>{await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});await settle();};
+  await type(searchEffects,'crystal');
+  assert.equal(document.querySelectorAll('.fx-card').length,1,'Search narrows the effects');
+  await type(searchEffects,'');
 
-  // Keyboard: a number plays that street; ] moves to the next effect.
+  // Keyboard: a number plays that street; ] tries the next effect.
   const before=runs.length;
   await key({key:'2'});
   assert.equal(runs.length,before+1);assert.equal(runs.at(-1),'flop.grand');
   await key({key:']'});
-  const flopOrder=presets.filter(p=>p.supportedEvents.includes('flop')).map(p=>p.id);
+  const flopOrder=flopEffects.map(p=>p.id);
   assert.equal(runs.at(-1),flopOrder[(flopOrder.indexOf('flop.grand')+1)%flopOrder.length]);
 
-  // Search: ⌘K, type, Enter.
+  // Search: ⌘K, type, Enter applies a theme; undo and redo walk it back and forth.
+  await act(async()=>{await wait(600);});
   await key({key:'k',ctrlKey:true});
   const search=document.querySelector<HTMLInputElement>('.menu input');assert.ok(search,'Command menu opens');
-  await act(async()=>{const setter=Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value')!.set!;setter.call(search,'rouge');search.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});
+  await type(search,'rouge');
   await key({key:'Enter'},search);
   assert.ok(!document.querySelector('.menu'),'Running a command closes the menu');
-  assert.equal(document.querySelector('.stage-title h1')!.textContent,'Rouge');
-  await clickText('.step-tab span','Themes');
-  await click('.theme-card');
+  const inUse=()=>document.querySelector('.switcher-text b')!.textContent;
+  assert.equal(inUse(),'Rouge');
+  await click('[aria-label="Undo"]');assert.equal(inUse(),'Monte Carlo','Undo restores the previous theme');
+  await click('[aria-label="Redo"]');assert.equal(inUse(),'Rouge','Redo applies it again');
+  await act(async()=>{await wait(600);});
 
-  // Themes: new, duplicate, delete with confirmation.
-  const count=()=>document.querySelectorAll('.theme-card').length;const themes=count();
-  await click('.new-theme');assert.equal(count(),themes+1);
-  await clickText('.button-row .secondary-button','Duplicate');assert.equal(count(),themes+2);
-  await clickText('.button-row .secondary-button','Delete…');assert.equal(count(),themes+2,'Delete asks first');
-  await clickText('.confirm .secondary-button','Delete theme');assert.equal(count(),themes+1);
-  await click('.theme-card');
+  // Themes: preview without applying, then apply; new, duplicate, delete with confirmation; built-ins cannot be deleted.
+  await nav('Themes');
+  await click('[aria-label="Preview Obsidian on the table"]');
+  assert.match(document.querySelector('.stage-banner')!.textContent!,/Obsidian.*Not applied/);
+  await save();assert.equal(stored().settings.activeThemeId,'room-rouge','Previewing does not apply');
+  await clickText('.stage-banner .primary-button','Use this theme');
+  await save();assert.equal(stored().settings.activeThemeId,'room-obsidian');
+  const count=()=>document.querySelectorAll('.theme-card').length;
+  await clickText('.head-actions .primary-button','New theme');
+  assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Appearance','A new theme opens Appearance');
+  await nav('Themes');assert.equal(count(),8);
+  await clickText('.current .secondary-button','Duplicate');assert.equal(count(),9);
+  await click('[aria-label="More actions for Monte Carlo"]');
+  assert.ok(!document.querySelector('.card-menu .danger'),'Built-in themes cannot be deleted');
+  await click('[aria-label="More actions for My theme"]');
+  await clickText('.card-menu button','Delete…');assert.equal(count(),9,'Delete asks first');
+  await clickText('.confirm .danger-button','Delete');assert.equal(count(),8);
+  await save();assert.ok(!stored().themes.some(t=>t.name==='My theme'));
 
-  // Deck and felt changes reach the preview artwork.
-  await clickText('.step-tab span','Deck');
+  // Appearance: faces, backs and table colours reach the preview artwork; undo puts them back.
+  await nav('Appearance');
+  assert.equal(document.querySelectorAll('.face-option').length,7,'Seven decks, Neon, Sakura and Puppy included');
   const faceBefore=document.querySelector<HTMLImageElement>('[data-board="0"] img')!.src;
-  await click('.face-option:nth-child(4)');
+  await clickText('.face-option b','Neon');
   assert.notEqual(document.querySelector<HTMLImageElement>('[data-board="0"] img')!.src,faceBefore,'Face selection did not update the table artwork');
-  assert.equal(document.querySelectorAll('.face-option').length,5,'All five faces, Puppy included, are offered');
   const backBefore=document.querySelector<HTMLImageElement>('[data-hole="1-0"] img')!.src;
-  await clickText('.back-controls .segmented button','Solid');
+  await clickText('.back-option span','Circuit');
   assert.notEqual(document.querySelector<HTMLImageElement>('[data-hole="1-0"] img')!.src,backBefore,'Back selection did not update opponent artwork');
-  await clickText('.step-tab span','Felt');
+  await clickText('.subtabs button','Table');
   const felt=()=>document.querySelector<HTMLElement>('.table-felt')!.style.getPropertyValue('--felt');const feltBefore=felt();
-  await click('.room-swatch:nth-child(3)');
-  assert.notEqual(felt(),feltBefore,'Room selection did not change felt');
-  assert.equal(document.querySelector('.room-swatch:nth-child(3)')!.getAttribute('aria-checked'),'true','The chosen room shows as selected');
+  await clickText('.palette span','Plum');
+  assert.notEqual(felt(),feltBefore,'A palette did not change the felt');
+  assert.equal([...document.querySelectorAll('.palette')].find(p=>p.textContent==='Plum')!.getAttribute('aria-checked'),'true','The chosen palette shows as selected');
+  await act(async()=>{await wait(600);});
   const moodBefore=felt();
   await key({key:'ArrowRight',shiftKey:true},document.querySelector('.mood-knob')!);
   assert.notEqual(felt(),moodBefore,'The mood pad recolours the felt from the keyboard');
+  await click('[aria-label="Undo"]');assert.equal(felt(),moodBefore,'Undo restores the felt');
+  await clickText('.choice','Petals');
+  await save();assert.equal(stored().themes.find(t=>t.id===stored().settings.activeThemeId)!.table.motif,'sakura');
+
+  // Companion: choose the puppy, recolour it; tricks explain when they cannot play.
+  await nav('Companion');
+  await clickText('.companion-option b','Puppy');
+  await clickText('.swatch','Chocolate');
+  await save();assert.deepEqual(stored().themes.find(t=>t.id===stored().settings.activeThemeId)!.companion,{kind:'puppy',animations:true,intensity:'normal',scale:'medium',coat:'chocolate',collar:'ruby'});
+  await clickText('.trick','Celebrate');
+  assert.match(document.querySelector('.companion-page')!.textContent!,/busy or still settling in/,'A trick that cannot play says so');
 
   // Settings.
-  await clickText('.step-tab span','Settings');await click('.connection-card button');
+  await nav('Settings');await clickText('.connection button','Check PokerNow connection');
   assert.match(document.querySelector('.connection-results')!.textContent!, /Browser preview only.*Chrome toolbar/);
   await click('[aria-label="Reduced motion"]');assert.equal(document.querySelector('[aria-label="Reduced motion"]')?.getAttribute('aria-checked'),'true');
-  await save();assert.equal(stored().settings.reducedMotion,true);
-  assert.ok(!document.querySelector('.save-status.failed'));
-  const beforeDisabled=runs.length;await click('[aria-label="Enable customization in settings"]');await clickText('.player-streets button','Flop');
+  await clickText('.mode b','Lightweight');
+  await save();assert.equal(stored().settings.reducedMotion,true);assert.deepEqual(stored().settings.effects,{chips:false,celebrations:false,moments:false,ambience:false});
+  await clickText('.mode b','High quality');
+  await save();assert.deepEqual(stored().settings.effects,{chips:true,celebrations:true,moments:true,ambience:true});
+  assert.ok(!document.querySelector('.save-status.s-failed'));
+  await click('[aria-label="Enable customization in settings"]');
+  await nav('Effects');
+  const beforeDisabled=runs.length;await clickText('.player-streets button','Flop');
   assert.equal(runs.length,beforeDisabled,'Disabled previews should keep canonical cards without running effects');
   await act(async()=>{root.unmount();});
 
@@ -143,8 +191,8 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   const broken='{"version":99}';localStorage.setItem(KEY,broken);
   root=createRoot(document.getElementById('root')!);await act(async()=>{root.render(createElement(App));});await save();
   assert.ok(document.querySelector('.recovery-banner'));assert.equal(localStorage.getItem(KEY),broken,'Invalid data was overwritten without recovery');
-  await click('.recovery-banner .accent-button');await save();
-  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(stored().version,4);
+  await click('.recovery-banner .primary-button');await save();
+  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(stored().version,5);
 
   // Uploaded assets can take longer than a frame. A preview waits for the exact resolved theme, then plays.
   await act(async()=>root.unmount());
@@ -162,10 +210,10 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   }}});
   root=createRoot(document.getElementById('root')!);
   await act(async()=>{root.render(createElement(App));});
-  await act(async()=>{[...document.querySelectorAll<HTMLButtonElement>('.step-tab')].find(b=>b.textContent?.trim()==='Effects')!.click();});
+  await act(async()=>{[...document.querySelectorAll<HTMLButtonElement>('.rail-item')].find(b=>b.textContent?.trim()==='Effects')!.click();});
   await act(async()=>{await wait(60);});
   const beforeQueued=runs.length;
-  await act(async()=>{document.querySelector<HTMLButtonElement>('[aria-label="Preview Triple Orbit"]')!.click();});
+  await act(async()=>{document.querySelector<HTMLButtonElement>('[aria-label="Try Triple Orbit on the table"]')!.click();});
   await act(async()=>{await wait(130);});assert.equal(runs.length,beforeQueued,'Preview ran before its uploaded assets resolved: '+runs.slice(-3).join(','));
   await act(async()=>{await wait(260);});await act(async()=>{await wait(50);});
   assert.equal(runs.length,beforeQueued+1);assert.equal(runs.at(-1),'flop.triple-orbit');

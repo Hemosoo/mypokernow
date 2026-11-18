@@ -46,6 +46,10 @@ const STAGE_CSS = `
 @keyframes pnc-heart{0%,100%{opacity:.18}12%{opacity:.85}24%{opacity:.3}36%{opacity:.7}60%{opacity:.18}}
 .pnc-motes{overflow:visible}
 .pnc-mote{border-radius:50%;opacity:0;will-change:transform,opacity;animation-timing-function:linear;animation-iteration-count:infinite}
+.pnc-mote.petal{border-radius:0 100% 0 100%}
+.pnc-mote.pixel{border-radius:0}
+@keyframes pnc-petal{0%{transform:translate3d(0,0,0) rotate(0);opacity:0}12%{opacity:var(--o)}50%{transform:translate3d(calc(var(--d)*.5),calc(var(--d)*1.2),0) rotate(160deg)}85%{opacity:var(--o)}100%{transform:translate3d(calc(var(--d)*-.2),calc(var(--d)*2.6),0) rotate(320deg);opacity:0}}
+@keyframes pnc-pixel{0%,100%{opacity:0;transform:translate3d(0,0,0)}10%,30%{opacity:var(--o)}20%{opacity:calc(var(--o)*.3)}50%{opacity:var(--o);transform:translate3d(0,calc(var(--d)*-.8),0)}60%{opacity:0;transform:translate3d(0,calc(var(--d)*-.8),0)}}
 @keyframes pnc-mote-a{0%{transform:translate3d(0,0,0);opacity:0}18%{opacity:var(--o)}55%{transform:translate3d(calc(var(--d)*.6),calc(var(--d)*-.9),0)}82%{opacity:var(--o)}100%{transform:translate3d(var(--d),calc(var(--d)*-1.6),0);opacity:0}}
 @keyframes pnc-mote-b{0%{transform:translate3d(0,0,0);opacity:0}22%{opacity:var(--o)}50%{transform:translate3d(calc(var(--d)*-.7),calc(var(--d)*-.5),0)}78%{opacity:var(--o)}100%{transform:translate3d(calc(var(--d)*-.4),calc(var(--d)*-1.3),0);opacity:0}}
 .pnc-badge{display:flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:800;border-radius:99px;will-change:transform,opacity}
@@ -543,7 +547,8 @@ export class Stage {
     const wanted = Boolean(state && this.theme && this.effects.ambience && this.moving);
     if (!wanted) { this.motes?.remove(); this.motes = undefined; this.motesKey = ''; return; }
     const table = state!.table;
-    const key = `${Math.round(table.x)}:${Math.round(table.y)}:${Math.round(table.width)}:${Math.round(table.height)}:${this.theme!.table.trimColor}`;
+    const motif = this.theme!.table.motif;
+    const key = `${Math.round(table.x)}:${Math.round(table.y)}:${Math.round(table.width)}:${Math.round(table.height)}:${this.theme!.table.trimColor}:${motif}`;
     if (key === this.motesKey && this.motes?.isConnected) return;
     this.motes?.remove();
     this.motesKey = key;
@@ -552,19 +557,24 @@ export class Stage {
     layer.style.transform = `translate3d(${table.x.toFixed(1)}px,${table.y.toFixed(1)}px,0)`;
     layer.style.width = `${table.width.toFixed(1)}px`;
     layer.style.height = `${table.height.toFixed(1)}px`;
-    const rem = this.rem, tint = this.tones.trim.spec;
+    const rem = this.rem, tint = this.tones.trim.spec, high = this.tones.trim.high;
+    // Sakura rooms drift petals down; Neon rooms flicker pixels; every other room has dust in the light.
+    const petals = motif === 'sakura', pixels = motif === 'neon';
     for (let index = 0; index < 14; index++) {
       const mote = this.document.createElement('div');
-      const size = rem * (0.06 + hash(index, 71) * 0.1);
-      mote.className = 'pnc-mote';
+      const size = rem * (petals ? 0.16 + hash(index, 71) * 0.12 : pixels ? 0.05 + hash(index, 71) * 0.05 : 0.06 + hash(index, 71) * 0.1);
+      mote.className = petals ? 'pnc-mote petal' : pixels ? 'pnc-mote pixel' : 'pnc-mote';
       Object.assign(mote.style, {
-        left: `${(14 + hash(index, 73) * 72).toFixed(1)}%`, top: `${(18 + hash(index, 79) * 62).toFixed(1)}%`,
-        width: `${size.toFixed(2)}px`, height: `${size.toFixed(2)}px`,
-        background: `radial-gradient(circle,${rgba(tint, 0.95)} 0%,${rgba(tint, 0.3)} 45%,transparent 72%)`,
-        animationName: index % 2 ? 'pnc-mote-b' : 'pnc-mote-a', animationDuration: `${(16 + hash(index, 83) * 20).toFixed(1)}s`,
+        left: `${(14 + hash(index, 73) * 72).toFixed(1)}%`, top: `${(petals ? 4 + hash(index, 79) * 50 : 18 + hash(index, 79) * 62).toFixed(1)}%`,
+        width: `${size.toFixed(2)}px`, height: `${(petals ? size * 0.8 : size).toFixed(2)}px`,
+        background: petals ? `linear-gradient(135deg,${rgba(high, 0.95)},${rgba(tint, 0.6)})`
+          : pixels ? (index % 3 ? tint : '#ff5fa8') : `radial-gradient(circle,${rgba(tint, 0.95)} 0%,${rgba(tint, 0.3)} 45%,transparent 72%)`,
+        boxShadow: pixels ? `0 0 ${(size * 2).toFixed(1)}px ${index % 3 ? tint : '#ff5fa8'}` : '',
+        animationName: petals ? 'pnc-petal' : pixels ? 'pnc-pixel' : index % 2 ? 'pnc-mote-b' : 'pnc-mote-a',
+        animationDuration: `${((petals ? 11 : pixels ? 5 : 16) + hash(index, 83) * (pixels ? 6 : 20)).toFixed(1)}s`,
         animationDelay: `${(-hash(index, 89) * 30).toFixed(1)}s`,
       });
-      mote.style.setProperty('--o', (0.14 + hash(index, 97) * 0.26).toFixed(2));
+      mote.style.setProperty('--o', ((petals ? 0.4 : pixels ? 0.45 : 0.14) + hash(index, 97) * 0.26).toFixed(2));
       mote.style.setProperty('--d', `${(rem * (2 + hash(index, 101) * 3)).toFixed(1)}px`);
       layer.append(mote);
     }

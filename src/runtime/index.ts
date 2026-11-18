@@ -3,7 +3,7 @@ import { describeUnsupported, inspectLayout, type ObservedLayout } from '../adap
 import { AnimationCoordinator, warmArtwork, type AnimationHandle } from '../animation/core/coordinator';
 import { Skin } from '../skin';
 import { Stage } from '../stage/stage';
-import type { Settings, Theme, VisualCard, VisualEvent } from '../types';
+import type { CompanionAction, Settings, Theme, VisualCard, VisualEvent } from '../types';
 import type { Companion, CompanionModule } from '../puppy/types';
 import { planForEvent } from '../puppy/plan';
 import { isCompanionPreset } from '../animation/presets/puppy';
@@ -133,6 +133,8 @@ export class Runtime {
 
   scan(): void { if (this.theme) this.adapter.scan(); }
 
+  /** Ask the table companion to act something out (studio preview only). */
+  companionPerform(action: CompanionAction): boolean { return this.companion?.perform?.(action) ?? false; }
   /** The table companion's state, for tests and diagnostics; undefined when none is present. */
   companionDebug(): ReturnType<NonNullable<Companion['debug']>> | undefined { return this.companion?.debug?.(); }
 

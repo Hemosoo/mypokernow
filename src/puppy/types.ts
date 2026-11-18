@@ -1,6 +1,6 @@
 import type { AnimationHandle } from '../animation/core/coordinator';
 import type { SeatState, TableState } from '../adapter/pokernow/table-state';
-import type { Rect, Settings, Theme, VisualEvent } from '../types';
+import type { CompanionAction, Rect, Settings, Theme, VisualEvent } from '../types';
 import type { Choreography } from './plan';
 
 /**
@@ -35,6 +35,11 @@ export interface Companion {
    * companion module is loaded separately and has its own copy of every module.
    */
   animation(handle: AnimationHandle, event: VisualEvent, plan?: Choreography): void;
+  /**
+   * Act something out on request (the studio's companion preview). Returns false
+   * when it cannot: no table yet, reduced motion, or its animations are off.
+   */
+  perform?(action: CompanionAction): boolean;
   /** Whether it can perform a card animation right now. */
   ready(): boolean;
   /** Window geometry changed (resize, scroll, zoom). */
