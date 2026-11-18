@@ -368,7 +368,7 @@ export function App() {
               {Array.from({ length: 9 }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
           </div>
         </div>
-        <div className={`stage-frame ${original ? 'original' : ''}`}>
+        <div className={`stage-frame ${original ? 'original' : ''}`} style={{ backgroundColor: original ? '#1a1b1b' : `color-mix(in srgb, ${activeTheme.table.backgroundColor} 22%, #000)` }}>
           {resolvedTheme ? previewMode === 'live'
             ? <LiveTable key="live" ref={preview as React.RefObject<LiveTableHandle>} theme={resolvedTheme} settings={library.settings} players={players} slow={slow} original={original}
               onMoment={(moment) => { if (moment) setNowPlaying({ street: moment, hand: true }); }} onPlaying={setPlaying} onProgress={setProgress} onError={setNotice} />

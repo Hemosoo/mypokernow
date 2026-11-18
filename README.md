@@ -13,7 +13,17 @@ npm ci
 npm run dev
 ```
 
-Open the localhost URL printed by Vite. Choose an event, select an effect, and press Preview. The studio runs independently of PokerNow. It uses exactly the same registry, artwork, fragment system, timeline, and coordinator as the content script.
+Open the localhost URL printed by Vite. The studio runs independently of PokerNow and uses exactly the same registry, artwork, fragment system, timeline, and coordinator as the content script.
+
+The studio is one screen. The live table stays pinned on the left with a player bar (play, replay, the four streets, a whole hand, slow motion); the steps sit on the right: **Effects, Deck, Felt, Board, Puppy, Themes, Settings**.
+
+- **Effects** shows your hand as four tracks (deal, flop, turn, river). Pick a track, then pick an effect from the shelves below: each tile shows a poster and plays a short recording of the effect when you hover it. Click a tile to use it; the play button on a tile previews it on the table without changing anything. Heart the effects you like.
+- **Shuffle** (per street, or *Shuffle all*) picks a different effect each time, from your hearted effects when any suit that street. Puppy effects are never picked by Shuffle; they are always chosen on purpose.
+- **Felt** has the rooms as swatches, a mood pad (drag across for colour, down for depth; felt, rail, room and card back are matched to one point) and a trim metal. Exact colours are under *Fine-tune colours*.
+- Hold **C** (or the *Hold to compare* button) to see the table without your theme.
+- Press **⌘K** (or **/**) to search every effect, theme, setting and action. **?** lists the keyboard shortcuts: Space plays, 1–4 play a street, **[** and **]** step through effects, H plays a whole hand, F hearts the effect, S toggles slow motion.
+
+The shelf posters and clips in `public/media/` are recorded from the replica table by `scripts/capture-media.mjs` (Playwright and ffmpeg). Run it again after changing a preset.
 
 ## Install in Chrome
 
@@ -36,7 +46,7 @@ See [troubleshooting](docs/TROUBLESHOOTING.md). In the installed studio, open **
 
 ## Room rehearsal
 
-The studio’s **Rehearse a full hand** link opens `preview.html`, a self-contained replica with authored layout CSS. It runs the extension’s shared Runtime, skin, stage and adapter through a sample hand. Choose a room, play, or reset. This is an offline fixture, not a PokerNow connection.
+`preview.html` is a self-contained replica with authored layout CSS (the studio's live table embeds it). It runs the extension’s shared Runtime, skin, stage and adapter through a sample hand. Choose a room, play, or reset. This is an offline fixture, not a PokerNow connection.
 
 Cards → Made-hand aura offers an on/off toggle, color and strength for a steady glow around your hole cards when they contribute to a pair or better. Only visible cards and revealed board cards are used; board-only hands, folded/hidden hands and multiple boards do not trigger it. Aura settings travel with the theme.
 
@@ -44,18 +54,18 @@ Table settings include metal trim, inscription and emblem; Settings independentl
 
 ## Puppy skin
 
-Choose **Puppy** in the studio's Themes (or pick it from the table's atmospheres). A procedurally modelled 3D puppy (Three.js, rendered on a transparent, click-through canvas) lives on the table:
+Choose **Puppy** in the studio's theme dots (or under **Themes**), or turn the companion on in the **Puppy** step. A procedurally modelled 3D puppy (Three.js, rendered on a transparent, click-through canvas) lives on the table:
 
 - It rests where it covers no cards, chips or name plates, and idles: wagging, blinking, looking around, tilting its head, scratching an ear, play-bowing.
 - It runs the card animations itself. It trots to the deck and paws each hole card out, noses the flop across the felt and paws the cards apart, fetches the turn in its mouth, and slides the river into place with a paw before celebrating. Cards and puppy sample one shared plan at the animation's own progress, so each card moves exactly when it is touched.
 - It noses swept bets into the pot, bats folded cards away, glances at bets and whoever is to act, and celebrates wins (hops, spins, paw-print sparkles), scaled to the pot.
 - The room has a matching paw-print deck, felt with paw prints and a paw emblem, paw chips and a paw dealer button.
 
-Settings live in **Table → Table companion**: puppy on or off, puppy animations on or off, intensity (Subtle / Normal / Playful) and size (Small / Medium / Large). The global **Reduced motion** setting keeps the puppy resting quietly. The 3D module (`puppy.js`) is downloaded only on a Puppy table, renders at a throttled rate when idle, stops while the tab is hidden, and is removed completely when you switch skins. Visual holds for the puppy (chips and folded cards it is about to touch) are capped at about 0.4 s and never delay the game.
+Settings live in the studio's **Puppy** step: puppy on or off, puppy animations on or off, intensity (Subtle / Normal / Playful) and size (Small / Medium / Large). The global **Reduced motion** setting keeps the puppy resting quietly. The 3D module (`puppy.js`) is downloaded only on a Puppy table, renders at a throttled rate when idle, stops while the tab is hidden, and is removed completely when you switch skins. Visual holds for the puppy (chips and folded cards it is about to touch) are capped at about 0.4 s and never delay the game.
 
-## Random animation mode
+## Shuffle
 
-In Animation Studio, select an event (deal, flop, turn or river), then choose **Random**. Each new event or replay chooses from that event’s compatible presets using the effect’s default tuning. Choices can repeat. Each event has its own assignment; the mode saves and exports with your theme. Global speed and reduced-motion settings still apply.
+In the **Effects** step, pick a street and choose **Shuffle** (stored as `random`). Each new event or replay chooses from that street’s compatible effects using the effect’s default tuning, limited to your hearted effects when at least one of them suits the street. Choices can repeat. Each street has its own assignment; it saves and exports with your theme. Hearts are a library setting. Global speed and reduced-motion settings still apply.
 
 ## Included effects
 
@@ -67,7 +77,7 @@ In Animation Studio, select an event (deal, flop, turn or river), then choose **
 
 Motion uses shared continuous trajectories and CSS 3D transforms. Physical construction clips real final card artwork into 20–40 polygons; semantic assembly separates actual ranks, suits, pips, and coherent illustrations. All motion objects are temporary. Reduced motion completes immediately at the canonical card state.
 
-Studio features include event assignments, parameter controls, replay, pause/resume, slow motion, 2–10 preview players, card backs/faces, table and board colors, bounded raster uploads, theme create/rename/duplicate/delete/switch, portable import/export, and restore defaults. Live card spacing is deliberately preserved; spacing customization is preview-only until a safe site-specific strategy is verified.
+Studio features include street assignments, favourites, parameter controls, replay, pause/resume, slow motion, a whole-hand preview, hold-to-compare, search, 2–10 preview players, card backs/faces, table and board colors, bounded raster uploads, theme create/rename/duplicate/delete/switch, portable import/export, and restore defaults. Live card spacing is deliberately preserved; spacing customization is preview-only until a safe site-specific strategy is verified.
 
 ## Storage and permissions
 

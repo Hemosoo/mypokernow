@@ -144,4 +144,7 @@ html:not([data-pnc-skin]) .dealer-button-ctn .button::after{content:"D";position
 .replica-toolbar select option{background:#141615;color:#ece6d8}
 .replica-label{position:fixed;z-index:2147483647;left:18px;top:16px;font:600 10px/1 Inter,system-ui,sans-serif;letter-spacing:.28em;color:rgba(232,204,146,.7)}
 .replica-embedded .replica-toolbar,.replica-embedded .replica-label{display:none}
+/* Embedded in the studio, the letterbox shows the studio's own room colour behind the frame. */
+html.replica-embedded{color-scheme:dark}
+html.replica-embedded,html.replica-embedded body{background:transparent}
 @media(prefers-reduced-motion:reduce){.card-flipper,.table-cards .card-container,.dealer-button-ctn{transition:none}}
