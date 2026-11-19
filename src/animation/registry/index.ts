@@ -1,6 +1,7 @@
 import { signaturePresets } from '../presets/signature';
 import { showpiecePresets } from '../presets/showpiece';
 import { puppyPresets } from '../presets/puppy';
+import { roomPresets } from '../presets/rooms';
 import type { Street } from '../../types';
 import type { AnimationPreset } from '../core/types';
 import { dealerFlick } from '../presets/deal/dealer-flick';
@@ -12,7 +13,7 @@ import { slam } from '../presets/reveal/slam';
 import { fragmentAssembly } from '../presets/reveal/fragment-assembly';
 import { crystallization } from '../presets/reveal/crystallization';
 
-export const presets: AnimationPreset[] = [dealerFlick, orbitDeal, tripleSpread, tripleOrbit, crystalSpread, slam, fragmentAssembly, crystallization, ...signaturePresets, ...showpiecePresets, ...puppyPresets];
+export const presets: AnimationPreset[] = [dealerFlick, orbitDeal, tripleSpread, tripleOrbit, crystalSpread, slam, fragmentAssembly, crystallization, ...signaturePresets, ...showpiecePresets, ...roomPresets, ...puppyPresets];
 const byId = new Map(presets.map(preset => [preset.id, preset]));
 export const getPreset = (id: string): AnimationPreset | undefined => byId.get(id);
 export const presetsForStreet = (street: Street): AnimationPreset[] => presets.filter(preset => preset.supportedEvents.includes(street));

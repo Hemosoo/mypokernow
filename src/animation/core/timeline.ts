@@ -35,6 +35,18 @@ export class Timeline {
     cancelAnimationFrame(this.frame);
   }
 
+  /**
+   * Jump to a point in the animation (the studio's scrub bar). Paused, it shows that
+   * frame and stays there; running, it carries on from it. It never ends the run.
+   */
+  seek(progress: number): void {
+    if (this.done) return;
+    const p = Math.min(0.9999, clamp(progress));
+    this.elapsed = p * this.options.duration;
+    if (this.running) this.started = performance.now() - this.elapsed;
+    try { this.sample(p); } catch (error) { this.stop(); this.options.onError(error); }
+  }
+
   finish(): void {
     if (this.done) return;
     try { this.sample(1); } catch (error) { this.options.onError(error); return; }

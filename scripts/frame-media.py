@@ -19,6 +19,9 @@ import numpy as np
 from PIL import Image
 
 WORK, OUT, FPS = Path('.capture'), Path('public/media'), 30
+# Effects whose telling moment is not their busiest frame: the poster is taken at
+# this fraction of the run instead (the cat's flop: the yarn ball mid-roll).
+POSTER_AT = {'flop.cat': 0.7}
 
 
 def grey(path, scale=4):
@@ -62,7 +65,7 @@ def frame(preset):
         left = min(max(0, cx - w / 2), width - w)
         top = min(max(0, cy - h / 2), height - h)
         box = (int(left) // 2 * 2, int(top) // 2 * 2, int(w) // 2 * 2, int(h) // 2 * 2)
-    poster = int(np.argmax(energy))
+    poster = int(POSTER_AT[preset['id']] * end) if preset['id'] in POSTER_AT else int(np.argmax(energy))
     x, y, w, h = box
     crop = f'crop={w}:{h}:{x}:{y}'
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-framerate', str(FPS), '-i', str(folder / 'f%04d.jpg'), '-frames:v', str(len(files)),

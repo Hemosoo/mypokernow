@@ -10,7 +10,7 @@ export const signatureAnimations = (): Record<Street, AnimationAssignment> => ({
   river: { preset: 'reveal.showdown', parameters: {} },
 });
 
-export const defaultEffects = (): EffectSettings => ({ chips: true, celebrations: true, moments: true, ambience: true });
+export const defaultEffects = (): EffectSettings => ({ chips: true, celebrations: true, moments: true, ambience: true, winSize: 'balanced', othersWins: true });
 
 interface RoomSpec {
   id: string; name: string; description: string;
@@ -40,8 +40,8 @@ function room(spec: RoomSpec): Theme {
 /**
  * The house rooms. Each has its own palette, deck, emblem and pace: Monte Carlo
  * is the signature choreography, Obsidian is restrained, Rouge is theatrical
- * and Riviera is fluid. Neon, Sakura and Puppy add their own felt, deck and
- * ambience as well.
+ * and Riviera is fluid. Neon, Sakura, Arcade, Rain District, Breach, Puppy and
+ * Cat Café add their own felt, deck, chips and ambience as well.
  */
 export const builtInThemes: Theme[] = [
   room({ id: 'room-monte-carlo', name: 'Monte Carlo', description: 'Green worsted felt, a gold inlay and classic serif cards.', felt: '#0e5a41', rail: '#1c1613', trim: '#d4b274', room: '#0a0e0c',
@@ -61,6 +61,15 @@ export const builtInThemes: Theme[] = [
   room({ id: 'room-sakura', name: 'Sakura', description: 'Dusk-blue felt, cherry wood, falling petals and gentle reveals.', felt: '#2d3c5a', rail: '#2b1a1c', trim: '#e9b2bf', room: '#110c12',
     back: '#8e3a55', backStyle: 'petals', face: 'sakura', paper: '#fcf5ef', red: '#c23c5c', black: '#2a2a3e', edge: '#ecd8d3', emblem: 'blossom', glow: '#ffd0dc',
     motif: 'sakura', animations: ['deal.pitch', 'flop.cascade', 'reveal.turnover', 'reveal.squeeze'], radius: 10 }),
+  room({ id: 'room-arcade', name: 'Arcade', description: 'Pixel cards, a dithered blue felt and stepped, sprite-style moves.', felt: '#1a3fae', rail: '#2a1a4a', trim: '#ffcc1a', room: '#06060f',
+    back: '#2337c9', backStyle: 'pixel', face: 'pixel', paper: '#ffffff', red: '#e4202e', black: '#141414', edge: '#141414', emblem: 'coin', glow: '#ffe36b',
+    motif: 'arcade', animations: ['deal.pixel', 'flop.pixel', 'reveal.pixel', 'reveal.pixel'], radius: 0 }),
+  room({ id: 'room-rain', name: 'Rain District', description: 'Wet asphalt, sign light in the puddles and holographic cards.', felt: '#17181f', rail: '#33343d', trim: '#ff3d8b', room: '#07060c',
+    back: '#141a2a', backStyle: 'holo', face: 'holo', paper: '#0f1a22', red: '#ff5c9d', black: '#a8f4ff', edge: '#2f6b78', emblem: 'sigil', glow: '#ffb84a',
+    motif: 'rain', animations: ['deal.dealer-flick', 'flop.hologram', 'reveal.hologram', 'reveal.hologram'], radius: 5 }),
+  room({ id: 'room-breach', name: 'Breach', description: 'A hacker’s rig: circuit traces, glitches and cards that decrypt.', felt: '#1b1d20', rail: '#0c0d0e', trim: '#b7ff3c', room: '#040505',
+    back: '#0b0c0d', backStyle: 'glyph', face: 'cipher', paper: '#0b0c0d', red: '#ff4646', black: '#b7ff3c', edge: '#30353a', emblem: 'chip', glow: '#c8ff6a',
+    motif: 'breach', animations: ['deal.packet', 'flop.decrypt', 'reveal.decrypt', 'reveal.decrypt'], radius: 2 }),
 ];
 
 /**
@@ -79,17 +88,33 @@ export const puppyTheme: Theme = {
 puppyTheme.table = { ...puppyTheme.table, motif: 'puppy' };
 puppyTheme.card = { ...puppyTheme.card, borderRadius: 9, aura: { enabled: true, color: '#ffd79a', strength: 0.45 } };
 builtInThemes.push(puppyTheme);
+
+/**
+ * Cat Café: the tabby's room. Soft teal felt with paw prints and yarn, warm wood,
+ * a cat deck, and a cat who flicks, bats, pushes and pounces the cards into place.
+ */
+export const catTheme: Theme = {
+  ...room({ id: 'room-cat', name: 'Cat Café', description: 'A 3D tabby who bats a yarn ball across the flop.', felt: '#2f6668', rail: '#5e3c28', trim: '#f0b46a', room: '#130e0b',
+    back: '#b4574f', backStyle: 'yarn', face: 'cat', paper: '#fffaf2', red: '#c4374a', black: '#2b2422', edge: '#ecdcc4', emblem: 'yarn', glow: '#ffd9a0', motif: 'cat', radius: 9 }),
+  animations: { deal: { preset: 'deal.cat', parameters: {} }, flop: { preset: 'flop.cat', parameters: {} },
+    turn: { preset: 'turn.cat', parameters: {} }, river: { preset: 'river.cat', parameters: {} } },
+  companion: { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', collar: 'sapphire', catCoat: 'tabby', eyes: 'green' },
+};
+catTheme.card = { ...catTheme.card, aura: { enabled: true, color: '#ffd9a0', strength: 0.45 } };
+builtInThemes.push(catTheme);
 /** Rooms added after library version 3; existing libraries receive them once. */
 export const ROOMS_SINCE_V4: string[] = ['room-puppy'];
 /** Rooms added with library version 5. */
 export const ROOMS_SINCE_V5: string[] = ['room-neon', 'room-sakura'];
+/** Rooms added with library version 6. */
+export const ROOMS_SINCE_V6: string[] = ['room-arcade', 'room-rain', 'room-breach', 'room-cat'];
 export const isBuiltIn = (id: string): boolean => builtInThemes.some((theme) => theme.id === id);
 export const builtInTheme = (id: string): Theme | undefined => builtInThemes.find((theme) => theme.id === id);
 
 export const DEFAULT_THEME_ID = builtInThemes[0]!.id;
 export function createDefaultTheme(): Theme { return structuredClone(builtInThemes[0]!); }
 export function createDefaultLibrary(): Library {
-  return { version: 5, settings: { enabled: true, reducedMotion: false, speed: 1, activeThemeId: DEFAULT_THEME_ID, effects: defaultEffects(), favorites: [], recent: [] }, themes: structuredClone(builtInThemes) };
+  return { version: 6, settings: { enabled: true, reducedMotion: false, speed: 1, activeThemeId: DEFAULT_THEME_ID, effects: defaultEffects(), favorites: [], recent: [] }, themes: structuredClone(builtInThemes) };
 }
 
 /** Identifiers and timestamp of the three themes shipped before the rooms existed. */

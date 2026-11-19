@@ -223,6 +223,16 @@ export function App() {
     }
     if (run === handRun.current) setNowPlaying(null);
   }
+  /** One step of the win celebration on the live table. */
+  async function playWin(step: 1 | 2 | 3 | 4 | 5) {
+    if (!stageOn.current || previewMode !== 'live' || !tableReady) return;
+    const run = ++handRun.current;
+    setPendingPreview(null);
+    setPaused(false);
+    setNowPlaying({ street: 'river', win: step });
+    await (preview.current as unknown as LiveTableHandle).win(step);
+    if (run === handRun.current) setNowPlaying(null);
+  }
   function stopPlayback() {
     handRun.current += 1;
     setPendingPreview(null);
@@ -233,12 +243,13 @@ export function App() {
   }
   function togglePlayback() {
     if (!playing) play(street);
-    else if (nowPlaying?.hand && previewMode === 'live') stopPlayback();
+    else if ((nowPlaying?.hand || nowPlaying?.win) && previewMode === 'live') stopPlayback();
     else if (paused) { preview.current?.resume(); setPaused(false); }
     else { preview.current?.pause(); setPaused(true); }
   }
   function replay() {
     if (nowPlaying?.hand) { void playHand(); return; }
+    if (nowPlaying?.win) { void playWin(nowPlaying.win); return; }
     play(nowPlaying?.street ?? street, nowPlaying?.trial ? nowPlaying.presetId : undefined);
   }
   function cyclePreset(direction: 1 | -1) {
@@ -379,7 +390,7 @@ export function App() {
     library, theme: activeTheme, display: (previewing ? undefined : resolvedTheme) ?? activeTheme, previewing, page, goTo, appearanceTab, setAppearanceTab,
     street, setStreet, playing, nowPlaying, motionAllowed,
     updateTheme, patchCard, patchTable, patchBoard, patchCompanion, setting, baseline,
-    equipPreset, tryPreset: (id, item) => play(item, id), playStreet: (item) => play(item), playHand: () => { void playHand(); },
+    equipPreset, tryPreset: (id, item) => play(item, id), playStreet: (item) => play(item), playHand: () => { void playHand(); }, playWin: (step) => { void playWin(step); },
     toggleFavorite, setParameter, resetParameters: () => equipPreset(activeTheme.animations[street].preset, street),
     applyTheme, previewTheme: setPreviewId, createTheme, duplicateTheme, renameTheme, deleteTheme, resetTheme,
     exportTheme: (id) => { void downloadTheme(id); }, openImport: () => importInput.current?.click(), surpriseTheme,

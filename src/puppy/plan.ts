@@ -1,4 +1,4 @@
-import type { Rect, Street, VisualCard, VisualEvent } from '../types';
+import type { CompanionKind, Rect, Street, VisualCard, VisualEvent } from '../types';
 
 /**
  * The puppy's choreography for one card event, as pure screen-space geometry.
@@ -20,7 +20,9 @@ export interface CardCue {
 }
 
 /** What the puppy is doing at a moment of the plan. */
-export type PuppyAction = 'run' | 'paw-strike' | 'nose-push' | 'mouth-grab' | 'mouth-carry' | 'drop' | 'paw-slide' | 'paw-flick' | 'proud' | 'hop' | 'spin';
+export type PuppyAction = 'run' | 'paw-strike' | 'nose-push' | 'mouth-grab' | 'mouth-carry' | 'drop' | 'paw-slide' | 'paw-flick' | 'proud' | 'hop' | 'spin'
+  // The cat's own moves: a seated flick, a bat at the yarn, a wiggling crouch, a pounce, a slow push.
+  | 'flick' | 'bat' | 'crouch' | 'pounce' | 'push';
 /** The part of the puppy that must coincide with `point`. */
 export type PuppyPart = 'paw' | 'nose' | 'mouth' | 'body';
 
@@ -42,10 +44,23 @@ export interface PuppyCue {
   mouth: number;
 }
 
+/** A prop the companion plays with, drawn by the card preset: the cat's ball of yarn. */
+export interface PropCue {
+  x: number; y: number; radius: number;
+  /** Rolling angle in degrees. */
+  spin: number;
+  opacity: number;
+  /** The strand of yarn left behind, from where the ball started to where it is. */
+  thread?: { from: Pt; opacity: number };
+}
+
 export interface Choreography {
   street: Street;
+  /** Which character performs it; the puppy when absent. */
+  species?: CompanionKind;
   cards: Map<string, (p: number) => CardCue>;
   puppy: (p: number) => PuppyCue;
+  prop?: (p: number) => PropCue | undefined;
 }
 
 const clamp = (v: number, a = 0, b = 1): number => Math.min(b, Math.max(a, v));
@@ -239,13 +254,132 @@ function riverPlan(event: VisualEvent): Choreography {
   };
 }
 
-/** Four kinds of puppy choreography; the preset chooses which one runs. */
-export type PlanKind = 'deal' | 'flop' | 'mouth' | 'paw';
+// ─────────────────────────────────────────────────────────────── the cat
+
+/** The cat deals sitting up by the deck, flicking each card out with a paw. */
+function catDealPlan(event: VisualEvent): Choreography {
+  const plan = dealPlan(event);
+  return { ...plan, species: 'cat', puppy: (p) => { const cue = plan.puppy(p); return cue.action === 'paw-strike' ? { ...cue, action: 'flick' } : cue; } };
+}
+
+/**
+ * The yarn-ball flop. The cat paws the three cards out to their slots face down,
+ * walks to the end of the board, crouches and bats a ball of yarn along the row.
+ * Each card flips over as the ball rolls across it, and the strand it trails fades.
+ */
+function catFlopPlan(event: VisualEvent): Choreography {
+  const L = layout(event), slots = event.cards.slice(0, 3);
+  const first = centre(slots[0]!.target), last = centre(slots[2]!.target);
+  const along = unit(first, last), radius = L.cardW * 0.3;
+  // The ball starts beyond whichever end of the row is nearer the deck and rolls to the far end.
+  const fromFirst = Math.hypot(L.deck.x - first.x, L.deck.y - first.y) <= Math.hypot(L.deck.x - last.x, L.deck.y - last.y);
+  const dir = fromFirst ? along : { x: -along.x, y: -along.y };
+  const head = fromFirst ? first : last, tail = fromFirst ? last : first;
+  const ballStart = add(head, dir, -L.cardW * 0.95), ballEnd = add(tail, dir, L.cardW * 0.9);
+  const approach = 0.13, sweeps = [0.17, 0.235, 0.3], slide = 0.1, walk: [number, number] = [0.42, 0.5], crouch: [number, number] = [0.5, 0.56], hit = 0.57, roll: [number, number] = [0.57, 0.84];
+  const rollEase = (u: number): number => 1 - (1 - clamp(u)) ** 2.2;
+  const ballAt = (p: number): Pt => lerp(ballStart, ballEnd, rollEase(range(p, roll[0], roll[1])));
+  // When the ball's centre passes each card, found by stepping along the roll.
+  const total = Math.hypot(ballEnd.x - ballStart.x, ballEnd.y - ballStart.y) || 1;
+  const passes = slots.map((card) => {
+    const c = centre(card.target), along0 = ((c.x - ballStart.x) * dir.x + (c.y - ballStart.y) * dir.y) / total;
+    let p = roll[0];
+    for (let i = 0; i <= 400; i++) { const q = roll[0] + (roll[1] - roll[0]) * (i / 400); if (rollEase(range(q, roll[0], roll[1])) >= along0) { p = q; break; } p = q; }
+    return p;
+  });
+  const flipLen = 0.065;
+  const order = fromFirst ? [0, 1, 2] : [2, 1, 0];
+  const cards = new Map<string, (p: number) => CardCue>();
+  slots.forEach((card, k) => {
+    const target = centre(card.target), contact = sweeps[order.indexOf(k)]!, flipAt = passes[k]! - 0.01;
+    cards.set(card.id, (p) => {
+      if (p >= 1) return resting(card);
+      if (p < contact) return { ...add(L.deck, { x: 0, y: -1 }, k * 0.7), z: 2 + k * 0.4, rx: 0, ry: card.identity ? 180 : 0, rz: (k - 1) * 2, scale: 1, opacity: smooth(range(p, 0, 0.05)) };
+      const u = range(p, contact, contact + slide), pos = lerp(L.deck, target, easeOut(u));
+      const f = range(p, flipAt, flipAt + flipLen), lift = Math.sin(Math.PI * f);
+      return { x: pos.x, y: pos.y - lift * L.cardH * 0.25, z: lift * L.cardH * 0.7 + 1, rx: lift * 12, ry: card.identity ? mix(180, 0, easeInOut(f)) : 0,
+        rz: (1 - easeOut(u)) * (k - 1) * 8 + lift * 6, scale: 1 + lift * 0.08 + wobble(range(p, flipAt + flipLen, flipAt + flipLen + 0.08)) * 0.03, opacity: 1 };
+    });
+  });
+  const batFrom = add(ballStart, dir, -radius * 1.1);
+  return {
+    street: 'flop', species: 'cat', cards,
+    prop: (p) => {
+      if (p < hit - 0.08) return undefined;
+      const at = ballAt(p), rolled = Math.hypot(at.x - ballStart.x, at.y - ballStart.y);
+      const appear = smooth(range(p, hit - 0.08, hit - 0.03)), fade = 1 - smooth(range(p, 0.9, 0.99));
+      return { x: at.x, y: at.y, radius, spin: rolled / radius * 57.3, opacity: appear * fade, thread: { from: add(ballStart, dir, -radius * 2.2), opacity: fade * 0.9 } };
+    },
+    puppy: (p) => {
+      if (p < approach) return approachCue(p, approach, add(L.deck, L.inward, -L.cardW * 0.5), L.middle, 'paw');
+      if (p < walk[0]) {
+        let i = 0;
+        while (i < 2 && p > sweeps[i]! + 0.03) i++;
+        const target = centre(slots[order[i]!]!.target);
+        return { phase: 'act', approach: 1, part: 'paw', point: add(L.deck, L.inward, -L.cardW * 0.5), face: L.middle, look: target, action: 'flick', actionT: range(p, sweeps[i]! - 0.03, sweeps[i]! + 0.03), excite: 0.5, mouth: 0 };
+      }
+      if (p < crouch[0]) {
+        // Trot round to the end of the row, behind the ball.
+        const from = add(L.deck, L.inward, -L.cardW * 0.5), u = smooth(range(p, walk[0], walk[1]));
+        return { phase: 'act', approach: 1, part: 'paw', point: lerp(from, batFrom, u), face: ballEnd, look: ballStart, action: 'run', actionT: u, excite: 0.6, mouth: 0 };
+      }
+      if (p < hit + 0.03) return { phase: 'act', approach: 1, part: 'paw', point: batFrom, face: ballEnd, look: ballStart, action: p < crouch[1] ? 'crouch' : 'bat', actionT: p < crouch[1] ? range(p, crouch[0], crouch[1]) : range(p, crouch[1], hit + 0.03), excite: 0.85, mouth: 0 };
+      const ball = ballAt(p);
+      return { phase: 'after', approach: 1, part: 'paw', point: batFrom, face: ballEnd, look: ball, action: p > 0.86 ? 'proud' : 'run', actionT: range(p, 0.86, 1), excite: 0.9, mouth: p > 0.86 ? 0.3 : 0 };
+    },
+  };
+}
+
+/** The cat walks the card in with one paw, slowly, looking at you the whole way, then flicks it over. */
+function catPushPlan(event: VisualEvent): Choreography {
+  const plan = riverPlan(event), L = layout(event), card = event.cards[0]!, target = centre(card.target);
+  const viewer = { x: target.x, y: target.y + L.cardH * 12 };
+  return { ...plan, species: 'cat', puppy: (p) => {
+    const cue = plan.puppy(p);
+    if (cue.action === 'paw-slide') return { ...cue, action: 'push', look: viewer, excite: 0.3 };
+    if (cue.action === 'spin') return { ...cue, action: 'proud', look: viewer, excite: 0.7 };
+    return cue;
+  } };
+}
+
+/** The cat slides the card into its slot, backs off, crouches with a wiggle and pounces; the card flips under its paws. */
+function catPouncePlan(event: VisualEvent): Choreography {
+  const L = layout(event), card = event.cards[0]!, target = centre(card.target);
+  const approach = 0.14, slide: [number, number] = [0.16, 0.36], back: [number, number] = [0.38, 0.47], crouch: [number, number] = [0.47, 0.62], leap: [number, number] = [0.62, 0.72], flip: [number, number] = [0.71, 0.82];
+  const dir = unit(L.deck, target), crouchAt = add(target, dir, -L.cardW * 1.7);
+  const sliding = (p: number): Pt => lerp(L.deck, target, easeInOut(range(p, slide[0], slide[1])));
+  const cards = new Map<string, (p: number) => CardCue>();
+  cards.set(card.id, (p) => {
+    if (p >= 1) return resting(card);
+    if (p < flip[0]) { const at = sliding(p); return { ...at, z: 1, rx: 0, ry: card.identity ? 180 : 0, rz: (1 - range(p, slide[0], slide[1])) * 6 * (dir.x >= 0 ? -1 : 1), scale: 1, opacity: smooth(range(p, 0, 0.06)) }; }
+    const f = range(p, flip[0], flip[1]), lift = Math.sin(Math.PI * f), land = wobble(range(p, flip[1], flip[1] + 0.1));
+    return { x: target.x, y: target.y - lift * L.cardH * 0.3, z: lift * L.cardH * 0.9, rx: lift * 14, ry: card.identity ? mix(180, 0, easeInOut(f)) : 0, rz: -lift * 5, scale: (1 + lift * 0.08) * (1 + land * 0.05), opacity: 1 };
+  });
+  const behind = (at: Pt): Pt => add(at, dir, -L.cardW * 0.4);
+  return {
+    street: event.type === 'TURN_REVEALED' ? 'turn' : 'river', species: 'cat', cards,
+    puppy: (p) => {
+      if (p < slide[0]) return approachCue(p, approach, behind(L.deck), target, 'paw');
+      if (p < back[0]) return { phase: 'act', approach: 1, part: 'paw', point: behind(sliding(p)), face: target, look: sliding(p), action: 'paw-slide', actionT: range(p, slide[0], slide[1]), excite: 0.5, mouth: 0 };
+      if (p < crouch[0]) return { phase: 'act', approach: 1, part: 'paw', point: lerp(behind(target), crouchAt, smooth(range(p, back[0], back[1]))), face: target, look: target, action: 'run', actionT: range(p, back[0], back[1]), excite: 0.6, mouth: 0 };
+      if (p < leap[0]) return { phase: 'act', approach: 1, part: 'paw', point: crouchAt, face: target, look: target, action: 'crouch', actionT: range(p, crouch[0], crouch[1]), excite: 0.95, mouth: 0 };
+      if (p < flip[1]) { const u = range(p, leap[0], leap[1]); return { phase: 'act', approach: 1, part: 'paw', point: lerp(crouchAt, target, easeOut(u)), face: target, look: target, action: 'pounce', actionT: u, excite: 1, mouth: 0.2 }; }
+      return { phase: 'after', approach: 1, part: 'paw', point: target, face: target, look: target, action: 'proud', actionT: range(p, flip[1], 1), excite: 0.9, mouth: 0.3 };
+    },
+  };
+}
+
+/** The puppy's four kinds of choreography and the cat's four; the preset chooses which one runs. */
+export type PlanKind = 'deal' | 'flop' | 'mouth' | 'paw' | 'cat-deal' | 'cat-flop' | 'cat-push' | 'cat-pounce';
 
 export function choreograph(event: VisualEvent, kind: PlanKind): Choreography | undefined {
   if (!event.cards.length) return undefined;
   if (kind === 'deal') return dealPlan(event);
+  if (kind === 'cat-deal') return catDealPlan(event);
   if (kind === 'flop') return event.cards.length === 3 ? flopPlan(event) : undefined;
+  if (kind === 'cat-flop') return event.cards.length === 3 ? catFlopPlan(event) : undefined;
+  if (kind === 'cat-push') return catPushPlan(event);
+  if (kind === 'cat-pounce') return catPouncePlan(event);
   return kind === 'mouth' ? turnPlan(event) : riverPlan(event);
 }
 

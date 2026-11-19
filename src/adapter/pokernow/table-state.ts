@@ -37,6 +37,8 @@ export interface TableState {
   heroHand?: { position: number; hole: CardIdentity[]; board: CardIdentity[] };
   boardCount: number;
   board?: Rect;
+  /** Cards the site marks as part of the winning hand at showdown (board and hole cards). */
+  winning?: Rect[];
 }
 
 /** "1,250", "12.50", "3.4k" → number. Returns undefined for anything else. */
@@ -103,6 +105,8 @@ export function readTableState(table: HTMLElement): TableState | undefined {
   const hole=hero?visible(Array.from(hero.querySelectorAll('.table-player-cards:not(.hide-cards) .card-container'))):[];
   const board=visible(boardCards);
   const position=seats.find(seat=>seat.you&&!seat.folded)?.position;
+  // At showdown the site lifts the cards that make the winning hand.
+  const winning = Array.from(table.querySelectorAll<HTMLElement>('.card-container.up')).filter((element) => !element.closest(OWNED_SELECTOR) && isPainted(element)).map(rectangle).filter((rect) => rect.width > 4);
   return {
     ...(position&&hole.length===2&&board.length===boardCards.length&&boards.length===1?{heroHand:{position,hole,board}}:{}),
     table: rectangle(table), seats,
@@ -110,5 +114,6 @@ export function readTableState(table: HTMLElement): TableState | undefined {
     ...(bigBlind && bigBlind > 0 ? { bigBlind } : {}),
     boardCount: boardCards.length,
     ...(boards.length === 1 ? { board: rectangle(boards[0]!) } : {}),
+    ...(winning.length ? { winning } : {}),
   };
 }

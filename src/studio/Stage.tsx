@@ -39,6 +39,9 @@ interface Props {
 }
 
 const RATES: [number, string][] = [[0.25, '¼×'], [0.5, '½×'], [1, '1×']];
+const WIN_NAMES = ['', 'Small pot', 'Medium pot', 'Big pot', 'All-in won', 'You won'];
+/** How much the stage enlarges around the companion on the Companion page (see .stage-zoom.zoomed). */
+const ZOOM = 1.6;
 const PETS: CompanionAction[] = ['tilt', 'bark', 'scratch', 'stretch'];
 
 export function Stage(props: Props) {
@@ -86,11 +89,18 @@ export function Stage(props: Props) {
     return () => window.clearInterval(timer);
   }, [companionPage, hasCompanion, previewMode, preview]);
 
+  // Render the companion sharper while the close-up enlarges it.
+  useEffect(() => { (preview.current as LiveTableHandle | null)?.zoom?.(zoomed ? ZOOM : 1); }, [zoomed, preview]);
+  const scrubbing = useRef(false);
+  // Only once the effect is under way: before its first frame there is nothing to hold.
+  const canScrub = playing && !nowPlaying?.win && previewMode === 'live' && progress > 0 && progress < 1;
+  const seek = (value: number): void => { (preview.current as LiveTableHandle | null)?.seek?.(value); };
+
   const assigned = nowPlaying ? assignmentLabel(studio.theme, nowPlaying.street) : assignmentLabel(studio.theme, studio.street);
   const trialPreset = nowPlaying?.trial && nowPlaying.presetId ? getPreset(nowPlaying.presetId) : undefined;
-  const effectName = nowPlaying?.hand ? 'Your whole hand' : trialPreset ? presetName(trialPreset)
+  const effectName = nowPlaying?.win ? WIN_NAMES[nowPlaying.win]! : nowPlaying?.hand ? 'Your whole hand' : trialPreset ? presetName(trialPreset)
     : nowPlaying?.presetId && nowPlaying.presetId !== 'random' ? presetName(getPreset(nowPlaying.presetId) ?? presets[0]!) : assigned.name;
-  const eventName = nowPlaying ? (nowPlaying.hand ? `Now: ${streetName(nowPlaying.street)}` : streetName(nowPlaying.street)) : streetName(studio.street);
+  const eventName = nowPlaying?.win ? 'Win' : nowPlaying ? (nowPlaying.hand ? `Now: ${streetName(nowPlaying.street)}` : streetName(nowPlaying.street)) : streetName(studio.street);
 
   const pet = (event: React.PointerEvent<HTMLDivElement>) => {
     const box = zoomBox.current?.getBoundingClientRect();
@@ -156,7 +166,14 @@ export function Stage(props: Props) {
         <button type="button" className="icon-button" title="Reset the table" aria-label="Reset the table" onClick={props.onReset}><Icon name="reset" size={17} /></button>
       </div>
       <div className="player-now"><small>{eventName}</small><b>{effectName}</b>
-        <span className="player-track" aria-hidden="true"><span style={{ transform: `scaleX(${playing || progress === 1 ? progress : 0})` }} /></span></div>
+        <span className="player-track" aria-hidden="true"><span style={{ transform: `scaleX(${playing || progress === 1 ? progress : 0})` }} /></span>
+        {/* Drag to hold the effect on any moment; let go and it carries on. */}
+        <input type="range" className="scrub" min={0} max={1000} step={1} value={Math.round((playing ? progress : 0) * 1000)} disabled={!canScrub}
+          aria-label="Scrub through the effect" title={canScrub ? 'Drag to see any moment of the effect' : 'Play an effect to scrub through it'}
+          onPointerDown={() => { scrubbing.current = true; preview.current?.pause(); }}
+          onPointerUp={() => { scrubbing.current = false; if (!paused) preview.current?.resume(); }}
+          onPointerCancel={() => { scrubbing.current = false; if (!paused) preview.current?.resume(); }}
+          onChange={(event) => seek(Number(event.target.value) / 1000)} /></div>
       <div className="player-streets" role="group" aria-label="Play a moment">
         {STREETS.map((item, index) => <button type="button" key={item} className={`${studio.street === item ? 'on' : ''} ${playing && nowPlaying?.street === item ? 'live' : ''}`}
           aria-keyshortcuts={String(index + 1)} aria-pressed={studio.street === item} title={`${streetName(item)} (${index + 1})`} onClick={() => props.onPlay(item)}>{streetShort(item)}</button>)}

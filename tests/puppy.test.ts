@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { builtInThemes, createDefaultLibrary, puppyTheme } from '../src/themes/defaults';
+import { builtInThemes, catTheme, createDefaultLibrary, puppyTheme } from '../src/themes/defaults';
+import { counterpart, presetSpecies } from '../src/animation/presets/puppy';
 import { validateLibrary, validateTheme } from '../src/themes/schema';
 import { choreograph, planFor, planForEvent, type PlanKind } from '../src/puppy/plan';
 import type { Companion, CompanionModule, StageDirector } from '../src/puppy/types';
@@ -12,6 +13,10 @@ const card = (id: string, x: number, y: number, identity?: VisualCard['identity'
 
 function event(kind: PlanKind): VisualEvent {
   const base = { id: `fixture-${kind}`, timestamp: Date.now(), origin: { x: 900, y: 420, z: 0 } };
+  if (kind === 'cat-deal') kind = 'deal';
+  if (kind === 'cat-flop') kind = 'flop';
+  if (kind === 'cat-push') kind = 'paw';
+  if (kind === 'cat-pounce') kind = 'mouth';
   if (kind === 'deal') {
     const seats = [[620, 600], [300, 520], [260, 200], [620, 100], [980, 200]];
     const cards = [0, 1].flatMap((round) => seats.map(([x, y], seat) => card(`s${seat}-c${round}`, x! + round * 30, y!, seat === 0 ? { rank: 'A', suit: 'hearts' } : undefined, seat, round)));
@@ -30,11 +35,23 @@ test('Puppy is a valid built-in theme with a companion, puppy deck, paw table an
   assert.equal(theme.table.motif, 'puppy'); assert.equal(theme.table.emblem, 'paw');
   assert.deepEqual(Object.values(theme.animations).map((a) => a.preset), ['deal.puppy', 'flop.puppy', 'turn.puppy', 'river.puppy']);
   assert.ok(builtInThemes.some((room) => room.id === 'room-puppy'));
-  // Other rooms have no companion; each keeps its own felt pattern (Neon and Sakura have theirs).
-  for (const room of builtInThemes.filter((r) => r.id !== 'room-puppy')) { assert.equal(room.companion, undefined); assert.notEqual(room.table.motif, 'puppy'); }
-  assert.deepEqual(builtInThemes.map((room) => room.table.motif), ['classic', 'classic', 'classic', 'classic', 'neon', 'sakura', 'puppy']);
+  // Other rooms have no companion, except the Cat Café's cat; each keeps its own felt pattern.
+  for (const room of builtInThemes.filter((r) => r.id !== 'room-puppy' && r.id !== 'room-cat')) { assert.equal(room.companion, undefined); assert.notEqual(room.table.motif, 'puppy'); }
+  assert.deepEqual(builtInThemes.map((room) => room.table.motif), ['classic', 'classic', 'classic', 'classic', 'neon', 'sakura', 'arcade', 'rain', 'breach', 'puppy', 'cat']);
   assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'puppy', animations: true, intensity: 'wild', scale: 'medium' } }));
-  assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium' } }));
+  assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'dog', animations: true, intensity: 'normal', scale: 'medium' } }));
+  assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', catCoat: 'spotted' } }));
+});
+
+test('Cat Café is a valid built-in theme with the cat, a cat deck, yarn table and the cat\'s four moves', () => {
+  const theme = validateTheme(structuredClone(catTheme));
+  assert.equal(theme.name, 'Cat Café');
+  assert.deepEqual(theme.companion, { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', collar: 'sapphire', catCoat: 'tabby', eyes: 'green' });
+  assert.equal(theme.card.face, 'cat'); assert.equal(theme.card.back, 'yarn'); assert.equal(theme.table.motif, 'cat'); assert.equal(theme.table.emblem, 'yarn');
+  assert.deepEqual(Object.values(theme.animations).map((a) => a.preset), ['deal.cat', 'flop.cat', 'turn.cat', 'river.cat']);
+  for (const id of ['deal.cat', 'flop.cat', 'turn.cat', 'river.cat']) { assert.equal(presetSpecies(id), 'cat'); assert.equal(counterpart(id, 'puppy'), id.replace('.cat', '.puppy')); }
+  assert.equal(presetSpecies('flop.grand'), undefined);
+  assert.equal(counterpart('flop.grand', 'cat'), 'flop.grand', 'house effects are never swapped');
 });
 
 test('library v4 adds the Puppy room once, keeps the owner\'s themes and choice, and respects a later deletion', () => {
@@ -43,7 +60,7 @@ test('library v4 adds the Puppy room once, keeps the owner\'s themes and choice,
   v3.themes = v3.themes.filter((theme) => theme.id !== 'room-puppy');
   v3.settings.activeThemeId = 'room-rouge';
   const upgraded = validateLibrary(v3);
-  assert.equal(upgraded.version, 5);
+  assert.equal(upgraded.version, 6);
   assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-puppy').length, 1);
   assert.equal(upgraded.settings.activeThemeId, 'room-rouge', 'the active theme is not switched');
   // A theme missing `motif` (saved before this release) reads as classic.
@@ -56,8 +73,10 @@ test('library v4 adds the Puppy room once, keeps the owner\'s themes and choice,
 });
 
 test('each card leaves exactly when the puppy touches it, and every card lands on its measured slot', () => {
-  for (const kind of ['deal', 'flop', 'mouth', 'paw'] as PlanKind[]) {
+  for (const kind of ['deal', 'flop', 'mouth', 'paw', 'cat-deal', 'cat-flop', 'cat-push', 'cat-pounce'] as PlanKind[]) {
     const e = event(kind), plan = choreograph(e, kind)!;
+    // The cat's flop flips each card under the rolling ball rather than at the paw.
+    if (kind === 'cat-flop') continue;
     assert.ok(plan, kind);
     for (const c of e.cards) {
       const cue = plan.cards.get(c.id)!;
@@ -88,6 +107,31 @@ test('each card leaves exactly when the puppy touches it, and every card lands o
   assert.equal(planFor(e, 'flop'), planForEvent(e.id));
   assert.equal(planFor(e, 'flop'), planFor(e, 'flop'));
   assert.equal(choreograph(event('flop'), 'flop') && choreograph({ ...event('flop'), cards: event('flop').cards.slice(0, 2) }, 'flop'), undefined, 'a partial flop is not choreographed');
+});
+
+test('the yarn ball rolls over each flop card as it flips, and the cat bats it first', () => {
+  const e = event('cat-flop'), plan = choreograph(e, 'cat-flop')!;
+  assert.equal(plan.species, 'cat');
+  assert.ok(plan.prop, 'the cat flop has a ball of yarn');
+  // The ball is there only from the bat onwards, then fades.
+  assert.equal(plan.prop!(0.2), undefined);
+  assert.equal(plan.prop!(0.995)?.opacity ?? 0, 0);
+  let bat = -1;
+  for (let i = 0; i <= 1000; i++) { const cue = plan.puppy(i / 1000); if (cue.action === 'bat') { bat = i / 1000; break; } }
+  assert.ok(bat > 0.4, 'the cat bats the ball after paw-flicking the cards out');
+  for (const card of e.cards) {
+    const cue = plan.cards.get(card.id)!;
+    // Find when the card turns face up (ry crosses 90).
+    let flip = -1;
+    for (let i = 0; i <= 2000; i++) { if (cue(i / 2000).ry < 90) { flip = i / 2000; break; } }
+    assert.ok(flip > bat, `${card.id} turns over after the bat`);
+    const ball = plan.prop!(flip)!, centre = { x: card.target.x + card.target.width / 2, y: card.target.y + card.target.height / 2 };
+    assert.ok(ball.opacity > 0.5, 'the ball is visible as the card turns');
+    assert.ok(Math.hypot(ball.x - centre.x, ball.y - centre.y) < card.target.width * 0.75, `the ball is over ${card.id} as it turns (${Math.round(Math.hypot(ball.x - centre.x, ball.y - centre.y))}px)`);
+    const end = cue(1);
+    assert.deepEqual([end.x, end.y, end.ry, end.opacity], [centre.x, centre.y, 0, 1]);
+  }
+  for (const kind of ['cat-deal', 'cat-push', 'cat-pounce'] as PlanKind[]) assert.equal(choreograph(event(kind), kind)!.species, 'cat');
 });
 
 test('the runtime loads the companion only for a companion theme, wires the director, and disposes it on switch', async () => {

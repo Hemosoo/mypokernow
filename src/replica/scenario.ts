@@ -102,6 +102,50 @@ export class Scenario {
     }
   }
 
+  /**
+   * One step of the win celebration, on its own: the river is out, then the pot is
+   * awarded. 1–3 are someone else's small, medium and big pot, 4 an all-in they win
+   * with their winning cards lifted, 5 your own full house.
+   */
+  async showdown(step: 1 | 2 | 3 | 4 | 5, settle?: () => void): Promise<void> {
+    const token = ++this.token;
+    this.clear();
+    const mine = step === 5, n = this.state.seats.length;
+    const hero = this.state.seats[0]!, villain = this.state.seats[Math.min(2, n - 1)]!;
+    const board = mine ? ['Kd', '7c', '7h', '3s', '9d'] : BOARD;
+    const heroCards = mine ? ['Ks', 'Kh'] : HERO;
+    this.state.seats.forEach((seat, index) => { seat.cards = index === 0 ? heroCards.map((value) => ({ value, flipped: true })) : [{}, {}]; });
+    this.state.board = board.map((value) => ({ value, flipped: true }));
+    // Pots in big blinds at 10/20: 10, 30 and 100 big blinds, an all-in, your 62.
+    const pot = [0, 200, 600, 2000, 1800, 1240][step]!;
+    this.state.pot = pot;
+    if (step === 4) villain.stack = 0;
+    this.render();
+    // The table is read at rest first, so the board is not dealt again.
+    settle?.();
+    if (!await this.sleep(700, token)) return;
+    const winner = mine ? hero : villain;
+    winner.winner = true;
+    winner.gained = pot;
+    winner.stack += pot;
+    if (step === 4) {
+      // The site turns the winner's cards up and lifts the ones that make the hand.
+      villain.cards = VILLAIN.map((value) => ({ value, flipped: true, up: true }));
+      villain.handMessage = 'Two Pair';
+      this.state.board = this.state.board.map((card) => ({ ...card, up: card.value === 'Kh' || card.value === 'Qd' ? true : undefined, hide: !(card.value === 'Kh' || card.value === 'Qd') }));
+    }
+    if (mine) {
+      hero.handMessage = 'Full House';
+      hero.cards = heroCards.map((value) => ({ value, flipped: true, up: true }));
+      this.state.board = this.state.board.map((card) => ({ ...card, up: ['Kd', '7c', '7h'].includes(card.value!) ? true : undefined, hide: !['Kd', '7c', '7h'].includes(card.value!) }));
+    }
+    this.state.pot = 0;
+    this.render();
+    if (!await this.sleep(3200, token)) return;
+    const reset = this.fresh(n, this.state.orientation);
+    this.state.seats.forEach((seat, index) => { seat.stack = reset.seats[index]!.stack; });
+  }
+
   /** A complete hand: blinds, deal, three streets of betting, an all-in and a showdown. */
   async playHand(pace = 1): Promise<boolean> {
     const token = ++this.token;

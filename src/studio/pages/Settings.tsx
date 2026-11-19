@@ -1,22 +1,29 @@
 import { useState } from 'react';
-import type { EffectSettings } from '../../types';
+import type { EffectSettings, WinSize } from '../../types';
 import { SHORTCUTS } from '../CommandMenu';
 import type { Studio } from '../studio-types';
-import { Icon, Kbd, Range, Section, Setting, Toggle } from '../ui';
+import { Icon, Kbd, Range, Section, Segmented, Setting, Toggle } from '../ui';
 
-const EFFECTS: [keyof EffectSettings, string, string][] = [
+type Switch = Exclude<keyof EffectSettings, 'winSize' | 'othersWins'>;
+const EFFECTS: [Switch, string, string][] = [
   ['chips', 'Moving chips', 'Bets and the pot as chip stacks that slide between seats.'],
-  ['celebrations', 'Winner celebrations', 'Light and particles for the winner, scaled to the pot.'],
+  ['celebrations', 'Winner celebrations', 'Light, a spotlight, the room’s flourish and your hand named on your wins. Size is set under Wins.'],
   ['moments', 'Table moments', 'Turn light, all-in beat, fold muck and the low-time cue.'],
   ['ambience', 'Ambient particles', 'Dust, petals or pixels drifting above the felt.'],
 ];
 type Mode = 'high' | 'balanced' | 'light';
-const MODES: Record<Mode, { name: string; note: string; effects: EffectSettings }> = {
+const MODES: Record<Mode, { name: string; note: string; effects: Record<Switch, boolean> }> = {
   high: { name: 'High quality', note: 'Everything on.', effects: { chips: true, celebrations: true, moments: true, ambience: true } },
   balanced: { name: 'Balanced', note: 'No ambient particles.', effects: { chips: true, celebrations: true, moments: true, ambience: false } },
   light: { name: 'Lightweight', note: 'Card effects only. Best on older laptops.', effects: { chips: false, celebrations: false, moments: false, ambience: false } },
 };
-const modeOf = (effects: EffectSettings): Mode | undefined => (Object.keys(MODES) as Mode[]).find((mode) => (Object.keys(effects) as (keyof EffectSettings)[]).every((key) => MODES[mode].effects[key] === effects[key]));
+const modeOf = (effects: EffectSettings): Mode | undefined => (Object.keys(MODES) as Mode[]).find((mode) => (Object.keys(MODES[mode].effects) as Switch[]).every((key) => MODES[mode].effects[key] === effects[key]));
+const WIN_SIZES: [WinSize, string][] = [['quiet', 'Quiet'], ['balanced', 'Balanced'], ['loud', 'Loud']];
+const WIN_NOTES: Record<WinSize, string> = {
+  quiet: 'At most a sweep of light across the felt. Your hand is still named when you win.',
+  balanced: 'Grows with the pot: a glow, then a sweep of light, then a spotlight and the room’s own flourish for a big pot.',
+  loud: 'Every win one step bigger than its pot. Big pots get the full show.',
+};
 
 export function SettingsPage({ studio }: { studio: Studio }) {
   const { library, inspection } = studio;
@@ -54,11 +61,19 @@ export function SettingsPage({ studio }: { studio: Studio }) {
     <Section title="Performance" note="How much the table does besides the card effects.">
       <div className="mode-grid" role="radiogroup" aria-label="Performance mode">
         {(Object.keys(MODES) as Mode[]).map((key) => <button type="button" role="radio" key={key} aria-checked={mode === key} className={`mode ${mode === key ? 'on' : ''}`}
-          onClick={() => studio.setting('effects', { ...MODES[key].effects })}><b>{MODES[key].name}</b><small>{MODES[key].note}</small></button>)}
+          onClick={() => studio.setting('effects', { ...settings.effects, ...MODES[key].effects })}><b>{MODES[key].name}</b><small>{MODES[key].note}</small></button>)}
       </div>
       {!mode && <p className="hint">Custom: your own mix below.</p>}
       {EFFECTS.map(([key, title, description]) => <Setting key={key} title={title} description={description}>
         <Toggle label={`Enable ${key}`} checked={settings.effects[key]} onChange={(value) => studio.setting('effects', { ...settings.effects, [key]: value })} /></Setting>)}
+    </Section>
+
+    <Section title="Wins" note="How big a win gets. The Win tab in Effects plays each step on the preview table.">
+      <div className="field"><span className="label">Size</span>
+        <Segmented label="Win size" value={settings.effects.winSize} options={WIN_SIZES} onChange={(winSize) => studio.setting('effects', { ...settings.effects, winSize })} /></div>
+      <p className="hint">{WIN_NOTES[settings.effects.winSize]}</p>
+      <Setting title="Celebrate other players’ wins" description="Off, other players’ wins keep to their chips sliding over; yours are still celebrated.">
+        <Toggle label="Celebrate other players’ wins" checked={settings.effects.othersWins} onChange={(othersWins) => studio.setting('effects', { ...settings.effects, othersWins })} /></Setting>
     </Section>
 
     <Section title="Your data" note="Themes, settings and images stay on this computer, in this browser profile.">

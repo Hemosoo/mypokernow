@@ -1,4 +1,4 @@
-import type { PuppyCoat, PuppyCollar } from '../types';
+import type { CompanionKind, CompanionSettings } from '../types';
 import { COATS, COLLARS } from './coats';
 import {
   CanvasTexture, CapsuleGeometry, CircleGeometry, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshPhysicalMaterial,
@@ -15,6 +15,12 @@ import {
  */
 export interface Leg { hip: Group; knee: Group; paw: Group }
 export interface PuppyRig {
+  /** Which character this is: the brain and the pose solver read a few proportions from it. */
+  kind: CompanionKind;
+  /** Height of the hips above the floor when standing, in model units. */
+  bodyY: number;
+  /** Standing height to the top of the head, in model units. */
+  height: number;
   root: Group;
   /** Hips pivot: bob, squash, lean, sit. */
   body: Group;
@@ -29,8 +35,8 @@ export interface PuppyRig {
   shadow: Mesh;
   /** Joints the brain reads world positions from. */
   sockets: { nose: Object3D; mouth: Object3D; pawL: Object3D; pawR: Object3D };
-  /** Recolour the fur and collar in place; no geometry is rebuilt. */
-  paint(coat: PuppyCoat, collar: PuppyCollar): void;
+  /** Recolour the fur, eyes and collar in place from the companion settings; no geometry is rebuilt. */
+  paint(settings: CompanionSettings): void;
   dispose(): void;
 }
 
@@ -179,9 +185,10 @@ export function buildPuppy(): PuppyRig {
 
   root.traverse((object) => { object.matrixAutoUpdate = true; });
   return {
+    kind: 'puppy', bodyY: 0.44, height: 1.3,
     root, body, neck, head, jaw, tongue, eyes, ears, tail, legs, shadow, sockets,
-    paint(coat, collarColor) {
-      const colors = COATS[coat] ?? COATS.golden;
+    paint(settings) {
+      const colors = COATS[settings.coat ?? 'golden'] ?? COATS.golden, collarColor = settings.collar ?? 'ruby';
       fur.color.set(colors.fur); fur.sheenColor.set(colors.sheen);
       cream.color.set(colors.cream);
       earFur.color.set(colors.ear); earFur.sheenColor.set(colors.earSheen);

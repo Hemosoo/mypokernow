@@ -30,6 +30,16 @@ const wanted = process.argv.slice(2);
 const catalogue = registry.presets.filter((preset) => !wanted.length || wanted.includes(preset.id))
   .map((preset) => ({ id: preset.id, duration: preset.duration, street: preset.supportedEvents[0], companion: Boolean(preset.companion) }));
 
+/** Each room's own effects are recorded in that room, so their thumbnails show its deck and felt. */
+function roomFor(id) {
+  if (/\.cat$/.test(id)) return 'room-cat';
+  if (/\.puppy$/.test(id)) return 'room-puppy';
+  if (/\.pixel$/.test(id)) return 'room-arcade';
+  if (/\.hologram$/.test(id)) return 'room-rain';
+  if (/\.(packet|decrypt)$/.test(id)) return 'room-breach';
+  return 'room-monte-carlo';
+}
+
 await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch();
 
@@ -68,7 +78,7 @@ async function capture(preset) {
     theme.animations[street] = { preset: id, parameters: {} };
     replica.configure(theme, replica.settings);
     replica.rest(street);
-  }, { id: preset.id, street: preset.street, room: preset.companion ? 'room-puppy' : 'room-monte-carlo' });
+  }, { id: preset.id, street: preset.street, room: roomFor(preset.id) });
   // Let fonts, artwork and (for the puppy) the 3D model settle at rest.
   for (let frame = 0; frame < 75; frame++) await step();
   if (preset.companion) await page.waitForFunction(() => globalThis.__pncReplica.runtime.companionDebug?.(), null, { timeout: 20000 });

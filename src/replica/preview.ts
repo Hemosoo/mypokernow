@@ -40,6 +40,8 @@ async function loop(): Promise<void> {
   looping = false;
 }
 function stop(): void { looping = false; scenario.stop(); }
+/** One step of the win celebration (1–5), on its own. */
+async function win(step: 1 | 2 | 3 | 4 | 5): Promise<void> { stop(); await scenario.showdown(step, () => runtime.scan()); }
 /** One complete hand, from the blinds to the winner. */
 async function hand(): Promise<boolean> { stop(); return scenario.playHand(); }
 function rest(street: Street = 'river'): void { stop(); scenario.prepare(street); runtime.scan(); }
@@ -131,8 +133,10 @@ function setPlayers(count: number): void { stop(); scenario.setPlayers(count); s
 function companion(action: CompanionAction): boolean { return runtime.companionPerform(action); }
 /** Where the companion stands, in the frame's pixels; undefined when there is none. */
 function companionAt(): { x: number; y: number } | undefined { const debug = runtime.companionDebug(); return debug?.visible ? debug.at : undefined; }
+/** The studio's close-up zoom, so the companion renders sharply while enlarged. */
+function companionZoom(factor: number): void { runtime.companionZoom(factor); }
 Object.assign(globalThis, { __pncReplica: {
-  scenario, runtime, get settings() { return settings; }, get theme() { return theme; }, play, hand, loop, stop, rest, configure, setPlayers, companion, companionAt,
+  scenario, runtime, get settings() { return settings; }, get theme() { return theme; }, play, hand, loop, stop, rest, configure, setPlayers, companion, companionAt, companionZoom, win,
   onAnimation(listener: AnimationListener | undefined) { animationListener = listener; },
 } });
 window.addEventListener('pagehide', () => { stop(); runtime.dispose(); }, { once: true });

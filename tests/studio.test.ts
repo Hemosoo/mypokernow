@@ -53,7 +53,7 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   assert.match(document.querySelector('.power')!.textContent!,/Preview only/,'A browser preview says it does not reach PokerNow');
   await clickText('.hero-actions .primary-button','Browse themes');
   assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Themes');
-  assert.equal(document.querySelectorAll('.theme-card').length,7,'Seven built-in themes, Neon and Sakura included');
+  assert.equal(document.querySelectorAll('.theme-card').length,11,'Eleven built-in themes, the new rooms and the Cat Café included');
 
   // Effects: event tabs, then cards for that moment, each with its own poster.
   await nav('Effects');
@@ -133,18 +133,18 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   const count=()=>document.querySelectorAll('.theme-card').length;
   await clickText('.head-actions .primary-button','New theme');
   assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Appearance','A new theme opens Appearance');
-  await nav('Themes');assert.equal(count(),8);
-  await clickText('.current .secondary-button','Duplicate');assert.equal(count(),9);
+  await nav('Themes');assert.equal(count(),12);
+  await clickText('.current .secondary-button','Duplicate');assert.equal(count(),13);
   await click('[aria-label="More actions for Monte Carlo"]');
   assert.ok(!document.querySelector('.card-menu .danger'),'Built-in themes cannot be deleted');
   await click('[aria-label="More actions for My theme"]');
-  await clickText('.card-menu button','Delete…');assert.equal(count(),9,'Delete asks first');
-  await clickText('.confirm .danger-button','Delete');assert.equal(count(),8);
+  await clickText('.card-menu button','Delete…');assert.equal(count(),13,'Delete asks first');
+  await clickText('.confirm .danger-button','Delete');assert.equal(count(),12);
   await save();assert.ok(!stored().themes.some(t=>t.name==='My theme'));
 
   // Appearance: faces, backs and table colours reach the preview artwork; undo puts them back.
   await nav('Appearance');
-  assert.equal(document.querySelectorAll('.face-option').length,7,'Seven decks, Neon, Sakura and Puppy included');
+  assert.equal(document.querySelectorAll('.face-option').length,11,'Eleven decks, Pixel, Hologram, Cipher and Cat included');
   const faceBefore=document.querySelector<HTMLImageElement>('[data-board="0"] img')!.src;
   await clickText('.face-option b','Neon');
   assert.notEqual(document.querySelector<HTMLImageElement>('[data-board="0"] img')!.src,faceBefore,'Face selection did not update the table artwork');
@@ -171,15 +171,38 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   await save();assert.deepEqual(stored().themes.find(t=>t.id===stored().settings.activeThemeId)!.companion,{kind:'puppy',animations:true,intensity:'normal',scale:'medium',coat:'chocolate',collar:'ruby'});
   await clickText('.trick','Celebrate');
   assert.match(document.querySelector('.companion-page')!.textContent!,/busy or still settling in/,'A trick that cannot play says so');
+  // Switch to the cat: its own coat, eyes and moves; the puppy's coat is kept for later.
+  const active=()=>stored().themes.find(t=>t.id===stored().settings.activeThemeId)!;
+  await clickText('.companion-option b','Cat');
+  await clickText('.swatch','Calico');
+  await clickText('.secondary-button','Use on every street');
+  await save();
+  assert.equal(active().companion!.kind,'cat');assert.equal(active().companion!.catCoat,'calico');assert.equal(active().companion!.coat,'chocolate','The puppy’s coat is kept');
+  assert.deepEqual(Object.values(active().animations).map(a=>a.preset),['deal.cat','flop.cat','turn.cat','river.cat']);
+  assert.ok([...document.querySelectorAll('.trick')].some(b=>b.textContent==='Meow'),'The cat meows rather than barks');
+  await clickText('.companion-option b','Puppy');
+  await save();
+  assert.deepEqual(Object.values(active().animations).map(a=>a.preset),['deal.puppy','flop.puppy','turn.puppy','river.puppy'],'Switching character swaps its moves');
+  // Effects: the Win tab lists the five steps of a win.
+  await nav('Effects');await clickText('.event-tab .event-name','Win');
+  assert.equal(document.querySelectorAll('.win-step').length,5);
+  assert.match(document.querySelector('.win-panel')!.textContent!,/You won.*names your hand/);
+  await nav('Companion');
 
   // Settings.
   await nav('Settings');await clickText('.connection button','Check PokerNow connection');
   assert.match(document.querySelector('.connection-results')!.textContent!, /Browser preview only.*Chrome toolbar/);
   await click('[aria-label="Reduced motion"]');assert.equal(document.querySelector('[aria-label="Reduced motion"]')?.getAttribute('aria-checked'),'true');
   await clickText('.mode b','Lightweight');
-  await save();assert.equal(stored().settings.reducedMotion,true);assert.deepEqual(stored().settings.effects,{chips:false,celebrations:false,moments:false,ambience:false});
+  await save();assert.equal(stored().settings.reducedMotion,true);assert.deepEqual(stored().settings.effects,{chips:false,celebrations:false,moments:false,ambience:false,winSize:'balanced',othersWins:true});
   await clickText('.mode b','High quality');
-  await save();assert.deepEqual(stored().settings.effects,{chips:true,celebrations:true,moments:true,ambience:true});
+  await save();assert.deepEqual(stored().settings.effects,{chips:true,celebrations:true,moments:true,ambience:true,winSize:'balanced',othersWins:true});
+  // Wins: size and other players' wins, kept apart from the performance modes.
+  await click('[aria-label="Win size"] [role="radio"]:last-child');
+  await click('[aria-label="Celebrate other players’ wins"]');
+  await save();assert.equal(stored().settings.effects.winSize,'loud');assert.equal(stored().settings.effects.othersWins,false);
+  await clickText('.mode b','Balanced');
+  await save();assert.equal(stored().settings.effects.winSize,'loud','A performance mode leaves the win size alone');
   assert.ok(!document.querySelector('.save-status.s-failed'));
   await click('[aria-label="Enable customization in settings"]');
   await nav('Effects');
@@ -192,7 +215,7 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   root=createRoot(document.getElementById('root')!);await act(async()=>{root.render(createElement(App));});await save();
   assert.ok(document.querySelector('.recovery-banner'));assert.equal(localStorage.getItem(KEY),broken,'Invalid data was overwritten without recovery');
   await click('.recovery-banner .primary-button');await save();
-  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(stored().version,5);
+  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(stored().version,6);
 
   // Uploaded assets can take longer than a frame. A preview waits for the exact resolved theme, then plays.
   await act(async()=>root.unmount());

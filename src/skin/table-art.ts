@@ -1,7 +1,8 @@
 import type { TableAppearance, TableEmblem } from '../types';
 import { darken, lighten, luminance, metal, mix, rgba, safeHex, shade, svgDataUrl } from '../rendering/color';
 import { PAW, bone, paw } from '../rendering/puppy-art';
-import { BLOSSOM, BOLT, blossom, fallingPetal } from '../rendering/motifs';
+import { BLOSSOM, BOLT, CHIP_MARK, COIN, SIGIL, blossom, fallingPetal } from '../rendering/motifs';
+import { YARN, catPaw, yarn } from '../rendering/cat-art';
 
 /**
  * The table, drawn rather than photographed: padded leather rail with twin
@@ -38,6 +39,10 @@ const EMBLEMS: Record<Exclude<TableEmblem, 'none'>, string> = {
   paw: `<g transform="translate(0 -4) scale(64)">${PAW}</g>`,
   blossom: `<g transform="scale(60)">${BLOSSOM}</g><circle r="4.2"/>`,
   bolt: `<g transform="scale(58)">${BOLT}</g>`,
+  coin: `<g transform="scale(58)">${COIN}</g>`,
+  sigil: `<g transform="scale(62)" stroke-width=".07">${SIGIL}</g>`,
+  chip: `<g transform="scale(56)">${CHIP_MARK}</g>`,
+  yarn: `<g transform="scale(60)" stroke-width=".05"><circle r=".42" stroke="none"/><g stroke="#000" stroke-opacity=".3">${YARN.replace('<circle r=".42"/>', '')}</g></g>`,
 };
 
 function emblem(kind: TableEmblem, x: number, y: number, scale: number, m: Materials): string {
@@ -73,6 +78,10 @@ function sharedDefs(m: Materials, feltClip: string): string {
 <clipPath id="feltClip">${feltClip}</clipPath>
 <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse"><path d="M0 .5H64M.5 0V64" fill="none" stroke="${m.high}" stroke-opacity=".34" stroke-width="1"/><circle cx=".5" cy=".5" r="2" fill="${m.spec}" fill-opacity=".55"/></pattern>
 <pattern id="petalfelt" width="170" height="170" patternUnits="userSpaceOnUse" patternTransform="rotate(8)"><g fill="${m.high}" fill-opacity=".5">${fallingPetal(30, 36, 16, -30)}${fallingPetal(120, 70, 13, 40)}${fallingPetal(70, 140, 15, 110)}${fallingPetal(150, 150, 11, -70)}</g><g fill="${m.high}" fill-opacity=".34">${blossom(96, 22, 20, 12)}${blossom(22, 112, 17, -20)}</g></pattern>
+<pattern id="pixelfelt" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="${m.feltHigh}" fill-opacity=".55"/><rect x="8" y="8" width="4" height="4" fill="${m.feltHigh}" fill-opacity=".55"/><rect x="8" width="4" height="4" fill="${m.feltLow}" fill-opacity=".35"/><rect y="8" width="4" height="4" fill="${m.feltLow}" fill-opacity=".35"/></pattern>
+<pattern id="scanfelt" width="8" height="6" patternUnits="userSpaceOnUse"><rect width="8" height="2" fill="#000" fill-opacity=".22"/></pattern>
+<pattern id="tracefelt" width="200" height="200" patternUnits="userSpaceOnUse"><g fill="none" stroke="${m.high}" stroke-opacity=".38" stroke-width="2.2" stroke-linejoin="round"><path d="M0 40H60L80 60V130L100 150H200M40 200V170L70 140M120 0V30L140 50H200M0 100H30L45 115V200M150 200V180L170 160H200"/></g><g fill="${m.high}" fill-opacity=".55"><circle cx="70" cy="140" r="5"/><circle cx="60" cy="40" r="4"/><circle cx="140" cy="50" r="4"/><circle cx="30" cy="100" r="4"/><circle cx="170" cy="160" r="4"/></g><g fill="none" stroke="${m.high}" stroke-opacity=".2" stroke-width="1.4"><rect x="150" y="80" width="30" height="30" rx="3"/></g></pattern>
+<pattern id="catfelt" width="150" height="150" patternUnits="userSpaceOnUse" patternTransform="rotate(10)"><g fill="${m.feltMark}" fill-opacity=".55">${catPaw(34, 36, 22, -16)}${catPaw(52, 60, 22, -16)}${catPaw(112, 104, 22, 24)}</g><g fill="${m.feltMark}" fill-opacity=".38" stroke="${m.feltLow}" stroke-width=".05">${yarn(114, 32, 26, 0)}${yarn(36, 118, 22, 40)}</g></pattern>
 <pattern id="pawfelt" width="150" height="150" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)"><g fill="${m.feltMark}" fill-opacity=".55">${paw(36, 40, 26, -20)}${paw(108, 112, 26, 18)}</g><g fill="${m.feltMark}" fill-opacity=".32">${bone(110, 34, 13, -32)}${bone(36, 116, 13, 28)}</g></pattern>`;
 }
 
@@ -93,7 +102,7 @@ function potWell(x: number, y: number, width: number, height: number, m: Materia
 }
 
 /** Paw prints walking around the rail between the two rows of stitching, toes pointing forward. */
-function railPaws(cx: number, cy: number, rx: number, ry: number, m: Materials): string {
+function railPaws(cx: number, cy: number, rx: number, ry: number, m: Materials, cat = false): string {
   let prints = '';
   const count = 34;
   for (let index = 0; index < count; index++) {
@@ -102,7 +111,7 @@ function railPaws(cx: number, cy: number, rx: number, ry: number, m: Materials):
     const side = index % 2 ? 1 : -1, nx = Math.cos(angle) / rx, ny = Math.sin(angle) / ry, length = Math.hypot(nx, ny);
     const x = cx + Math.cos(angle) * rx + side * 4 * nx / length, y = cy + Math.sin(angle) * ry + side * 4 * ny / length;
     const heading = Math.atan2(Math.cos(angle) * ry, -Math.sin(angle) * rx) * 180 / Math.PI + 90;
-    prints += paw(x, y, 9, heading);
+    prints += cat ? catPaw(x, y, 8, heading) : paw(x, y, 9, heading);
   }
   return `<g fill="${m.thread}" fill-opacity=".42">${prints}</g>`;
 }
@@ -124,11 +133,47 @@ function neonTube(shape: (attrs: string) => string, m: Materials): string {
 ${shape(`fill="none" stroke="${m.spec}" stroke-opacity=".95" stroke-width="2.2"`)}`;
 }
 
-/** The felt's own pattern for decorative rooms: paw prints, a lit grid or petals. */
+/** Arcade: a marquee of square bulbs around the rail, alternating gold and magenta. */
+function marquee(shape: (attrs: string) => string, m: Materials): string {
+  return `${shape(`fill="none" stroke="${m.high}" stroke-opacity=".5" stroke-width="16" stroke-dasharray="10 30" filter="url(#glint)"`)}
+${shape(`fill="none" stroke="${m.spec}" stroke-width="9" stroke-dasharray="9 31"`)}
+${shape(`fill="none" stroke="#ff4fd8" stroke-width="9" stroke-dasharray="9 31" stroke-dashoffset="20"`)}`;
+}
+
+/** Rain District: hazard marks worn into the chrome. */
+function hazard(shape: (attrs: string) => string): string {
+  return `${shape('fill="none" stroke="#f2b705" stroke-opacity=".75" stroke-width="7" stroke-dasharray="16 16"')}
+${shape('fill="none" stroke="#000" stroke-opacity=".35" stroke-width="7" stroke-dasharray="16 16" stroke-dashoffset="16"')}`;
+}
+
+/** Breach: a data line around the rail, broken into packets. */
+function dataLine(shape: (attrs: string) => string, m: Materials): string {
+  return `${shape(`fill="none" stroke="${m.high}" stroke-opacity=".45" stroke-width="8" stroke-dasharray="70 18 8 18" filter="url(#glint)"`)}
+${shape(`fill="none" stroke="${m.spec}" stroke-opacity=".9" stroke-width="2" stroke-dasharray="70 18 8 18"`)}`;
+}
+
+/** Cat Café: a strand of yarn twisted around the rail. */
+function yarnRail(shape: (dy: number, attrs: string) => string, m: Materials): string {
+  return `${shape(-3, `fill="none" stroke="${m.high}" stroke-opacity=".55" stroke-width="2.6"`)}${shape(3, `fill="none" stroke="${m.mid}" stroke-opacity=".5" stroke-width="2.6" stroke-dasharray="14 6"`)}`;
+}
+
+/** Rain District: sign light from the street pooled in the wet felt. */
+function puddles(x: number, y: number, w: number, h: number, m: Materials): string {
+  const blob = (fx: number, fy: number, fw: number, fh: number, color: string, opacity: number): string =>
+    `<ellipse cx="${n(x + w * fx)}" cy="${n(y + h * fy)}" rx="${n(w * fw)}" ry="${n(h * fh)}" fill="${color}" fill-opacity="${opacity}" filter="url(#softer)"/>`;
+  const streak = (fx: number, color: string): string => `<rect x="${n(x + w * fx)}" y="${n(y + h * 0.12)}" width="${n(w * 0.012)}" height="${n(h * 0.62)}" fill="${color}" fill-opacity=".16" filter="url(#soft)"/>`;
+  return `<g clip-path="url(#feltClip)">${blob(0.28, 0.72, 0.16, 0.12, m.high, 0.32)}${blob(0.74, 0.28, 0.14, 0.1, '#ffb84a', 0.26)}${blob(0.62, 0.78, 0.09, 0.07, '#4fd8ff', 0.22)}
+${streak(0.3, m.high)}${streak(0.73, '#ffb84a')}${streak(0.64, '#4fd8ff')}</g>`;
+}
+
+/** The felt's own pattern for decorative rooms: paw prints, a lit grid, petals, pixels, traces. */
 function feltPattern(motif: TableAppearance['motif'], shape: (attrs: string) => string): string {
   if (motif === 'puppy') return shape('fill="url(#pawfelt)" clip-path="url(#feltClip)" opacity=".5"');
   if (motif === 'neon') return shape('fill="url(#grid)" clip-path="url(#feltClip)" opacity=".42"');
   if (motif === 'sakura') return shape('fill="url(#petalfelt)" clip-path="url(#feltClip)" opacity=".5"');
+  if (motif === 'arcade') return `${shape('fill="url(#pixelfelt)" clip-path="url(#feltClip)" opacity=".8"')}${shape('fill="url(#scanfelt)" clip-path="url(#feltClip)" opacity=".7"')}`;
+  if (motif === 'breach') return shape('fill="url(#tracefelt)" clip-path="url(#feltClip)" opacity=".75"');
+  if (motif === 'cat') return shape('fill="url(#catfelt)" clip-path="url(#feltClip)" opacity=".5"');
   return '';
 }
 
@@ -151,7 +196,11 @@ ${ellipse(cx, cy - 2, 630, 320, 'fill="none" stroke="url(#sheen)" stroke-width="
 </g>
 ${ellipse(cx, cy + 5, 643, 330, `fill="none" stroke="${m.thread}" stroke-opacity=".62" stroke-width="1.7" stroke-dasharray="9 7" stroke-linecap="round"`)}
 ${ellipse(cx, cy + 1, 619, 310, `fill="none" stroke="${m.thread}" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="8 7" stroke-linecap="round"`)}
-${puppy ? railPaws(cx, cy + 3, 631, 320, m) : ''}
+${puppy || table.motif === 'cat' ? railPaws(cx, cy + 3, 631, 320, m, table.motif === 'cat') : ''}
+${table.motif === 'cat' ? yarnRail((dy, attrs) => ellipse(cx, cy + 3 + dy, 645, 333, attrs), m) : ''}
+${table.motif === 'arcade' ? marquee((attrs) => ellipse(cx, cy + 3, 631, 320, attrs), m) : ''}
+${table.motif === 'rain' ? hazard((attrs) => ellipse(cx, cy + 4, 642, 331, attrs)) : ''}
+${table.motif === 'breach' ? dataLine((attrs) => ellipse(cx, cy + 3, 631, 320, attrs), m) : ''}
 ${table.motif === 'sakura' ? railBlossoms(cx, cy + 3, 631, 320, m) : ''}
 ${table.motif === 'neon' ? neonTube((attrs) => ellipse(cx, cy + 3, 631, 320, attrs), m) : ''}
 ${ellipse(cx, cy + 1.5, 611, 303, 'fill="#000" fill-opacity=".55"')}
@@ -161,12 +210,13 @@ ${ellipse(cx, cy, rx + 1, ry + 1, 'fill="#000" fill-opacity=".7"')}
 ${ellipse(cx, cy, rx, ry, 'fill="url(#felt)"')}
 ${ellipse(cx, cy, rx, ry, 'fill="#fff" filter="url(#cloth)" opacity=".085"')}
 ${feltPattern(table.motif, (attrs) => ellipse(cx, cy, rx, ry, attrs))}
+${table.motif === 'rain' ? puddles(cx - rx, cy - ry, rx * 2, ry * 2, m) : ''}
 <g clip-path="url(#feltClip)">
 ${ellipse(cx, cy, rx + 6, ry + 6, 'fill="none" stroke="#000" stroke-opacity=".62" stroke-width="42" filter="url(#soft)"')}
 ${ellipse(cx, cy - 8, rx, ry, 'fill="none" stroke="#000" stroke-opacity=".3" stroke-width="10" filter="url(#glint)"')}
 ${ellipse(cx, 318, 440, 170, 'fill="#fff" fill-opacity=".06" filter="url(#softer)"')}
 ${ellipse(cx, cy, 523, 234, `fill="none" stroke="${m.feltLine}" stroke-opacity=".3" stroke-width="1.6"`)}
-${cardBoxes(528.9, 312.2, 153, 187, 13.6, puppy ? 20 : 13, m)}
+${cardBoxes(528.9, 312.2, 153, 187, 13.6, puppy || table.motif === 'cat' ? 20 : table.motif === 'arcade' ? 0 : 13, m)}
 ${potWell(820, 214, 246, 65, m)}
 ${emblem(table.emblem, cx, table.inscription.trim() ? 580 : 590, 0.92, m)}
 ${inscription(table.inscription, cx, 636, 15, m)}
@@ -191,7 +241,12 @@ ${rect(56, 81, 390, 650, 55, 'fill="#000" fill-opacity=".7"')}
 ${rect(57, 82, 388, 648, 54, 'fill="url(#felt)"')}
 ${rect(57, 82, 388, 648, 54, 'fill="#fff" filter="url(#cloth)" opacity=".085"')}
 ${feltPattern(table.motif, (attrs) => rect(57, 82, 388, 648, 54, attrs))}
+${table.motif === 'rain' ? puddles(57, 82, 388, 648, m) : ''}
 ${table.motif === 'neon' ? neonTube((attrs) => rect(46, 70, 410, 672, 64, attrs), m) : ''}
+${table.motif === 'arcade' ? marquee((attrs) => rect(46, 70, 410, 672, 64, attrs), m) : ''}
+${table.motif === 'rain' ? hazard((attrs) => rect(42, 64, 418, 684, 70, attrs)) : ''}
+${table.motif === 'breach' ? dataLine((attrs) => rect(46, 70, 410, 672, 64, attrs), m) : ''}
+${table.motif === 'cat' ? yarnRail((dy, attrs) => rect(44, 66 + dy, 414, 680, 68, attrs), m) : ''}
 <g clip-path="url(#feltClip)">
 ${rect(53, 78, 396, 656, 58, 'fill="none" stroke="#000" stroke-opacity=".6" stroke-width="26" filter="url(#soft)"')}
 <ellipse cx="251" cy="330" rx="170" ry="210" fill="#fff" fill-opacity=".05" filter="url(#softer)"/>

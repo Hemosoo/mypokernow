@@ -16,6 +16,8 @@ const MOODS: Record<string, Mood> = {
   'reveal.slam': 'showstopper', 'reveal.fragment-assembly': 'showstopper', 'reveal.crystallization': 'showstopper',
   'reveal.turnover': 'clean', 'reveal.squeeze': 'clean', 'reveal.spotlight': 'showstopper', 'reveal.showdown': 'showstopper',
   'turn.puppy': 'puppy', 'river.puppy': 'puppy',
+  'deal.pixel': 'clean', 'flop.pixel': 'clean', 'reveal.pixel': 'clean', 'deal.packet': 'showstopper',
+  'flop.hologram': 'showstopper', 'reveal.hologram': 'showstopper', 'flop.decrypt': 'showstopper', 'reveal.decrypt': 'showstopper',
 };
 export const moodOf = (preset: AnimationPreset): Mood => preset.companion ? 'puppy' : MOODS[preset.id] ?? 'clean';
 /** Effects at or under this length count as fast. */
@@ -126,6 +128,10 @@ export const PALETTES: Palette[] = [
   { name: 'Ember', felt: '#7a3a12', rail: '#1d120c', trim: '#f0c27a', room: '#0e0805', back: '#5a280b' },
   { name: 'Night city', felt: '#121a3a', rail: '#07070d', trim: '#43e3ff', room: '#05040c', back: '#140d2e' },
   { name: 'Dusk', felt: '#2d3c5a', rail: '#2b1a1c', trim: '#e9b2bf', room: '#110c12', back: '#8e3a55' },
+  { name: 'Arcade', felt: '#1a3fae', rail: '#2a1a4a', trim: '#ffcc1a', room: '#06060f', back: '#2337c9' },
+  { name: 'Wet asphalt', felt: '#17181f', rail: '#33343d', trim: '#ff3d8b', room: '#07060c', back: '#141a2a' },
+  { name: 'Graphite rig', felt: '#1b1d20', rail: '#0c0d0e', trim: '#b7ff3c', room: '#040505', back: '#0b0c0d' },
+  { name: 'Café', felt: '#2f6668', rail: '#5e3c28', trim: '#f0b46a', room: '#130e0b', back: '#b4574f' },
 ];
 
 /** Same look, ignoring names and timestamps: used to tell whether a built-in has been changed. */

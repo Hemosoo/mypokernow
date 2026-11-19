@@ -43,7 +43,6 @@ export const neutralPose = (): PuppyPose => ({
   mouth: 0, tongue: 0, blink: 0, tailWag: 0, tailLift: 0, gait: 0, stride: 0, pawL: 0, pawR: 0, reachL: 0, reachR: 0, scratch: 0, scratchPhase: 0,
 });
 
-const BODY_Y = 0.44;
 
 function setLeg(leg: Leg, hip: number, knee: number, paw = 0): void {
   leg.hip.rotation.x = hip;
@@ -53,7 +52,7 @@ function setLeg(leg: Leg, hip: number, knee: number, paw = 0): void {
 
 export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
   const { body, neck, head, jaw, tongue, eyes, ears, tail, legs } = rig;
-  const sit = pose.sit, bow = pose.bow;
+  const sit = pose.sit, bow = pose.bow, cat = rig.kind === 'cat', BODY_Y = rig.bodyY;
 
   // Body: sitting pitches the chest up and drops the rump; a bow does the reverse.
   const bob = pose.bob * (1 - sit * 0.6);
@@ -69,19 +68,32 @@ export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
   neck.rotation.y = pose.headYaw * 0.45;
   head.rotation.y = pose.headYaw * 0.55;
   head.rotation.z = pose.headTilt;
-  jaw.rotation.x = pose.mouth * 0.5;
+  jaw.rotation.x = pose.mouth * (cat ? 0.38 : 0.5);
   tongue.visible = pose.mouth > 0.08 || pose.tongue > 0.05;
   tongue.scale.z = 0.08 * (1 + pose.tongue * 0.8);
   tongue.position.z = 0.12 + pose.tongue * 0.05;
   const lid = 1 - Math.max(0, Math.min(1, pose.blink)) * 0.88;
   for (const eye of eyes) eye.scale.y = lid;
-  ears[0]!.rotation.z = -0.2 - pose.earL;
-  ears[1]!.rotation.z = 0.2 + pose.earR;
-  ears[0]!.rotation.x = pose.earL * -0.35;
-  ears[1]!.rotation.x = pose.earR * -0.35;
+  if (cat) {
+    // Upright ears that swivel and flatten a little; they never flop.
+    ears[0]!.rotation.z = pose.earL * 0.45;
+    ears[1]!.rotation.z = -pose.earR * 0.45;
+    ears[0]!.rotation.x = ears[1]!.rotation.x = -Math.max(0, -(pose.earL + pose.earR) / 2) * 0.4;
+  } else {
+    ears[0]!.rotation.z = -0.2 - pose.earL;
+    ears[1]!.rotation.z = 0.2 + pose.earR;
+    ears[0]!.rotation.x = pose.earL * -0.35;
+    ears[1]!.rotation.x = pose.earR * -0.35;
+  }
 
-  // Tail: a wave travelling to the tip, lifting with happiness.
-  tail.forEach((segment, index) => {
+  // Tail: a wave travelling to the tip, lifting with happiness. A cat's tail stands up
+  // in a long curve with a hooked tip and swishes slowly from side to side.
+  if (cat) tail.forEach((segment, index) => {
+    const t = index / (tail.length - 1);
+    segment.rotation.y = pose.tailWag * (0.12 + t * 0.32) * Math.cos(index * 0.7 - pose.tailWag);
+    segment.rotation.x = index === 0 ? -(0.45 + pose.tailLift * 0.75) + sit * 1.2 : (t > 0.7 ? -0.28 * pose.tailLift : 0.05 - pose.tailLift * 0.06) + sit * 0.06;
+  });
+  else tail.forEach((segment, index) => {
     const t = index / (tail.length - 1);
     segment.rotation.y = pose.tailWag * (0.55 + t * 0.6) * Math.cos(index * 0.5);
     segment.rotation.x = -(0.55 + pose.tailLift * 0.35) * (index === 0 ? 1 : 0.32) + sit * (index === 0 ? 0.8 : 0);

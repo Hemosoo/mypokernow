@@ -80,7 +80,7 @@ test('version 3 moves untuned house presets to the showpieces once and keeps del
  v2.themes[0]!.animations = { deal: { preset: 'deal.pitch', parameters: pitchDefaults }, flop: { preset: 'flop.cascade', parameters: {} },
    turn: { preset: 'reveal.turnover', parameters: { duration: 1200 } }, river: { preset: 'reveal.slam', parameters: {} } };
  const upgraded = validateLibrary(v2);
- assert.equal(upgraded.version, 5);
+ assert.equal(upgraded.version, 6);
  assert.equal(upgraded.themes[0]!.animations.deal.preset, 'deal.storm');
  assert.equal(upgraded.themes[0]!.animations.flop.preset, 'flop.grand');
  assert.equal(upgraded.themes[0]!.animations.turn.preset, 'reveal.turnover', 'tuned choices are kept');
@@ -101,7 +101,7 @@ test('library v5 adds Neon and Sakura once, keeps every saved theme and choice, 
  v4.themes.push(own);
  v4.settings.activeThemeId = 'mine-1';
  const upgraded = validateLibrary(v4);
- assert.equal(upgraded.version, 5);
+ assert.equal(upgraded.version, 6);
  assert.deepEqual(upgraded.settings.recent, [], 'Older libraries gain an empty recent list');
  assert.equal(upgraded.settings.activeThemeId, 'mine-1', 'The owner keeps their theme');
  assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-neon').length, 1);
@@ -120,4 +120,39 @@ test('library v5 adds Neon and Sakura once, keeps every saved theme and choice, 
   assert.ok(cardSvg(undefined, theme.card).includes('pattern'));
  }
  assert.throws(() => validateTheme({ ...createDefaultTheme(), companion: { kind: 'puppy', animations: true, intensity: 'normal', scale: 'medium', coat: 'tartan' } }));
+});
+
+test('library v6 adds Arcade, Rain District, Breach and Cat Café once, keeps every saved theme and choice, and adds the win settings', () => {
+ const v5 = structuredClone(createDefaultLibrary()) as unknown as { version: number; settings: { effects: Record<string, unknown>; activeThemeId: string }; themes: Record<string, unknown>[] };
+ v5.version = 5;
+ const added = ['room-arcade', 'room-rain', 'room-breach', 'room-cat'];
+ v5.themes = v5.themes.filter((theme) => !added.includes(String(theme.id)));
+ // Effects saved before the win settings existed, with the owner's own choices.
+ v5.settings.effects = { chips: true, celebrations: false, moments: true, ambience: false };
+ const own: Record<string, unknown> = { ...structuredClone(v5.themes[0]!), id: 'mine-2', name: 'Home game' };
+ own.companion = { kind: 'puppy', animations: true, intensity: 'subtle', scale: 'small', coat: 'silver', collar: 'violet' };
+ v5.themes.push(own);
+ v5.settings.activeThemeId = 'mine-2';
+ const upgraded = validateLibrary(v5);
+ assert.equal(upgraded.version, 6);
+ assert.equal(upgraded.settings.activeThemeId, 'mine-2', 'The owner keeps their theme');
+ assert.deepEqual(upgraded.settings.effects, { chips: true, celebrations: false, moments: true, ambience: false, winSize: 'balanced', othersWins: true }, 'Earlier choices stay; the new settings take their defaults');
+ for (const id of added) assert.equal(upgraded.themes.filter((theme) => theme.id === id).length, 1, `${id} added once`);
+ assert.deepEqual(upgraded.themes.find((theme) => theme.id === 'mine-2')!.companion, own.companion, 'A saved companion is untouched');
+ // Deleting a new room later is final.
+ const deleted = structuredClone(upgraded); deleted.themes = deleted.themes.filter((theme) => theme.id !== 'room-rain');
+ assert.equal(validateLibrary(deleted).themes.some((theme) => theme.id === 'room-rain'), false);
+ // Each new room's deck, back, felt and emblem validate and draw.
+ for (const id of added) {
+  const theme = upgraded.themes.find((item) => item.id === id)!;
+  assert.deepEqual(validateTheme(theme), theme);
+  for (const rank of ['A', '10', 'K'] as Rank[]) assert.ok(cardSvg({ rank, suit: 'hearts' }, theme.card).includes('data-part="rank"'), `${id} ${rank}`);
+  assert.ok(cardSvg(undefined, theme.card).includes('data-part="art"'));
+ }
+ // A library too full for the new rooms keeps every one of the owner's themes.
+ const full = structuredClone(v5);
+ full.themes = Array.from({ length: 100 }, (_, index) => ({ ...structuredClone(v5.themes[0]!), id: `owned-${index}`, name: `Owned ${index}` }));
+ full.settings.activeThemeId = 'owned-0';
+ const kept = validateLibrary(full);
+ assert.equal(kept.themes.filter((theme) => String(theme.id).startsWith('owned-')).length, 100);
 });

@@ -67,6 +67,11 @@ export interface AnimationHandle {
   readonly progress: number;
   pause(): void;
   resume(): void;
+  /** Show the animation at this progress (0–1); used by the studio's scrub bar. */
+  seek?(progress: number): void;
+  /** A companion catching up holds the cards briefly; this never undoes the viewer's own pause. */
+  hold?(): void;
+  unhold?(): void;
   cancel(): void;
   finish(): void;
 }
