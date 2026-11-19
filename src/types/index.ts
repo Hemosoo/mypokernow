@@ -19,13 +19,13 @@ export interface VisualEvent {id: string; type: VisualEventType; cards: VisualCa
 export interface ParameterSchema {key: string; label: string; min: number; max: number; step: number; default: number; unit?: string}
 export interface CardAppearance {
   aura: { enabled: boolean; color: string; strength: number };
-  face: 'classic' | 'modern' | 'midnight' | 'native' | 'puppy' | 'neon' | 'sakura';
-  back: 'crosshatch' | 'diamonds' | 'solid' | 'image' | 'paws' | 'circuit' | 'petals'; backColor: string; backImage?: string;
+  face: 'classic' | 'modern' | 'midnight' | 'native' | 'puppy' | 'neon' | 'sakura' | 'pixel' | 'holo' | 'cipher' | 'cat';
+  back: 'crosshatch' | 'diamonds' | 'solid' | 'image' | 'paws' | 'circuit' | 'petals' | 'pixel' | 'holo' | 'glyph' | 'yarn'; backColor: string; backImage?: string;
   faceColor: string; redColor: string; blackColor: string; borderColor: string; borderRadius: number; shadow: number;
 }
-export type TableEmblem = 'spade' | 'crown' | 'laurel' | 'paw' | 'blossom' | 'bolt' | 'none';
+export type TableEmblem = 'spade' | 'crown' | 'laurel' | 'paw' | 'blossom' | 'bolt' | 'coin' | 'sigil' | 'chip' | 'yarn' | 'none';
 /** Decorative family for the felt, rail, chips and dealer button. */
-export type TableMotif = 'classic' | 'puppy' | 'neon' | 'sakura';
+export type TableMotif = 'classic' | 'puppy' | 'neon' | 'sakura' | 'arcade' | 'rain' | 'breach' | 'cat';
 export interface TableAppearance {
   feltColor: string; railColor: string; backgroundColor: string; backgroundImage?: string;
   /** Polished metal used for the table inlay, plates, chips and every accent. */
@@ -39,20 +39,29 @@ export interface BoardAppearance {color: string; highlight: string; spacing: num
 export interface AnimationAssignment {preset: string; parameters: Record<string, number>}
 /** A character who lives on the table and runs the game's animations. */
 export interface CompanionSettings {
-  kind: 'puppy';
+  kind: CompanionKind;
   /** Off keeps the puppy at the table, resting, without running the action. */
   animations: boolean;
   intensity: 'subtle' | 'normal' | 'playful';
   scale: 'small' | 'medium' | 'large';
   /** Fur colouring. Absent means golden, the original coat. */
   coat?: PuppyCoat;
-  /** Collar colour. Absent means ruby. */
+  /** Collar colour, shared by both characters. Absent means ruby. */
   collar?: PuppyCollar;
+  /** The cat's coat, kept apart so switching character never loses either. Absent means tabby. */
+  catCoat?: CatCoat;
+  /** The cat's eye colour. Absent means green. */
+  eyes?: CatEyes;
 }
+export type CompanionKind = 'puppy' | 'cat';
+export type CatCoat = 'tabby' | 'tuxedo' | 'calico' | 'black' | 'bluegrey';
+export type CatEyes = 'green' | 'amber' | 'blue';
 export type PuppyCoat = 'golden' | 'chocolate' | 'cream' | 'midnight' | 'silver';
 export type PuppyCollar = 'ruby' | 'sapphire' | 'emerald' | 'violet';
 /** Things the companion can be asked to do on the studio's preview table. */
 export type CompanionAction = 'celebrate' | 'nap' | 'bark' | 'scratch' | 'stretch' | 'tilt';
+/** How big a win is allowed to get: Quiet keeps it small, Loud lifts every win a step. */
+export type WinSize = 'quiet' | 'balanced' | 'loud';
 export interface Theme {
   version: 2; id: string; name: string; createdAt: string; updatedAt: string;
   /** One line shown in the theme library. */
@@ -70,12 +79,16 @@ export interface EffectSettings {
   moments: boolean;
   /** Drifting light motes above the felt. */
   ambience: boolean;
+  /** How grand a win gets. */
+  winSize: WinSize;
+  /** Celebrate other players' wins too; off keeps theirs to the chips sliding over. */
+  othersWins: boolean;
 }
 export interface Settings {enabled: boolean; reducedMotion: boolean; speed: number; activeThemeId: string; effects: EffectSettings;
   /** Hearted presets. Shuffle ("random") draws from these when any suit the street. */
   favorites: string[];
   /** Most recently applied themes, newest first, for quick switching. */
   recent: string[]}
-export interface Library {version: 5; settings: Settings; themes: Theme[]}
+export interface Library {version: 6; settings: Settings; themes: Theme[]}
 export const streetForEvent = (type: VisualEventType): Street | undefined => ({HOLE_CARDS_APPEARED: 'deal', FLOP_REVEALED: 'flop', TURN_REVEALED: 'turn', RIVER_REVEALED: 'river'} as Partial<Record<VisualEventType, Street>>)[type];
 export const eventForStreet: Record<Street, VisualEventType> = {deal: 'HOLE_CARDS_APPEARED', flop: 'FLOP_REVEALED', turn: 'TURN_REVEALED', river: 'RIVER_REVEALED'};

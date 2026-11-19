@@ -23,7 +23,11 @@ interface ReplicaControl {
   onAnimation(listener: ((handle: AnimationHandle, event?: VisualEvent) => void) | undefined): void;
   companion(action: CompanionAction): boolean;
   companionAt(): { x: number; y: number } | undefined;
+  companionZoom(factor: number): void;
+  win(step: WinStep): Promise<void>;
 }
+/** One step of the win celebration: 1–3 a small, medium or big pot, 4 an all-in won, 5 your own win. */
+export type WinStep = 1 | 2 | 3 | 4 | 5;
 
 export interface LiveTableHandle extends PreviewHandle {
   /** One complete scripted hand; resolves when the winner has been shown. */
@@ -32,6 +36,12 @@ export interface LiveTableHandle extends PreviewHandle {
   companion: (action: CompanionAction) => boolean;
   /** Where the companion stands, as fractions (0–1) of the table frame; undefined when absent. */
   companionAt: () => { x: number; y: number } | undefined;
+  /** The stage is enlarged this much around the companion; it renders sharper to match. */
+  zoom: (factor: number) => void;
+  /** Show the playing effect at this progress (0–1). */
+  seek: (progress: number) => void;
+  /** Play one step of the win celebration. */
+  win: (step: WinStep) => Promise<void>;
 }
 
 interface Props {
@@ -172,6 +182,28 @@ export const LiveTable = forwardRef<LiveTableHandle, Props>(function LiveTable(p
     },
     pause: () => active.current?.pause(),
     resume: () => active.current?.resume(),
+    seek: (progress) => { active.current?.seek?.(progress); current.current.onProgress(progress); },
+    zoom: (factor) => control.current?.companionZoom(factor),
+    win: async (step) => {
+      const replica = control.current;
+      const version = ++generation.current;
+      active.current?.cancel();
+      active.current = null;
+      if (!replica) return;
+      current.current.onProgress(0);
+      current.current.onPlaying(true);
+      replica.configure(structuredClone(current.current.theme), settingsFor());
+      // A win is not one animation: progress follows the clock over the celebration.
+      const started = performance.now(), length = 3400;
+      const tick = (): void => {
+        if (version !== generation.current) return;
+        const value = Math.min(1, (performance.now() - started) / length);
+        current.current.onProgress(value);
+        if (value < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      try { await replica.win(step); } finally { finish(version); }
+    },
     playHand: async () => {
       const replica = control.current;
       const version = ++generation.current;

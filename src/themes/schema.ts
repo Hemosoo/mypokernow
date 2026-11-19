@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Library, Street, Theme } from '../types';
 import { getPreset } from '../animation/registry';
 import { SHOWPIECE_UPGRADES } from '../animation/presets/showpiece';
-import { builtInThemes, DEFAULT_THEME_ID, defaultEffects, LEGACY_BUILT_IN, ROOMS_SINCE_V4, ROOMS_SINCE_V5 } from './defaults';
+import { builtInThemes, DEFAULT_THEME_ID, defaultEffects, LEGACY_BUILT_IN, ROOMS_SINCE_V4, ROOMS_SINCE_V5, ROOMS_SINCE_V6 } from './defaults';
 
 const hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 const asset = z.string().regex(/^asset:[a-zA-Z0-9-]{1,80}$/).optional();
@@ -19,28 +19,31 @@ export const themeSchema = z.object({
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   card: z.object({
     aura: z.object({enabled:z.boolean(),color:hex,strength:finite(0,1)}).strict().default({enabled:true,color:'#d4b274',strength:0.4}),
-    face: z.enum(['classic', 'modern', 'midnight', 'native', 'puppy', 'neon', 'sakura']), back: z.enum(['crosshatch', 'diamonds', 'solid', 'image', 'paws', 'circuit', 'petals']),
+    face: z.enum(['classic', 'modern', 'midnight', 'native', 'puppy', 'neon', 'sakura', 'pixel', 'holo', 'cipher', 'cat']),
+    back: z.enum(['crosshatch', 'diamonds', 'solid', 'image', 'paws', 'circuit', 'petals', 'pixel', 'holo', 'glyph', 'yarn']),
     backColor: hex, backImage: asset, faceColor: hex, redColor: hex, blackColor: hex, borderColor: hex,
     borderRadius: finite(0, 14), shadow: finite(0, 1),
   }).strict(),
   table: z.object({
     feltColor: hex, railColor: hex, backgroundColor: hex, backgroundImage: asset,
-    trimColor: hex, inscription, emblem: z.enum(['spade', 'crown', 'laurel', 'paw', 'blossom', 'bolt', 'none']),
-    motif: z.enum(['classic', 'puppy', 'neon', 'sakura']).default('classic'),
+    trimColor: hex, inscription, emblem: z.enum(['spade', 'crown', 'laurel', 'paw', 'blossom', 'bolt', 'coin', 'sigil', 'chip', 'yarn', 'none']),
+    motif: z.enum(['classic', 'puppy', 'neon', 'sakura', 'arcade', 'rain', 'breach', 'cat']).default('classic'),
   }).strict(),
   board: z.object({ color: hex, highlight: hex, spacing: finite(0, 32), shadow: finite(0, 1) }).strict(),
   animations: z.object({ deal: assignment, flop: assignment, turn: assignment, river: assignment }).strict(),
   description: z.string().trim().max(140).optional(),
   companion: z.object({
-    kind: z.literal('puppy'), animations: z.boolean(),
+    kind: z.enum(['puppy', 'cat']), animations: z.boolean(),
     intensity: z.enum(['subtle', 'normal', 'playful']), scale: z.enum(['small', 'medium', 'large']),
     coat: z.enum(['golden', 'chocolate', 'cream', 'midnight', 'silver']).optional(), collar: z.enum(['ruby', 'sapphire', 'emerald', 'violet']).optional(),
+    catCoat: z.enum(['tabby', 'tuxedo', 'calico', 'black', 'bluegrey']).optional(), eyes: z.enum(['green', 'amber', 'blue']).optional(),
   }).strict().optional(),
 }).strict();
 
-const effectsSchema = z.object({ chips: z.boolean(), celebrations: z.boolean(), moments: z.boolean(), ambience: z.boolean() }).strict();
+const effectsSchema = z.object({ chips: z.boolean(), celebrations: z.boolean(), moments: z.boolean(), ambience: z.boolean(),
+  winSize: z.enum(['quiet', 'balanced', 'loud']).default('balanced'), othersWins: z.boolean().default(true) }).strict();
 export const librarySchema = z.object({
-  version: z.literal(5),
+  version: z.literal(6),
   settings: z.object({ enabled: z.boolean(), reducedMotion: z.boolean(), speed: finite(0.25, 3), activeThemeId: z.string().min(1).max(100), effects: effectsSchema,
     favorites: z.array(z.string().regex(/^[a-z0-9.-]{1,80}$/)).max(64).default([]),
     recent: z.array(z.string().regex(/^[a-zA-Z0-9-]{1,100}$/)).max(12).default([]) }).strict(),
@@ -126,8 +129,10 @@ function upgradeAssignments(theme: unknown): unknown {
 }
 
 /**
- * Versions 4 and 5 each add the rooms introduced with them (Puppy; Neon and
- * Sakura), once, after the owner's own themes are kept. Nothing is replaced.
+ * Versions 4, 5 and 6 each add the rooms introduced with them (Puppy; Neon and
+ * Sakura; Arcade, Rain District, Breach and Cat Café), once, after the owner's
+ * own themes are kept. Nothing is replaced. The two win settings arrive with
+ * version 6 through their schema defaults, so earlier effect choices stay as they were.
  */
 function addNewRooms(library: Loose, rooms: string[], version: number): Loose {
   const themes = Array.isArray(library.themes) ? library.themes : [];
@@ -141,6 +146,7 @@ export function migrateLibrary(value: unknown): unknown {
   if (isObject(library) && library.version === 2 && Array.isArray(library.themes)) library = { ...library, version: 3, themes: library.themes.map(upgradeAssignments) };
   if (isObject(library) && library.version === 3 && Array.isArray(library.themes)) library = addNewRooms(library, ROOMS_SINCE_V4, 4);
   if (isObject(library) && library.version === 4 && Array.isArray(library.themes)) library = addNewRooms(library, ROOMS_SINCE_V5, 5);
+  if (isObject(library) && library.version === 5 && Array.isArray(library.themes)) library = addNewRooms(library, ROOMS_SINCE_V6, 6);
   return library;
 }
 

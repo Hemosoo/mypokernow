@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getPreset } from '../../animation/registry';
 import { builtInThemes } from '../../themes/defaults';
 import type { Street } from '../../types';
-import { BeforeAfter, COMPARE_CHAPTERS } from '../BeforeAfter';
+import { BeforeAfter, useCompareSource } from '../BeforeAfter';
 import { MOOD_LABEL, clipUrl, moodOf, posterUrl, presetName, seconds } from '../catalog';
 import type { Studio } from '../studio-types';
 import { ThemePreview } from '../ThemePreview';
@@ -17,6 +17,7 @@ const seen = (): boolean => { try { return localStorage.getItem(VISITED) === '1'
 export function Discover({ studio }: { studio: Studio }) {
   const { library, theme } = studio;
   const [chapter, setChapter] = useState(-1);
+  const compare = useCompareSource();
   const [seek, setSeek] = useState<{ frame: number; at: number } | undefined>();
   const [returning] = useState(seen);
   const [guide, setGuide] = useState(!returning);
@@ -41,7 +42,7 @@ export function Discover({ studio }: { studio: Studio }) {
       <div className="hero-copy">
         <span className="eyebrow">PokerNow Customizer</span>
         <h1>Your PokerNow table, <em>reimagined.</em></h1>
-        <p>Themes, card art, cinematic deals and a table puppy, for the game you already play. Drag the line to compare the same hand with and without.</p>
+        <p>Themes, card art, cinematic deals and a table puppy or cat, for the game you already play. Drag the line to compare the same hand with and without.</p>
         <div className="hero-actions">
           <button type="button" className="primary-button large" onClick={() => studio.goTo('themes')}>Browse themes<Icon name="chevron" size={16} /></button>
           <button type="button" className="ghost-button large" onClick={() => studio.goTo('appearance')}>Customize {theme.name}</button>
@@ -52,12 +53,12 @@ export function Discover({ studio }: { studio: Studio }) {
         </ul>
       </div>
       <div className="hero-compare">
-        <div className="compare-frame"><BeforeAfter active={studio.page === 'discover'} onChapter={setChapter} seek={seek} /></div>
+        <div className="compare-frame"><BeforeAfter active={studio.page === 'discover'} onChapter={setChapter} seek={seek} source={compare} /></div>
         <div className="chapters">
-          <div className="chapter-buttons" role="group" aria-label="Jump to a moment">
-            {COMPARE_CHAPTERS.map((item, index) => <button type="button" key={item.label} className={chapter === index ? 'on' : ''} aria-pressed={chapter === index} onClick={() => setSeek({ frame: item.frame, at: Date.now() })}>{item.label}</button>)}
-          </div>
-          <p aria-live="polite">{chapter >= 0 ? COMPARE_CHAPTERS[chapter]!.text : 'Blinds go in and the hand begins.'}</p>
+          {compare.chapters.length > 0 && <div className="chapter-buttons" role="group" aria-label="Jump to a moment">
+            {compare.chapters.map((item, index) => <button type="button" key={item.label} className={chapter === index ? 'on' : ''} aria-pressed={chapter === index} onClick={() => setSeek({ frame: item.frame, at: Date.now() })}>{item.label}</button>)}
+          </div>}
+          <p aria-live="polite">{chapter >= 0 && compare.chapters[chapter] ? compare.chapters[chapter]!.text : compare.source === 'pokernow' ? 'A real hand on PokerNow, recorded twice at once: without the extension, and with it.' : 'An illustration on a stand-in table. Blinds go in and the hand begins.'}</p>
         </div>
       </div>
     </section>
@@ -91,9 +92,9 @@ export function Discover({ studio }: { studio: Studio }) {
       <PromoClip motion={studio.motionAllowed} />
       <div className="promo-copy">
         <span className="eyebrow">Companion</span>
-        <h2 id="promo-title">A puppy who deals for you</h2>
-        <p>It trots to the deck and paws out each card, noses the flop across the felt, fetches the turn and celebrates every pot. It naps when someone tanks, and always rests clear of cards, chips and names.</p>
-        <button type="button" className="primary-button" onClick={() => studio.goTo('companion')}><Icon name="paw" size={15} />Meet the puppy</button>
+        <h2 id="promo-title">A puppy or a cat who deals for you</h2>
+        <p>The puppy trots to the deck, paws out each card, noses the flop across the felt and fetches the turn. The cat flicks out the deal, bats a ball of yarn across the flop and pounces on the river. Both nap when someone tanks and always rest clear of cards, chips and names.</p>
+        <button type="button" className="primary-button" onClick={() => studio.goTo('companion')}><Icon name="paw" size={15} />Meet the companions</button>
       </div>
     </section>
   </div>;

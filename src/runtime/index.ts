@@ -3,10 +3,10 @@ import { describeUnsupported, inspectLayout, type ObservedLayout } from '../adap
 import { AnimationCoordinator, warmArtwork, type AnimationHandle } from '../animation/core/coordinator';
 import { Skin } from '../skin';
 import { Stage } from '../stage/stage';
-import type { CompanionAction, Settings, Theme, VisualCard, VisualEvent } from '../types';
+import { streetForEvent, type CompanionAction, type Settings, type Theme, type VisualCard, type VisualEvent } from '../types';
 import type { Companion, CompanionModule } from '../puppy/types';
 import { planForEvent } from '../puppy/plan';
-import { isCompanionPreset } from '../animation/presets/puppy';
+import { isCompanionPreset, presetSpecies } from '../animation/presets/puppy';
 
 /** Marks a card the extension has finished deciding about; see `pnc-hold` in the skin. */
 const RELEASED = 'data-pnc-released';
@@ -113,7 +113,7 @@ export class Runtime {
     const root = this.options.document.documentElement;
     if (!this.theme || !settings) {
       this.adapter.stop();
-      this.stage.configure(undefined, settings?.effects ?? { chips: false, celebrations: false, moments: false, ambience: false }, true);
+      this.stage.configure(undefined, settings?.effects ?? { chips: false, celebrations: false, moments: false, ambience: false, winSize: 'balanced', othersWins: true }, true);
       this.skin.clear();
       root.removeAttribute('data-pnc-cards');
       this.watchCards(false);
@@ -133,6 +133,8 @@ export class Runtime {
 
   scan(): void { if (this.theme) this.adapter.scan(); }
 
+  /** The studio's close-up on the companion: render it sharper while enlarged. */
+  companionZoom(factor: number): void { this.companion?.zoom?.(factor); }
   /** Ask the table companion to act something out (studio preview only). */
   companionPerform(action: CompanionAction): boolean { return this.companion?.perform?.(action) ?? false; }
   /** The table companion's state, for tests and diagnostics; undefined when none is present. */
@@ -142,6 +144,7 @@ export class Runtime {
   private syncCompanion(theme: Theme, settings: Settings): void {
     // The Puppy room keeps its puppy on the table. Any other room that uses a puppy card
     // animation gets a visitor, who appears for those animations only and then leaves.
+    // The Cat Café works the same way with its cat.
     const wanted = Boolean(theme.companion) || Object.values(theme.animations).some((assignment) => isCompanionPreset(assignment.preset));
     if (!wanted || !this.options.loadCompanion) { this.releaseCompanion(); return; }
     if (this.companion) { this.companion.configure(theme, settings); this.stage.setDirector(theme.companion ? this.companion.director : undefined); return; }
@@ -218,8 +221,10 @@ export class Runtime {
     if (event.type === 'TABLE_READY' || event.type === 'HAND_VISUAL_RESET') { this.coordinator.cancelAll(); return; }
     const sources = event.cards.map((card) => card.source).filter((source): source is HTMLElement => Boolean(source));
     try {
+      const street = streetForEvent(event.type);
+      const species = street ? presetSpecies(this.theme.animations[street].preset) : undefined;
       const handle = this.coordinator.play(event, this.theme, { speed: this.settings.speed, reducedMotion: this.settings.reducedMotion,
-        companionReady: Boolean(this.companion?.ready()), favorites: this.settings.favorites });
+        companionReady: Boolean(this.companion?.ready(species)), favorites: this.settings.favorites });
       this.options.onAnimation?.(handle, event);
       if (handle.progress < 1) this.companion?.animation(handle, event, planForEvent(event.id));
       // A declined event completes at once; its cards are released at the end of this scan.

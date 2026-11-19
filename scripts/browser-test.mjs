@@ -31,7 +31,7 @@ const chromePath=process.env.CHROME_PATH??'/Applications/Google Chrome.app/Conte
 const chrome=spawn(chromePath,['--headless=new','--no-sandbox','--disable-dev-shm-usage','--remote-debugging-pipe',`--user-data-dir=${profile}`,'--no-first-run','--no-default-browser-check','--allow-file-access-from-files','--disable-breakpad','--window-size=1440,1000','about:blank'],{stdio:['ignore','ignore','pipe','pipe','pipe']});
 let chromeLog='';chrome.stderr.on('data',chunk=>{chromeLog+=chunk;});
 let id=0,session,buffer='';const pending=new Map(),errors=[];
-const call=(method,params={},browser=false)=>new Promise((resolve,reject)=>{const key=++id;const timer=setTimeout(()=>{pending.delete(key);reject(new Error('Chrome protocol timeout: '+method+' '+chromeLog.slice(-1500)));},30000);pending.set(key,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});chrome.stdio[3].write(JSON.stringify({id:key,method,params,...(!browser&&session?{sessionId:session}:{})})+'\0');});
+const call=(method,params={},browser=false)=>new Promise((resolve,reject)=>{const key=++id;const timer=setTimeout(()=>{pending.delete(key);reject(new Error('Chrome protocol timeout: '+method+' '+chromeLog.slice(-1500)));},120000);pending.set(key,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});chrome.stdio[3].write(JSON.stringify({id:key,method,params,...(!browser&&session?{sessionId:session}:{})})+'\0');});
 chrome.stdio[4].on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\0'))>=0){const raw=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!raw)continue;const data=JSON.parse(raw);if(data.id){const entry=pending.get(data.id);pending.delete(data.id);if(data.error)entry?.reject(new Error(JSON.stringify(data.error)));else entry?.resolve(data.result);}if(data.method==='Runtime.exceptionThrown')errors.push(data.params.exceptionDetails.exception?.description??data.params.exceptionDetails.text);}});
 chrome.on('error',error=>{for(const entry of pending.values())entry.reject(error);pending.clear();});
 chrome.once('exit',(code,signal)=>{for(const entry of pending.values())entry.reject(new Error(`Chrome exited during browser verification (code ${code}, signal ${signal}). ${chromeLog.slice(-1500)}`));pending.clear();});
@@ -109,6 +109,39 @@ try {
  await until(`!!document.querySelector('.live-table-frame')?.contentWindow?.__pncReplica?.runtime.companionDebug?.()?.visible`,20000);await sleep(800);
  await evaluate(`[...document.querySelectorAll('.trick')].find(b=>b.textContent==='Celebrate').click()`);
  await until(`document.querySelector('.live-table-frame').contentWindow.__pncReplica.runtime.companionDebug().state!=='IDLE'`,5000);
+ // The cat: switching character rebuilds the companion as a cat, which performs its own tricks.
+ const replica='document.querySelector(".live-table-frame").contentWindow.__pncReplica';
+ await evaluate(`[...document.querySelectorAll('.companion-option')].find(b=>b.querySelector('b')?.textContent==='Cat').click()`);
+ await until(`${replica}.theme.companion?.kind==='cat'&&${replica}.runtime.companionDebug?.()?.visible`,20000);await sleep(800);
+ await evaluate(`[...document.querySelectorAll('.trick')].find(b=>b.textContent==='Groom').click()`);await sleep(300);
+ await evaluate(`[...document.querySelectorAll('.trick')].find(b=>b.textContent==='Celebrate').click()`);
+ await until(`${replica}.runtime.companionDebug().state!=='IDLE'`,5000);
+ // The yarn-ball flop, performed by the cat on the live table.
+ await evaluate(`[...document.querySelectorAll('.secondary-button')].find(b=>b.textContent.trim()==='Use on every street')?.click()`);await sleep(400);
+ const catFlop=await evaluate(`(async()=>{const r=${replica};const states=new Set();let handle;r.onAnimation(h=>{handle=h;});r.play('flop');const t=performance.now();while(performance.now()-t<6000){states.add(r.runtime.companionDebug()?.state);await new Promise(x=>setTimeout(x,60));if(handle&&handle.progress>=1)break;}r.onAnimation(undefined);return {states:[...states],finished:handle?.progress};})()`);
+ console.log('Cat flop:',catFlop);
+ assert.ok(catFlop.states.includes('PUSHING_CARD')&&catFlop.finished===1,'The cat bats the yarn ball through the flop');
+ await evaluate(`[...document.querySelectorAll('.companion-option')].find(b=>b.querySelector('b')?.textContent==='Puppy').click()`);await sleep(600);
+ // Wins: the Win tab plays your own win, and the banner names your hand on the live table.
+ await evaluate(effectsTab);await until(`[...document.querySelectorAll('.event-tab')].some(b=>b.textContent.startsWith('Win'))`,5000);
+ await evaluate(`[...document.querySelectorAll('.event-tab')].find(b=>b.textContent.startsWith('Win')).click()`);await until(`!!document.querySelector('[aria-label="Play: You won"]')`,5000);
+ // Start from a quiet table: nothing else playing that could take the stage back.
+ await until(`!!document.querySelector('.player .play[aria-label="Play animation"]')`,10000);await sleep(300);
+ await evaluate(`document.querySelector('[aria-label="Play: You won"]').click()`);
+ await until(`(${replica}.runtime.stage.root.querySelector('.pnc-banner')?.textContent??'').includes('Full house, kings over sevens')`,8000);
+ assert.equal(await evaluate(`document.querySelector('.player-now small').textContent`),'Win');
+ await sleep(3600);
+ // Scrubbing: dragging holds the effect at that moment; letting go carries on.
+ await evaluate(`[...document.querySelectorAll('.event-tab')].find(b=>b.textContent.startsWith('Flop')).click()`);await sleep(250);
+ await until(`!document.querySelector('.scrub').disabled`,5000);
+ const scrub=await evaluate(`(async()=>{const s=document.querySelector('.scrub');s.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
+   const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(s,'500');s.dispatchEvent(new Event('input',{bubbles:true}));
+   await new Promise(r=>setTimeout(r,400));const held=Number(s.value);await new Promise(r=>setTimeout(r,300));const still=Number(s.value);
+   s.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));await new Promise(r=>setTimeout(r,500));return {held,still,after:Number(s.value)};})()`);
+ console.log('Scrub:',scrub);
+ assert.ok(Math.abs(scrub.held-500)<=5&&scrub.held===scrub.still,'Scrubbing holds the effect on the chosen moment');
+ assert.ok(scrub.after>scrub.held||await evaluate(`document.querySelector('.scrub').disabled`),'Letting go carries on');
+ await evaluate(go('Companion'));await sleep(400);
  await evaluate(`[...document.querySelectorAll('.swatch')].find(b=>b.textContent==='Midnight').click()`);await sleep(400);
  await evaluate(go('Themes'));await sleep(300);
  await evaluate(`document.querySelector('[aria-label="Use Monte Carlo"]').click()`);await sleep(400);

@@ -4,8 +4,10 @@ import {
 import type { AnimationHandle } from '../animation/core/coordinator';
 import type { SeatState, TableState } from '../adapter/pokernow/table-state';
 import { paw } from '../rendering/puppy-art';
+import { catPaw } from '../rendering/cat-art';
 import { metal, rgba, svgDataUrl } from '../rendering/color';
-import { streetForEvent, type CompanionAction, type CompanionSettings, type Rect, type Settings, type Theme, type VisualEvent } from '../types';
+import { streetForEvent, type CompanionAction, type CompanionKind, type CompanionSettings, type Rect, type Settings, type Theme, type VisualEvent } from '../types';
+import { buildCat } from './cat-model';
 import { buildPuppy, type PuppyRig } from './model';
 import { planForEvent, type Choreography, type Pt, type PuppyCue } from './plan';
 import { applyPose, neutralPose, type PuppyPose } from './pose';
@@ -38,6 +40,9 @@ const easeOutBack = (t: number): number => { const u = clamp(t) - 1; return 1 + 
 
 const SCALE: Record<CompanionSettings['scale'], number> = { small: 0.66, medium: 0.86, large: 1.12 };
 const INTENSITY: Record<CompanionSettings['intensity'], number> = { subtle: 0.55, normal: 1, playful: 1.45 };
+
+/** Actions in which a paw, nose or mouth touches a card: the card waits for the character to get there. */
+const CONTACTS = new Set<PuppyCue['action']>(['paw-strike', 'nose-push', 'mouth-grab', 'mouth-carry', 'paw-slide', 'paw-flick', 'flick', 'bat', 'pounce', 'push']);
 
 /** A table moment the puppy acts out with its own clock (not a card animation). */
 interface Task {
@@ -113,8 +118,19 @@ function contactPose(action: PuppyCue['action']): Partial<PuppyPose> {
     case 'paw-slide': return { pawR: 0.35, reachR: 0.85, headPitch: 0.35, lean: 0.1, sit: 0 };
     case 'paw-flick': return { pawR: 0.35, reachR: 0.85, headPitch: 0.2, sit: 0 };
     case 'run': return { pawR: 0, reachR: 0, headPitch: 0.1, lean: 0.05, sit: 0 };
+    case 'flick': return { pawR: 0.8, reachR: 0.55, headPitch: 0.3, sit: 0.55 };
+    case 'bat': return { pawR: 0.75, reachR: 0.85, headPitch: 0.3, bow: 0.35, sit: 0 };
+    case 'crouch': return { bow: 0.75, headPitch: 0.35, lean: 0.15, sit: 0 };
+    case 'pounce': return { pawL: 0.55, pawR: 0.55, reachL: 0.7, reachR: 0.7, headPitch: 0.25, sit: 0 };
+    case 'push': return { pawR: 0.35, reachR: 0.85, headPitch: -0.12, lean: 0.06, sit: 0 };
     default: return { pawR: 0, reachR: 0, sit: 0.85, lift: 0, spin: 0 };
   }
+}
+
+/** The character a room's animations call for when it has no companion of its own. */
+function visitorSpecies(theme: Theme): CompanionKind | undefined {
+  const ids = Object.values(theme.animations).map((assignment) => assignment.preset);
+  return ids.some((id) => /\.cat$/.test(id)) ? 'cat' : ids.some((id) => /\.puppy$/.test(id)) ? 'puppy' : undefined;
 }
 
 export class PuppyCompanion implements Companion {
@@ -124,7 +140,9 @@ export class PuppyCompanion implements Companion {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
   private readonly mapper = new Mapper();
-  private readonly rig: PuppyRig;
+  private rig: PuppyRig;
+  /** Extra resolution while the studio zooms in on the companion (1 = none). */
+  private zoomFactor = 1;
   private readonly pose: PuppyPose = neutralPose();
   private theme: Theme | undefined;
   private settings: CompanionSettings = DEFAULT_SETTINGS;
@@ -157,7 +175,7 @@ export class PuppyCompanion implements Companion {
   private stateSince = 0;
   private scaleWorld = 1;
   private pxPerUnit = 100;
-  private card: { handle: AnimationHandle; plan: Choreography; from: Pt; started: number; done: boolean; held: number; holdSince: number } | undefined;
+  private card: { handle: AnimationHandle; plan: Choreography; first: PuppyCue['action']; from: Pt; started: number; done: boolean; held: number; holdSince: number } | undefined;
   private tasks: Task[] = [];
   private look: Pt | undefined;
   private lookUntil = 0;
@@ -200,6 +218,7 @@ export class PuppyCompanion implements Companion {
     this.rig = buildPuppy();
     this.rig.root.visible = false;
     this.scene.add(this.rig.root);
+    this.warm();
     this.canvas.addEventListener('webglcontextlost', (event) => { event.preventDefault(); this.dispose(); });
     document.addEventListener('visibilitychange', this.onVisibility);
     this.geometry();
@@ -213,6 +232,8 @@ export class PuppyCompanion implements Companion {
     this.theme = theme;
     this.settings = theme.companion ?? DEFAULT_SETTINGS;
     const resident = Boolean(theme.companion);
+    // A resident is the room's own character; a visitor takes whichever character the room's animations call for.
+    this.species(theme.companion?.kind ?? visitorSpecies(theme) ?? this.rig.kind);
     if (resident !== this.resident) {
       this.resident = resident;
       this.tasks = [];
@@ -224,7 +245,7 @@ export class PuppyCompanion implements Companion {
       if (!resident) this.setState('AWAY');
     }
     this.reduced = settings.reducedMotion || (typeof this.view.matchMedia === 'function' && this.view.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    this.rig.paint(this.settings.coat ?? 'golden', this.settings.collar ?? 'ruby');
+    this.rig.paint(this.settings);
     this.computeScale();
     this.schedule();
   }
@@ -274,9 +295,47 @@ export class PuppyCompanion implements Companion {
     return true;
   }
 
-  /** Whether a puppy card animation can be performed right now (otherwise another preset plays). */
-  ready(): boolean {
+  /**
+   * Whether a companion card animation can be performed right now (otherwise another
+   * preset plays). The room's own character only performs its own moves: a puppy
+   * room's puppy never plays the cat's part.
+   */
+  ready(kind?: CompanionKind): boolean {
+    if (kind && this.resident && kind !== this.rig.kind) return false;
     return !this.disposed && Boolean(this.layout) && this.settings.animations && !this.reduced;
+  }
+
+  /** Rebuild the body as the other character, keeping the scene, the brain and the canvas. */
+  private species(kind: CompanionKind): void {
+    if (this.rig.kind === kind) return;
+    const visible = this.rig.root.visible;
+    this.rig.dispose();
+    this.rig = kind === 'cat' ? buildCat() : buildPuppy();
+    this.rig.root.visible = visible;
+    this.scene.add(this.rig.root);
+    this.rig.paint(this.settings);
+    this.outline = undefined;
+    this.computeScale();
+    this.warm();
+  }
+
+  /**
+   * Compile every material now, hidden parts included (a tongue, a coat's markings),
+   * so nothing stalls a frame the first time it appears mid-animation.
+   */
+  private warm(): void {
+    const hidden: { visible: boolean }[] = [];
+    this.rig.root.traverse((object) => { if (!object.visible) { hidden.push(object); object.visible = true; } });
+    try { this.renderer.compile(this.scene, this.mapper.camera); } catch { /* Compiling early is only an optimisation. */ }
+    for (const object of hidden) object.visible = false;
+  }
+
+  /** The studio's close-up: draw at a higher resolution so the enlarged view stays sharp. */
+  zoom(factor: number): void {
+    const next = Math.max(1, Math.min(3, factor));
+    if (Math.abs(next - this.zoomFactor) < 0.01) return;
+    this.zoomFactor = next;
+    this.geometry();
   }
 
   /**
@@ -311,6 +370,11 @@ export class PuppyCompanion implements Companion {
   animation(handle: AnimationHandle, event: VisualEvent, given?: Choreography): void {
     const street = streetForEvent(event.type);
     const plan = given ?? planForEvent(event.id);
+    if (plan && (plan.species ?? 'puppy') !== this.rig.kind) {
+      // A visitor changes into the character this animation needs; a resident just watches.
+      if (this.resident) { const first = event.cards[0]; if (first) this.glance(centre(first.target), 1400); return; }
+      this.species(plan.species ?? 'puppy');
+    }
     if (!street || !plan) {
       // Another preset is running: watch the cards land.
       const first = event.cards[0];
@@ -332,7 +396,10 @@ export class PuppyCompanion implements Companion {
     }
     this.presenceGoal = 1;
     this.rig.root.visible = true;
-    this.card = { handle, plan, from: { ...this.at }, started: performance.now(), done: false, held: 0, holdSince: 0 };
+    // The first thing the plan does on arrival: the approach ends in that pose.
+    let first: PuppyCue['action'] = 'run';
+    for (let p = 0; p <= 1; p += 0.01) { const cue = plan.puppy(p); if (cue.phase !== 'approach') { first = cue.action; break; } }
+    this.card = { handle, plan, first, from: { ...this.at }, started: performance.now(), done: false, held: 0, holdSince: 0 };
     this.clock = { raw: -1, at: 0, rate: 0, value: 0 };
     const finish = (): void => {
       if (this.card?.handle === handle) {
@@ -348,7 +415,7 @@ export class PuppyCompanion implements Companion {
 
   geometry(): void {
     const width = this.view.innerWidth, height = this.view.innerHeight;
-    this.renderer.setPixelRatio(Math.min(1.5, this.view.devicePixelRatio || 1));
+    this.renderer.setPixelRatio(Math.min(this.zoomFactor > 1 ? 3 : 1.5, (this.view.devicePixelRatio || 1) * this.zoomFactor));
     this.renderer.setSize(width, height, false);
     this.mapper.resize(width, height);
     this.computeScale();
@@ -379,11 +446,12 @@ export class PuppyCompanion implements Companion {
   private keepPace(now: number, cue: PuppyCue | undefined): void {
     const card = this.card;
     if (!card || card.done || !cue || !this.layout) return;
-    const due = cue.phase !== 'approach' || cue.approach > 0.82;
+    // Only a touch is worth waiting for: a card about to be struck, nosed, carried or pounced on.
+    const due = cue.phase === 'approach' ? cue.approach > 0.82 : cue.phase === 'act' && CONTACTS.has(cue.action);
     const behind = this.lag > Math.max(14, this.layout.cardH * 0.3), caughtUp = this.lag < Math.max(6, this.layout.cardH * 0.12);
     if (!card.holdSince && due && behind && card.held < PuppyCompanion.HOLD_BUDGET && card.handle.progress < 1) {
       card.holdSince = now;
-      card.handle.pause();
+      if (card.handle.hold) card.handle.hold(); else card.handle.pause();
     } else if (card.holdSince && (caughtUp || card.held + (now - card.holdSince) >= PuppyCompanion.HOLD_BUDGET)) {
       this.releaseHold(now);
     }
@@ -393,7 +461,7 @@ export class PuppyCompanion implements Companion {
     if (!card?.holdSince) return;
     card.held += now - card.holdSince;
     card.holdSince = 0;
-    card.handle.resume();
+    if (card.handle.unhold) card.handle.unhold(); else card.handle.resume();
   }
 
   private renders = 0;
@@ -415,7 +483,7 @@ export class PuppyCompanion implements Companion {
     const a = this.mapper.toScreen(base), b = this.mapper.toScreen(top);
     this.pxPerUnit = Math.max(1e-3, dist(a, b));
     const targetPx = this.layout.cardH * (SCALE[this.settings.scale] ?? 1.05);
-    this.scaleWorld = targetPx / (1.3 * this.pxPerUnit);
+    this.scaleWorld = targetPx / (this.rig.height * this.pxPerUnit);
     this.rig.root.scale.setScalar(this.scaleWorld);
     this.outline = undefined;
   }
@@ -584,7 +652,7 @@ export class PuppyCompanion implements Companion {
   private burst(at: Pt, tier: 'small' | 'medium' | 'big'): void {
     if (this.reduced || typeof this.effects.animate !== 'function') return;
     const accent = metal(this.theme?.table.trimColor ?? '#e8b86a');
-    const pawUrl = svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" width="40" height="40"><g fill="${accent.high}">${paw(0, 0, 1.6)}</g></svg>`);
+    const pawUrl = svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" width="40" height="40"><g fill="${accent.high}">${this.rig.kind === 'cat' ? catPaw(0, 0, 1.5) : paw(0, 0, 1.6)}</g></svg>`);
     const count = Math.round((tier === 'big' ? 18 : tier === 'medium' ? 11 : 7) * this.intensity);
     const size = (this.layout?.cardH ?? 80) * 0.24;
     for (let index = 0; index < count; index++) {
@@ -748,7 +816,8 @@ export class PuppyCompanion implements Companion {
       if (cue.phase === 'approach') {
         // Run straight from wherever it was to its mark, solved for the heading it will
         // have on arrival, and turn into that heading only over the last stretch.
-        const from = this.card.from, to = this.solve(cue.part, cue.point, working, contactPose(cue.action));
+        // Solved for the pose of the first touch, so arriving flows straight into it.
+        const from = this.card.from, to = this.solve(cue.part, cue.point, working, contactPose(this.card.first));
         target = { x: mix(from.x, to.x, cue.approach), y: mix(from.y, to.y, cue.approach) };
         follow = true;
         const run = dist(from, to) > 4 ? Math.atan2(to.y - from.y, to.x - from.x) : working;
@@ -757,7 +826,8 @@ export class PuppyCompanion implements Companion {
         this.setState('RUNNING');
       } else {
         part = cue.part; target = cue.point; face = cue.face; follow = true; headingGoal = working;
-        this.setState(({ 'paw-strike': 'DEALING', 'nose-push': 'PUSHING_CARD', 'mouth-grab': 'GRABBING_CARD', 'mouth-carry': 'WALKING', drop: 'PUSHING_CARD', 'paw-slide': 'PUSHING_CARD', 'paw-flick': 'PUSHING_CARD', proud: 'CELEBRATING', hop: 'CELEBRATING', spin: 'CELEBRATING', run: 'RUNNING' } as const)[cue.action]);
+        this.setState(({ 'paw-strike': 'DEALING', 'nose-push': 'PUSHING_CARD', 'mouth-grab': 'GRABBING_CARD', 'mouth-carry': 'WALKING', drop: 'PUSHING_CARD', 'paw-slide': 'PUSHING_CARD', 'paw-flick': 'PUSHING_CARD', proud: 'CELEBRATING', hop: 'CELEBRATING', spin: 'CELEBRATING', run: 'RUNNING',
+          flick: 'DEALING', bat: 'PUSHING_CARD', crouch: 'PUSHING_CARD', pounce: 'PUSHING_CARD', push: 'PUSHING_CARD' } as const)[cue.action]);
       }
       this.excite = Math.max(this.excite, cue.excite);
       this.actionPose(cue, intensity);
@@ -779,6 +849,26 @@ export class PuppyCompanion implements Companion {
           target = task.to;
           const swipe = Math.sin(Math.PI * clamp(u * 1.6));
           p.pawR = swipe * 0.95; p.reachR = clamp(u * 2.2) * swipe; p.headPitch = 0.3; p.lean = 0.08;
+        } else if (task.kind === 'celebrate' && this.rig.kind === 'cat') {
+          // The cat's win: a playful pounce for a real pot, then it settles into a loaf
+          // beside the winner's chips, eyes half shut, purring, tail flicking.
+          this.setState('CELEBRATING');
+          target = task.to; this.excite = 0.8;
+          face = { x: this.at.x, y: this.at.y + 400 }; look = task.face;
+          const pounce = task.tier === 'small' ? 0 : 0.26;
+          if (u < pounce) {
+            const k = u / pounce, air = Math.sin(Math.PI * range(k, 0.15, 0.85));
+            p.bow = k < 0.15 ? 0.8 : 0; p.roll = k < 0.15 ? Math.sin(k * 120) * 0.08 : 0;
+            p.lift = air * 0.5 * Math.min(1.25, 0.6 + intensity * 0.4); p.stretch = 1 + air * 0.12; p.pawL = p.pawR = air * 0.6;
+            p.spin = task.tier === 'big' ? smooth(range(k, 0.15, 0.85)) * Math.PI * 2 : 0;
+            if (!task.landed && k > 0.88) { task.landed = true; this.ring(this.at, task.tier ?? 'small'); }
+          } else {
+            const k = range(u, pounce, 1), settle = smooth(range(k, 0, 0.25)) * (1 - smooth(range(k, 0.92, 1)));
+            p.lie = settle; p.blink = Math.max(p.blink, settle * 0.7);
+            p.bob += Math.sin(now / 90) * 0.004 * settle; // purring
+            p.headPitch = -0.08; p.headTilt = Math.sin(now / 700) * 0.08 * settle;
+            if (now > (task.heartAt ?? 0)) { task.heartAt = now + (task.tier === 'big' ? 420 : 640); this.heart(); }
+          }
         } else if (task.kind === 'celebrate') {
           // Three clear beats: a big spinning leap, a happy dance up on its hind legs
           // with both paws waving, then little bounces and a proud sit.
@@ -911,11 +1001,12 @@ export class PuppyCompanion implements Companion {
 
     // ── personality: tail, ears, blinking
     this.excite = approach(this.excite, 0.25, 0.6, dt);
-    const wagSpeed = mix(5, 19, this.excite) * (this.reduced ? 0.35 : 1);
+    const wagSpeed = (this.rig.kind === 'cat' ? mix(2.2, 5.5, this.excite) : mix(5, 19, this.excite)) * (this.reduced ? 0.35 : 1);
     this.wag += dt * wagSpeed;
     p.tailWag = Math.sin(this.wag) * mix(0.25, 0.85, this.excite) * Math.min(1.3, intensity) * (this.reduced ? 0.4 : 1) * (1 - this.sleep * 0.9);
     p.tailLift = this.excite;
-    if (this.excite > 0.6 && !p.mouth && this.sleep < 0.2) { p.mouth = 0.45; p.tongue = 0.6; }
+    // A happy puppy pants; a cat keeps its mouth shut.
+    if (this.rig.kind !== 'cat' && this.excite > 0.6 && !p.mouth && this.sleep < 0.2) { p.mouth = 0.45; p.tongue = 0.6; }
     this.blink(now, p);
     const vy = (p.bob + p.lift - this.lastY) / Math.max(dt, 1e-3);
     this.lastY = p.bob + p.lift;
@@ -981,8 +1072,29 @@ export class PuppyCompanion implements Companion {
       case 'proud': p.headPitch = -0.12; p.headTilt = Math.sin(t * Math.PI * 2) * 0.12; p.tongue = 0.8; break;
       case 'hop': p.lift = Math.abs(Math.sin(Math.PI * t * 2)) * 0.32 * intensity; p.stretch = 1 + Math.abs(Math.sin(Math.PI * t * 2)) * 0.1; p.tongue = 1; break;
       case 'spin': p.spin = smooth(clamp(t * 1.5)) * Math.PI * 2; p.lift = Math.sin(Math.PI * clamp(t * 1.5)) * 0.4 * intensity; p.tongue = 1; break;
+      case 'flick': {
+        // Sitting up, a quick sideways flick; contact at the middle of the beat.
+        const raise = Math.sin(Math.PI * t);
+        p.pawR = 0.55 + raise * 0.35; p.reachR = t > 0.4 ? Math.sin(Math.PI * clamp((t - 0.4) / 0.5)) * 0.7 : 0; p.headPitch = 0.3; p.tongue = 0;
+        break;
+      }
+      case 'bat': { const swipe = Math.sin(Math.PI * t); p.pawR = 0.5 + swipe * 0.4; p.reachR = 0.5 + swipe * 0.45; p.bow = 0.35; p.headPitch = 0.3; break; }
+      case 'crouch': {
+        // Low at the front, rear up, and the rear wiggling side to side before the spring.
+        p.bow = 0.8; p.headPitch = 0.4; p.lean = 0.15;
+        p.roll = Math.sin(t * Math.PI * 9) * 0.1 * smooth(range(t, 0.2, 0.5)); p.stretch = 0.94;
+        break;
+      }
+      case 'pounce': {
+        const air = Math.sin(Math.PI * clamp(t * 1.15));
+        p.lift = air * 0.45 * Math.min(1.25, intensity); p.stretch = 1 + air * 0.14; p.pawL = p.pawR = 0.4 + air * 0.4; p.reachL = p.reachR = 0.6; p.headPitch = 0.2 - air * 0.15;
+        break;
+      }
+      case 'push': p.pawR = 0.35; p.reachR = 0.85; p.headPitch = -0.12; p.lean = 0.06; break;
       default: break;
     }
+    // A cat keeps its tongue in: no panting at the table.
+    if (this.rig.kind === 'cat') p.tongue = 0;
   }
 
   /** Little things a puppy does while it waits. */
@@ -1002,7 +1114,12 @@ export class PuppyCompanion implements Companion {
       if (left <= 0) { this.idleAction = undefined; this.idleNext = now + 1200 + Math.random() * 3800 / this.intensity; return; }
       const u = 1 - left / ({ scratch: 2200, tilt: 1600, stretch: 1700, look: 2500 }[action.kind]);
       const env = Math.sin(Math.PI * clamp(u));
-      if (action.kind === 'scratch') { p.scratch = smooth(clamp(env * 1.6)); p.scratchPhase = now / 45; p.headTilt = -0.45 * env; p.blink = env > 0.5 ? 0.85 : 0; p.headPitch = 0.05; }
+      if (action.kind === 'scratch' && this.rig.kind === 'cat') {
+        // A cat grooms instead: a front paw up to the face, licked in little strokes.
+        const lick = Math.max(0, Math.sin(now / 110));
+        p.sit = Math.max(p.sit, 0.9 * env); p.pawL = env * 1.1; p.reachL = 0; p.headPitch = 0.35 * env; p.headYaw = -0.25 * env;
+        p.mouth = lick * 0.35 * env; p.tongue = lick * env; p.blink = env > 0.4 ? 0.8 : 0;
+      } else if (action.kind === 'scratch') { p.scratch = smooth(clamp(env * 1.6)); p.scratchPhase = now / 45; p.headTilt = -0.45 * env; p.blink = env > 0.5 ? 0.85 : 0; p.headPitch = 0.05; }
       else if (action.kind === 'tilt') { p.headTilt = 0.38 * env * (Math.sin(action.until) > 0 ? 1 : -1); p.earL += 0.15 * env; }
       else if (action.kind === 'stretch') { p.bow = env; p.mouth = 0.65 * env; p.tongue = 0.6 * env; p.tailLift = 1; }
     }

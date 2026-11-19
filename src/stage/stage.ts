@@ -2,10 +2,12 @@ import { auraShadow, madeHand } from '../rendering/hand-aura';
 import type { SeatState, TableState } from '../adapter/pokernow/table-state';
 import { artOptions, cardDataUrl } from '../rendering/cards';
 import { betArt, chipsFor, potArt, singleChipArt, type ChipArt, type ChipTone } from '../rendering/chips';
-import { metal, rgba, safeHex } from '../rendering/color';
+import { metal, rgba, safeHex, svgDataUrl } from '../rendering/color';
+import { describeHand } from '../rendering/hand-name';
+import { pixelText, pixelTextWidth } from '../rendering/motifs';
 import { SKIN_ROOT } from '../skin/css';
 import type { Skin } from '../skin';
-import type { EffectSettings, Rect, Theme } from '../types';
+import type { EffectSettings, Rect, TableMotif, Theme } from '../types';
 import { diffTable, winTier, type TableAction, type WinTier } from './actions';
 import type { StageDirector } from '../puppy/types';
 
@@ -48,12 +50,31 @@ const STAGE_CSS = `
 .pnc-mote{border-radius:50%;opacity:0;will-change:transform,opacity;animation-timing-function:linear;animation-iteration-count:infinite}
 .pnc-mote.petal{border-radius:0 100% 0 100%}
 .pnc-mote.pixel{border-radius:0}
+.pnc-mote.drop{border-radius:1px}
+@keyframes pnc-rain{0%{transform:translate3d(0,-10%,0) rotate(8deg);opacity:0}8%{opacity:var(--o)}92%{opacity:var(--o)}100%{transform:translate3d(calc(var(--d)*-.25),var(--fall),0) rotate(8deg);opacity:0}}
+@keyframes pnc-packet-x{0%{transform:translate3d(0,0,0);opacity:0}10%,85%{opacity:var(--o)}100%{transform:translate3d(var(--d),0,0);opacity:0}}
+@keyframes pnc-packet-y{0%{transform:translate3d(0,0,0);opacity:0}10%,85%{opacity:var(--o)}100%{transform:translate3d(0,var(--d),0);opacity:0}}
 @keyframes pnc-petal{0%{transform:translate3d(0,0,0) rotate(0);opacity:0}12%{opacity:var(--o)}50%{transform:translate3d(calc(var(--d)*.5),calc(var(--d)*1.2),0) rotate(160deg)}85%{opacity:var(--o)}100%{transform:translate3d(calc(var(--d)*-.2),calc(var(--d)*2.6),0) rotate(320deg);opacity:0}}
 @keyframes pnc-pixel{0%,100%{opacity:0;transform:translate3d(0,0,0)}10%,30%{opacity:var(--o)}20%{opacity:calc(var(--o)*.3)}50%{opacity:var(--o);transform:translate3d(0,calc(var(--d)*-.8),0)}60%{opacity:0;transform:translate3d(0,calc(var(--d)*-.8),0)}}
 @keyframes pnc-mote-a{0%{transform:translate3d(0,0,0);opacity:0}18%{opacity:var(--o)}55%{transform:translate3d(calc(var(--d)*.6),calc(var(--d)*-.9),0)}82%{opacity:var(--o)}100%{transform:translate3d(var(--d),calc(var(--d)*-1.6),0);opacity:0}}
 @keyframes pnc-mote-b{0%{transform:translate3d(0,0,0);opacity:0}22%{opacity:var(--o)}50%{transform:translate3d(calc(var(--d)*-.7),calc(var(--d)*-.5),0)}78%{opacity:var(--o)}100%{transform:translate3d(calc(var(--d)*-.4),calc(var(--d)*-1.3),0);opacity:0}}
 .pnc-badge{display:flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:800;border-radius:99px;will-change:transform,opacity}
+.pnc-banner{will-change:transform,opacity;padding:0 1em}
 `;
+
+/** The your-win banner in each room's own voice. */
+interface BannerStyle { font: string; weight: number; tracking: string; upper?: boolean; radius: string; background: string; ink?: string; accent?: string; border?: string; glow?: string }
+const SERIF = '"PNC Serif","Playfair Display",Georgia,serif', SANS = '"PNC Sans",Inter,system-ui,sans-serif', MONO = 'ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace';
+const BANNER_STYLE: Partial<Record<TableMotif, BannerStyle>> = {
+  classic: { font: SERIF, weight: 700, tracking: '.01em', radius: '12px', background: 'linear-gradient(180deg,rgba(28,22,12,.94),rgba(12,10,6,.94))' },
+  puppy: { font: SANS, weight: 800, tracking: '0', radius: '999px', background: 'linear-gradient(180deg,rgba(60,36,20,.95),rgba(34,20,12,.95))' },
+  cat: { font: SANS, weight: 800, tracking: '0', radius: '999px', background: 'linear-gradient(180deg,rgba(40,52,52,.95),rgba(22,30,30,.95))' },
+  sakura: { font: SERIF, weight: 700, tracking: '.02em', radius: '14px', background: 'linear-gradient(180deg,rgba(43,26,32,.94),rgba(24,16,22,.94))' },
+  neon: { font: SANS, weight: 800, tracking: '.12em', upper: true, radius: '6px', background: 'rgba(8,8,20,.9)', ink: '#bff8ff', accent: '#ff5fa8', border: '#43e3ff', glow: '#43e3ff' },
+  arcade: { font: MONO, weight: 800, tracking: '.06em', upper: true, radius: '0', background: '#101040', ink: '#ffffff', accent: '#ffcc1a', border: '#ffcc1a', glow: '#ff4fd8' },
+  rain: { font: SANS, weight: 700, tracking: '.14em', upper: true, radius: '4px', background: 'rgba(10,8,18,.9)', ink: '#ffd1e6', accent: '#ffb84a', border: '#ff3d8b', glow: '#ff3d8b' },
+  breach: { font: MONO, weight: 700, tracking: '.08em', upper: true, radius: '2px', background: 'rgba(6,7,7,.94)', ink: '#c8ff6a', accent: '#ff4646', border: '#b7ff3c', glow: '#b7ff3c' },
+};
 
 export class Stage {
   private readonly root: HTMLDivElement;
@@ -62,7 +83,7 @@ export class Stage {
   private motes: HTMLDivElement | undefined;
   private motesKey = '';
   private theme: Theme | undefined;
-  private effects: EffectSettings = { chips: true, celebrations: true, moments: true, ambience: true };
+  private effects: EffectSettings = { chips: true, celebrations: true, moments: true, ambience: true, winSize: 'balanced', othersWins: true };
   private reduced = false;
   private previous: TableState | undefined;
   private bigBlind = 0;
@@ -71,6 +92,8 @@ export class Stage {
   private potTimer = 0;
   /** A table companion that may ask chips and folded cards to wait until it reaches them. */
   private director: StageDirector | undefined;
+  /** Your cards and the board as last read this hand, for naming your hand when you win. */
+  private heroHand: TableState['heroHand'];
   private collectDelay = 0;
   private lastRules = '';
   private readonly art = new Map<string, ChipArt>();
@@ -113,6 +136,7 @@ export class Stage {
   /** Forget the table: no chips drawn, nothing in flight. */
   reset(): void {
     this.previous = undefined;
+    this.heroHand = undefined;
     this.potShown = 0;
     this.potAwarded = false;
     clearTimeout(this.potTimer);
@@ -136,11 +160,12 @@ export class Stage {
     else if (!this.bigBlind) this.bigBlind = this.inferBigBlind(state);
     const before = this.previous;
     this.previous = state;
+    if (state.heroHand) this.heroHand = state.heroHand;
     let collecting = false;
     if (before) {
       const actions = diffTable(before, state);
       for (const action of actions) {
-        if (action.type === 'new-hand') { this.potAwarded = false; }
+        if (action.type === 'new-hand') { this.potAwarded = false; this.heroHand = state.heroHand; }
         if (action.type === 'collect') collecting = true;
         if (action.type === 'award') this.potAwarded = true;
         this.perform(action, before, state);
@@ -303,7 +328,8 @@ export class Stage {
         case 'award': {
           this.award(action, before, after);
           const winners = action.winners.map(seat).filter((value): value is SeatState => Boolean(value));
-          director?.award(winners, before.potRect ?? after.potRect, winTier(this.inBigBlinds(action.pot), action.allIn));
+          const size = this.winSize(action, winners.some((winner) => winner.you));
+          director?.award(winners, before.potRect ?? after.potRect, size === 3 ? 'big' : size === 2 ? 'medium' : 'small');
           break;
         }
         case 'all-in': director?.allIn(seat(action.position)); if (this.effects.moments) this.allIn(seat(action.position)); break;
@@ -353,17 +379,46 @@ export class Stage {
     });
   }
 
-  /** The pot travels to whoever won it; how grandly depends on its size. */
+  /**
+   * How grand a win gets, 1 to 3: the pot's size in big blinds, then the owner's
+   * choice. Quiet never goes past a sweep of light; Loud lifts every win a step;
+   * other players' wins can be kept to their chips sliding over.
+   */
+  private winSize(action: Extract<TableAction, { type: 'award' }>, hero: boolean): 1 | 2 | 3 {
+    const tier = winTier(this.inBigBlinds(action.pot), action.allIn);
+    let size = tier === 'big' ? 3 : tier === 'medium' ? 2 : 1;
+    if (this.effects.winSize === 'quiet') size = Math.min(size, 2);
+    if (this.effects.winSize === 'loud') size = Math.min(3, size + 1);
+    if (!hero && !this.effects.othersWins) size = 1;
+    return size as 1 | 2 | 3;
+  }
+
+  /**
+   * The pot travels to whoever won it, and the win is celebrated in steps that grow
+   * with what happened:
+   *   1 a small pot: the chips slide over and the name plate glows softly;
+   *   2 a medium pot: a sweep of light crosses the felt and the plate shines;
+   *   3 a big pot: the room dims, a spotlight finds the winner, chips fountain over,
+   *     and the room's own flourish plays;
+   *   4 an all-in won: the winning cards light up for a beat before the chips move;
+   *   5 your own win: a banner names your hand and what you won.
+   * Everything stays over the table, never over PokerNow's controls, and is gone
+   * within about two and a half seconds.
+   */
   private award(action: Extract<TableAction, { type: 'award' }>, before: TableState, after: TableState): void {
     const winners = action.winners.map((position) => after.seats.find((seat) => seat.position === position)).filter((seat): seat is SeatState => Boolean(seat));
     if (!winners.length) return;
-    const tier = winTier(this.inBigBlinds(action.pot), action.allIn);
+    const hero = winners.some((seat) => seat.you), size = this.winSize(action, hero);
+    const celebrate = this.effects.celebrations;
+    const winning = celebrate && action.allIn && (hero || this.effects.othersWins) && this.effects.winSize !== 'quiet' ? (after.winning ?? before.winning ?? []) : [];
+    // The winning cards have their beat before any chip moves.
+    const hold = winning.length ? 520 : 0;
     const potArtwork = this.cached('pot', Math.max(action.pot, 1));
     const source = center(this.potRect(before.potRect ? before : after, potArtwork) ?? after.potRect ?? after.table);
     const rem = this.rem;
     if (this.effects.chips) {
       const tonesList = chipsFor(this.inBigBlinds(action.pot), 18);
-      const count = tier === 'big' ? 20 : tier === 'medium' ? 11 : 6;
+      const count = size === 3 ? 20 : size === 2 ? 11 : 6;
       for (let index = 0; index < count; index++) {
         const winner = winners[index % winners.length]!;
         const tone: ChipTone = tonesList[index % Math.max(1, tonesList.length)] ?? 'crimson';
@@ -372,31 +427,208 @@ export class Stage {
         const element = this.sprite(art.url, width, height);
         if (!element) break;
         const to = center(winner.plate);
-        const spread = rem * (tier === 'big' ? 1.5 : 0.9);
+        const spread = rem * (size === 3 ? 1.5 : 0.9);
         const from = { x: source.x + (hash(index, 3) - 0.5) * spread, y: source.y + (hash(index, 5) - 0.5) * spread * 0.5 };
         const end = { x: to.x + (hash(index, 7) - 0.5) * winner.plate.width * 0.5, y: to.y + (hash(index, 9) - 0.5) * winner.plate.height * 0.3 };
-        // Each chip takes its own arc; the bend is perpendicular to the direct line.
+        // Each chip takes its own arc; the bend is perpendicular to the direct line. A big pot fountains.
         const dx = end.x - from.x, dy = end.y - from.y, length = Math.hypot(dx, dy) || 1;
-        const bend = (hash(index, 11) - 0.5) * length * 0.34, lift = rem * (0.8 + hash(index, 13) * (tier === 'big' ? 2.2 : 1.2));
-        const duration = 620 + hash(index, 17) * 220 + (tier === 'big' ? 120 : 0);
+        const bend = (hash(index, 11) - 0.5) * length * 0.34, lift = rem * (0.8 + hash(index, 13) * (size === 3 ? 3.2 : 1.2));
+        const duration = 620 + hash(index, 17) * 220 + (size === 3 ? 180 : 0);
         this.play(element, this.frames(20, (t) => {
           const travel = easeInOut(t), arc = Math.sin(Math.PI * travel);
           return { x: lerp(from.x, end.x, travel) + (-dy / length) * bend * arc - width / 2,
             y: lerp(from.y, end.y, travel) + (dx / length) * bend * arc - arc * lift - height / 2,
             scale: 1 + arc * 0.32, rotate: (hash(index, 19) - 0.5) * 40 * arc, opacity: t < 0.08 ? t / 0.08 : t > 0.88 ? (1 - t) / 0.12 : 1 };
-        }), duration, (before.seats.some(seat => (seat.bet ?? 0) > 0) ? 500 : 80) + index * (tier === 'big' ? 34 : 30));
+        }), duration, hold + (before.seats.some(seat => (seat.bet ?? 0) > 0) ? 500 : 80) + index * (size === 3 ? 34 : 30));
       }
     }
-    if (!this.effects.celebrations) return;
-    if (tier !== 'small') {
-      this.feltSweep(after);
-      for (const winner of winners) this.glow(center(winner.plate), winner.plate.width * (tier === 'big' ? 2.6 : 1.8), 520, tier === 'big' ? 0.5 : 0.34, 900);
+    if (!celebrate) return;
+    if (winning.length) this.lightCards(winning);
+    for (const winner of winners) {
+      const plate = center(winner.plate);
+      if (size === 1) this.glow(plate, winner.plate.width * 1.4, hold + 420, 0.26, 900);
+      else this.glow(plate, winner.plate.width * (size === 3 ? 2.6 : 1.8), hold + 520, size === 3 ? 0.5 : 0.34, 900);
     }
-    if (tier === 'big') {
-      this.foil(source, 26, 0, rem);
-      for (const winner of winners) this.foil(center(winner.plate), 30, 560, rem);
+    if (size >= 2) this.feltSweep(after);
+    if (size === 3) {
+      this.spotlight(winners[0]!, hold);
+      this.flourish(source, winners, action.pot, hold);
       this.flash(after);
     }
+    if (hero) this.banner(action, before, after, hold);
+  }
+
+  /** Step 4: the cards that won light up and pulse twice before the chips move. */
+  private lightCards(cards: Rect[]): void {
+    const { trim, glow } = this.tones, rem = this.rem;
+    for (const rect of cards.slice(0, 7)) {
+      const element = this.sprite('', rect.width, rect.height);
+      if (!element) return;
+      element.style.borderRadius = `${(rem * 0.3).toFixed(1)}px`;
+      element.style.boxShadow = `0 0 0 ${(rem * 0.08).toFixed(1)}px ${trim.spec}, 0 0 ${(rem * 1.4).toFixed(1)}px ${rgba(glow, 0.85)}`;
+      const base = `translate3d(${rect.x.toFixed(1)}px,${rect.y.toFixed(1)}px,0)`;
+      this.play(element, [
+        { transform: `${base} scale(1)`, opacity: 0 }, { transform: `${base} scale(1.08)`, opacity: 1, offset: 0.18 },
+        { transform: `${base} scale(1.02)`, opacity: 0.8, offset: 0.36 }, { transform: `${base} scale(1.08)`, opacity: 1, offset: 0.54 },
+        { transform: `${base} scale(1.04)`, opacity: 0 },
+      ], 1500);
+    }
+  }
+
+  /** Step 3: the room dims around the winner for a moment, as if a spotlight found them. */
+  private spotlight(winner: SeatState, delay: number): void {
+    const rem = this.rem, at = center(winner.plate);
+    this.veil.style.background = `radial-gradient(circle at ${at.x.toFixed(0)}px ${at.y.toFixed(0)}px,transparent 0,transparent ${(rem * 4.5).toFixed(0)}px,rgba(0,0,0,.5) ${(rem * 15).toFixed(0)}px)`;
+    if (typeof this.veil.animate === 'function') {
+      this.veil.animate([{ opacity: 0 }, { opacity: 1, offset: 0.18 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], { duration: 1700, delay, easing: 'ease-in-out', fill: 'both' });
+    }
+  }
+
+  /** Step 3, the room's own flourish: leaf, petals, pixels, a sign, a stamp or a glitch. */
+  private flourish(source: Point, winners: SeatState[], pot: number, delay: number): void {
+    const motif = this.theme!.table.motif, rem = this.rem, plate = winners[0]!.plate, at = center(plate);
+    if (motif === 'sakura') { this.petals(source, at, delay); return; }
+    if (motif === 'arcade') { this.score(plate, pot, delay); return; }
+    if (motif === 'rain') { this.sign(plate, delay); return; }
+    if (motif === 'breach') { this.stamp(plate, delay); return; }
+    if (motif === 'neon') { this.glitch(delay); }
+    this.foil(source, 26, delay, rem);
+    for (const winner of winners) this.foil(center(winner.plate), 30, delay + 560, rem);
+  }
+
+  /** Sakura: a gust of petals from the pot to the winner. */
+  private petals(from: Point, to: Point, delay: number): void {
+    const { trim } = this.tones, rem = this.rem;
+    for (let index = 0; index < 26; index++) {
+      const size = rem * (0.26 + hash(index, 23) * 0.2);
+      const element = this.sprite('', size, size * 0.8);
+      if (!element) return;
+      element.style.borderRadius = '0 100% 0 100%';
+      element.style.background = `linear-gradient(135deg,${trim.spec},${trim.high})`;
+      const bend = (hash(index, 29) - 0.5) * rem * 8, lift = rem * (1 + hash(index, 31) * 3), spin = (hash(index, 37) - 0.5) * 720;
+      const end = { x: to.x + (hash(index, 41) - 0.5) * rem * 4, y: to.y + (hash(index, 43) - 0.5) * rem * 2 };
+      this.play(element, this.frames(18, (t) => {
+        const u = easeOut(t), arc = Math.sin(Math.PI * u);
+        return { x: lerp(from.x, end.x, u) + bend * arc - size / 2, y: lerp(from.y, end.y, u) - lift * arc - size / 2, rotate: spin * t, scale: 1, opacity: t < 0.1 ? t / 0.1 : t > 0.75 ? (1 - t) / 0.25 : 1 };
+      }), 1300 + hash(index, 47) * 500, delay + index * 22);
+    }
+  }
+
+  /** Arcade: the pot counts up in pixel digits over the winner, with stars thrown out in stepped frames. */
+  private score(plate: Rect, pot: number, delay: number): void {
+    const rem = this.rem, at = center(plate), digits = `+${Math.round(pot)}`;
+    const art = (text: string): string => {
+      const size = 4, width = (pixelTextWidth(text) + 2) * size, height = 9 * size;
+      return svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" shape-rendering="crispEdges"><g fill="#6b3e00" transform="translate(${size * 1.5} ${size * 1.5})">${pixelText(text, 0, 0, size)}</g><g fill="#ffcc1a" transform="translate(${size} ${size})">${pixelText(text, 0, 0, size)}</g></svg>`);
+    };
+    const height = rem * 1.3, width = height * (pixelTextWidth(digits) + 2) / 9;
+    // The count rolls up in four stepped frames.
+    const steps = [0.25, 0.5, 0.75, 1].map((k) => art(`+${Math.round(pot * k)}`));
+    const element = this.sprite(steps[0]!, width, height);
+    if (element) {
+      element.style.imageRendering = 'pixelated';
+      const x = at.x - width / 2, y = plate.y - height - rem * 0.3;
+      this.play(element, Array.from({ length: 13 }, (_, step) => {
+        const t = step / 12;
+        return { offset: t, opacity: t < 0.9 ? 1 : 0, transform: `translate3d(${x.toFixed(0)}px,${(y - Math.min(4, Math.floor(t * 8)) * rem * 0.12).toFixed(0)}px,0)`,
+          backgroundImage: `url("${steps[Math.min(3, Math.floor(t * 6))]}")`, easing: 'steps(1)' } as Keyframe;
+      }), 1900, delay);
+    }
+    for (let index = 0; index < 12; index++) {
+      const size = rem * 0.22, star = this.sprite('', size, size);
+      if (!star) return;
+      star.style.background = ['#ffcc1a', '#ff4fd8', '#5cf2ff'][index % 3]!;
+      const angle = (index / 12) * Math.PI * 2, reach = rem * (2.4 + hash(index, 53) * 1.6);
+      this.play(star, Array.from({ length: 7 }, (_, step) => {
+        const t = step / 6;
+        return { offset: t, opacity: t < 1 ? 1 : 0, transform: `translate3d(${(at.x + Math.cos(angle) * reach * t - size / 2).toFixed(0)}px,${(at.y + Math.sin(angle) * reach * t * 0.7 - size / 2).toFixed(0)}px,0)`, easing: 'steps(1)' } as Keyframe;
+      }), 700, delay + 120 + (index % 3) * 90);
+    }
+  }
+
+  /** Rain District: a neon WINNER sign buzzes on above the winner, flickering before it holds. */
+  private sign(plate: Rect, delay: number): void {
+    const rem = this.rem, { trim } = this.tones, width = rem * 5.4, height = rem * 1.5;
+    const element = this.sprite('', width, height, 'pnc-badge');
+    if (!element) return;
+    element.textContent = 'WINNER';
+    Object.assign(element.style, { fontSize: `${(rem * 0.82).toFixed(1)}px`, letterSpacing: '.32em', textIndent: '.32em', color: trim.spec, fontWeight: '700',
+      textShadow: `0 0 ${(rem * 0.2).toFixed(1)}px ${trim.high}, 0 0 ${(rem * 0.6).toFixed(1)}px ${trim.mid}`, border: `${Math.max(1, rem * 0.07).toFixed(1)}px solid ${rgba(trim.high, 0.8)}`,
+      borderRadius: `${(rem * 0.25).toFixed(1)}px`, background: 'rgba(8,6,14,.82)', boxShadow: `0 0 ${(rem * 0.8).toFixed(1)}px ${rgba(trim.mid, 0.6)}` });
+    const above = plate.y - height - rem * 0.4 >= rem * 0.2;
+    const x = plate.x + plate.width / 2 - width / 2, y = above ? plate.y - height - rem * 0.4 : plate.y + plate.height + rem * 0.4;
+    const flicker = [0, 1, 0.15, 1, 0.3, 1, 1, 1, 1, 0.5, 1, 1, 1, 0];
+    this.play(element, flicker.map((opacity, step) => ({ offset: step / (flicker.length - 1), opacity, transform: `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`, easing: 'steps(1)' } as Keyframe)), 2300, delay);
+  }
+
+  /** Breach: ACCESS GRANTED is stamped onto the winner's plate with a glitch tear across the table. */
+  private stamp(plate: Rect, delay: number): void {
+    const rem = this.rem, { trim } = this.tones, width = Math.max(plate.width, rem * 7), height = rem * 1.15;
+    const element = this.sprite('', width, height, 'pnc-badge');
+    if (element) {
+      element.textContent = 'ACCESS GRANTED';
+      Object.assign(element.style, { fontSize: `${(rem * 0.5).toFixed(1)}px`, letterSpacing: '.22em', textIndent: '.22em', color: '#ff4646', fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+        border: `${Math.max(1, rem * 0.08).toFixed(1)}px solid #ff4646`, borderRadius: '2px', background: 'rgba(8,8,8,.88)', boxShadow: '0 0 12px rgba(255,70,70,.45)' });
+      const x = plate.x + plate.width / 2 - width / 2, y = plate.y + plate.height / 2 - height / 2;
+      this.play(element, [
+        { offset: 0, opacity: 0, transform: `translate3d(${x}px,${y}px,0) scale(1.7)` },
+        { offset: 0.1, opacity: 1, transform: `translate3d(${x}px,${y}px,0) scale(1)` },
+        { offset: 0.14, opacity: 1, transform: `translate3d(${x + rem * 0.25}px,${y}px,0) scale(1)` },
+        { offset: 0.18, opacity: 1, transform: `translate3d(${x}px,${y}px,0) scale(1)` },
+        { offset: 0.85, opacity: 1, transform: `translate3d(${x}px,${y}px,0) scale(1)` },
+        { offset: 1, opacity: 0, transform: `translate3d(${x}px,${y}px,0) scale(1)` },
+      ], 2200, delay + 200);
+    }
+    this.glitch(delay, trim.spec, '#ff4646');
+  }
+
+  /** Neon and Breach: a few bright bars tear across the table for an instant. */
+  private glitch(delay: number, a = '#5cf2ff', b = '#ff4fd8'): void {
+    const table = this.previous?.table;
+    if (!table) return;
+    for (let index = 0; index < 4; index++) {
+      const height = Math.max(2, table.height * (0.008 + hash(index, 61) * 0.02)), width = table.width * (0.4 + hash(index, 67) * 0.5);
+      const element = this.sprite('', width, height);
+      if (!element) return;
+      element.style.background = index % 2 ? a : b;
+      element.style.mixBlendMode = 'screen';
+      const x = table.x + (table.width - width) * hash(index, 71), y = table.y + table.height * (0.2 + hash(index, 73) * 0.6);
+      this.play(element, [0, 0.9, 0, 0.7, 0].map((opacity, step) => ({ offset: step / 4, opacity, transform: `translate3d(${(x + (step % 2 ? 8 : -8)).toFixed(0)}px,${y.toFixed(0)}px,0)`, easing: 'steps(1)' } as Keyframe)), 360, delay + index * 70);
+    }
+  }
+
+  /**
+   * Step 5, your own win: a banner under the board names your hand ("Full house,
+   * kings over sevens") and what you won, in the room's own style.
+   */
+  private banner(action: Extract<TableAction, { type: 'award' }>, before: TableState, after: TableState, delay: number): void {
+    const rem = this.rem, { trim } = this.tones, motif = this.theme!.table.motif;
+    // At showdown the site may be redrawing your cards; the last reading this hand still names them.
+    const hand = after.heroHand ?? before.heroHand ?? this.heroHand;
+    const named = hand && hand.board.length >= 3 ? describeHand([...hand.hole, ...hand.board])?.name : undefined;
+    const amount = `+${Number.isInteger(action.pot) ? action.pot.toLocaleString('en-US') : action.pot.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+    const board = after.board ?? before.board, table = after.table;
+    const width = Math.min(table.width * 0.6, Math.max(rem * 13, (board?.width ?? rem * 14) * 0.95)), height = rem * 2.5;
+    const element = this.sprite('', width, height, 'pnc-banner');
+    if (!element) return;
+    const style = BANNER_STYLE[motif] ?? BANNER_STYLE.classic!;
+    const title = this.document.createElement('b'), sub = this.document.createElement('small');
+    title.textContent = named ?? 'You win the pot';
+    sub.textContent = amount;
+    for (const part of [title, sub]) part.style.position = 'static';
+    Object.assign(title.style, { font: `${style.weight} ${(rem * 0.66).toFixed(1)}px ${style.font}`, letterSpacing: style.tracking, color: style.ink ?? trim.spec, textTransform: style.upper ? 'uppercase' : 'none' });
+    Object.assign(sub.style, { font: `700 ${(rem * 0.46).toFixed(1)}px ${style.font}`, letterSpacing: '.08em', color: style.accent ?? trim.high, marginTop: `${(rem * 0.08).toFixed(1)}px` });
+    element.append(title, sub);
+    Object.assign(element.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', whiteSpace: 'nowrap',
+      borderRadius: style.radius, background: style.background, border: `${Math.max(1, rem * 0.06).toFixed(1)}px solid ${style.border ?? rgba(trim.high, 0.75)}`,
+      boxShadow: `0 ${(rem * 0.3).toFixed(1)}px ${(rem * 1).toFixed(1)}px rgba(0,0,0,.55), 0 0 ${(rem * 1.2).toFixed(1)}px ${rgba(style.glow ?? trim.mid, 0.4)}` });
+    const centreX = board ? board.x + board.width / 2 : table.x + table.width / 2;
+    const top = board ? board.y + board.height + rem * 0.5 : table.y + table.height * 0.62;
+    const x = centreX - width / 2;
+    this.play(element, Array.from({ length: 25 }, (_, step) => {
+      const t = step / 24, enter = spring(clamp(t / 0.22)), exit = clamp((t - 0.86) / 0.14);
+      return { offset: t, opacity: Math.min(clamp(t / 0.06), 1 - exit), transform: `translate3d(${x.toFixed(1)}px,${(top - exit * rem * 0.3).toFixed(1)}px,0) scale(${lerp(0.7, 1, enter).toFixed(4)})` };
+    }), 2600, delay + 300);
   }
 
   /** A band of light crossing the felt: the table acknowledging a real pot. */
@@ -560,6 +792,7 @@ export class Stage {
     const rem = this.rem, tint = this.tones.trim.spec, high = this.tones.trim.high;
     // Sakura rooms drift petals down; Neon rooms flicker pixels; every other room has dust in the light.
     const petals = motif === 'sakura', pixels = motif === 'neon';
+    if (motif === 'arcade' || motif === 'rain' || motif === 'breach') { this.roomAmbience(layer, motif, table, rem); this.motes = layer; this.root.prepend(layer); return; }
     for (let index = 0; index < 14; index++) {
       const mote = this.document.createElement('div');
       const size = rem * (petals ? 0.16 + hash(index, 71) * 0.12 : pixels ? 0.05 + hash(index, 71) * 0.05 : 0.06 + hash(index, 71) * 0.1);
@@ -580,6 +813,47 @@ export class Stage {
     }
     this.motes = layer;
     this.root.prepend(layer);
+  }
+
+  /**
+   * Arcade twinkles gold, magenta and cyan pixels in stepped frames; Rain District
+   * has rain falling through the light; Breach sends data packets along the traces.
+   */
+  private roomAmbience(layer: HTMLDivElement, motif: 'arcade' | 'rain' | 'breach', table: Rect, rem: number): void {
+    const count = motif === 'rain' ? 26 : motif === 'breach' ? 12 : 16;
+    for (let index = 0; index < count; index++) {
+      const mote = this.document.createElement('div');
+      const style: Partial<CSSStyleDeclaration> = {
+        left: `${(12 + hash(index, 73) * 76).toFixed(1)}%`, top: `${(motif === 'rain' ? -4 + hash(index, 79) * 30 : 16 + hash(index, 79) * 66).toFixed(1)}%`,
+        animationDelay: `${(-hash(index, 89) * 20).toFixed(1)}s`,
+      };
+      if (motif === 'arcade') {
+        const size = rem * (0.12 + (index % 3) * 0.05), color = ['#ffcc1a', '#ff4fd8', '#5cf2ff'][index % 3]!;
+        mote.className = 'pnc-mote pixel';
+        Object.assign(style, { width: `${size.toFixed(1)}px`, height: `${size.toFixed(1)}px`, background: color, boxShadow: `0 0 ${(size * 1.5).toFixed(1)}px ${color}`,
+          animationName: 'pnc-pixel', animationDuration: `${(3 + hash(index, 83) * 4).toFixed(1)}s`, animationTimingFunction: 'steps(6)' });
+        mote.style.setProperty('--o', '.85');
+        mote.style.setProperty('--d', `${(rem * 0.6).toFixed(1)}px`);
+      } else if (motif === 'rain') {
+        const length = rem * (0.7 + hash(index, 71) * 0.7);
+        mote.className = 'pnc-mote drop';
+        Object.assign(style, { width: '1px', height: `${length.toFixed(1)}px`, background: 'linear-gradient(180deg,transparent,rgba(190,215,255,.9))',
+          animationName: 'pnc-rain', animationDuration: `${(0.9 + hash(index, 83) * 0.6).toFixed(2)}s`, animationDelay: `${(-hash(index, 89) * 2).toFixed(2)}s` });
+        mote.style.setProperty('--o', (0.18 + hash(index, 97) * 0.22).toFixed(2));
+        mote.style.setProperty('--d', `${(rem * 4).toFixed(1)}px`);
+        mote.style.setProperty('--fall', `${(table.height * 0.8).toFixed(0)}px`);
+      } else {
+        const horizontal = index % 2 === 0, size = rem * 0.14, tint = this.tones.trim.spec;
+        mote.className = 'pnc-mote pixel';
+        Object.assign(style, { width: `${(horizontal ? size * 2.4 : size).toFixed(1)}px`, height: `${(horizontal ? size : size * 2.4).toFixed(1)}px`, background: index % 5 === 0 ? '#ff4646' : tint,
+          boxShadow: `0 0 ${(size * 3).toFixed(1)}px ${index % 5 === 0 ? '#ff4646' : tint}`, animationName: horizontal ? 'pnc-packet-x' : 'pnc-packet-y',
+          animationDuration: `${(2.4 + hash(index, 83) * 3).toFixed(1)}s` });
+        mote.style.setProperty('--o', '.75');
+        mote.style.setProperty('--d', `${((hash(index, 101) > 0.5 ? 1 : -1) * rem * (5 + hash(index, 103) * 6)).toFixed(1)}px`);
+      }
+      Object.assign(mote.style, style);
+      layer.append(mote);
+    }
   }
 }
 

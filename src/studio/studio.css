@@ -187,6 +187,31 @@ body { background: var(--bg); color: var(--fg); font: var(--t-md)/1.45 var(--san
 .player-now b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .player-track { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 3px; background: var(--raise); overflow: hidden }
 .player-track span { position: absolute; inset: 0; background: var(--accent); transform-origin: left; transition: transform .08s linear }
+/* The scrub bar sits over the progress track: invisible until it can be used, then a thumb on the track. */
+.player-now { position: relative }
+.scrub { position: absolute; left: 0; right: 0; bottom: -7px; width: 100%; height: 17px; margin: 0; background: transparent; appearance: none; -webkit-appearance: none; cursor: pointer }
+.scrub:disabled { cursor: default; opacity: 0 }
+.scrub::-webkit-slider-runnable-track { height: 17px; background: transparent }
+.scrub::-moz-range-track { height: 17px; background: transparent }
+.scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: 2px; border-radius: 50%; background: var(--accent-hi); box-shadow: 0 0 0 3px rgb(0 0 0 / .45); transition: transform var(--d-1) var(--ease) }
+.scrub::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 50%; background: var(--accent-hi); box-shadow: 0 0 0 3px rgb(0 0 0 / .45) }
+.scrub:hover::-webkit-slider-thumb, .scrub:focus-visible::-webkit-slider-thumb { transform: scale(1.25) }
+.scrub:focus-visible { outline: none }
+.scrub:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--focus) }
+
+/* Win tab in Effects */
+.win-panel { display: grid; gap: var(--s-4) }
+.win-lede { margin: 0; color: var(--fg-2); font-size: var(--t-sm) }
+.win-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2) }
+.win-step { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: var(--s-3); align-items: center; padding: 10px 12px; border-radius: var(--r-md); box-shadow: inset 0 0 0 1px var(--line-soft); background: var(--bg-deep) }
+.win-step.yours { background: var(--accent-soft); box-shadow: inset 0 0 0 1px rgb(232 185 108 / .3) }
+.win-step.live { box-shadow: inset 0 0 0 1px var(--accent-line) }
+.win-number { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: var(--t-sm); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--line) }
+.win-step.yours .win-number { color: var(--accent-ink); background: var(--accent); box-shadow: none }
+.win-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; line-height: 1.35 }
+.win-text b { font-weight: 600; font-size: var(--t-md) }
+.win-text small { color: var(--fg-2); font-size: var(--t-sm) }
+.win-text .win-capped { color: var(--fg-3); font-size: var(--t-xs) }
 .player-streets { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--bg-deep) }
 .player-streets button { position: relative; height: 32px; padding: 0 11px; border-radius: var(--r-sm); font-size: var(--t-sm); font-weight: 500; color: var(--fg-2); display: inline-flex; align-items: center; gap: 6px; transition: background var(--d-1), color var(--d-1) }
 .player-streets button:hover { color: var(--fg); background: var(--raise) }
@@ -359,7 +384,7 @@ body { background: var(--bg); color: var(--fg); font: var(--t-md)/1.45 var(--san
 .choice.on { color: var(--fg); background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent) }
 
 /* Effects */
-.event-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; padding: 3px; border-radius: var(--r-lg); background: var(--bg-deep) }
+.event-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: var(--r-lg); background: var(--bg-deep) }
 .event-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 9px 12px; border-radius: var(--r-md); text-align: left; min-width: 0; transition: background var(--d-2), box-shadow var(--d-2) }
 .event-tab:hover { background: var(--raise) }
 .event-tab.on { background: var(--raise-2); box-shadow: inset 0 -2px 0 var(--accent), var(--shadow-1) }

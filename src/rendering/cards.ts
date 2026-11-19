@@ -2,7 +2,8 @@ import type { CardAppearance, CardIdentity, Suit, Theme, VisualCard } from '../t
 import { darken, lighten, luminance, metal, mix, rgba, safeHex, svgDataUrl } from './color';
 import { CAP_HEIGHT, glyphs } from './glyphs';
 import { bone, dogPortrait, paw } from './puppy-art';
-import { BLOSSOM, BOLT, CIRCUIT_TILE, blossom, fallingPetal } from './motifs';
+import { BLOSSOM, BOLT, CHIP_MARK, CIRCUIT_TILE, PIXEL_SUITS, SIGIL, bitmap, blossom, dotText, fallingPetal, pixelText } from './motifs';
+import { YARN, catPaw, catPortrait, yarn } from './cat-art';
 
 /**
  * Card artwork. One renderer feeds the live table, the animation engine and
@@ -97,6 +98,7 @@ function inkFor(identity: CardIdentity, colors: Palette, fourColor: boolean): st
 /** Court-card ornament for each deck, drawn around (0, 0) about 20 units wide. */
 function courtMark(face: CardAppearance['face'], rank: 'J' | 'Q' | 'K', ink: string, ornamentInk: string, paper: string): string {
   if (face === 'puppy') return `<g transform="translate(59.5 42) scale(.92)">${dogPortrait(rank, ornamentInk, paper)}</g>`;
+  if (face === 'cat') return `<g transform="translate(59.5 43) scale(.92)">${catPortrait(rank, ornamentInk, paper)}</g>`;
   if (face === 'modern') {
     // An inverted badge: the crown cut out of a solid disc of the suit's ink.
     return `<g transform="translate(60 42)"><circle r="11.2" fill="${ink}"/><g fill="${paper}" transform="translate(0 .6) scale(.62)">${CROWNS[rank]}</g></g>`;
@@ -115,6 +117,9 @@ function courtMark(face: CardAppearance['face'], rank: 'J' | 'Q' | 'K', ink: str
 }
 
 function faceArt(identity: CardIdentity, appearance: CardAppearance, colors: Palette, radius: number, fourColor: boolean): string {
+  if (appearance.face === 'pixel') return pixelFace(identity, colors, fourColor);
+  if (appearance.face === 'holo') return holoFace(identity, colors, radius, fourColor);
+  if (appearance.face === 'cipher') return cipherFace(identity, colors, radius, fourColor);
   const ink = inkFor(identity, colors, fourColor);
   const dark = luminance(colors.paper) < 0.2;
   const style = appearance.face;
@@ -145,6 +150,11 @@ function faceArt(identity: CardIdentity, appearance: CardAppearance, colors: Pal
     const twig = `<path d="M90 2C80 6 74 10 69 18M78 8C80 13 79 17 76 21" fill="none" stroke="${darken(colors.accent, 0.35)}" stroke-opacity=".5" stroke-width=".9" stroke-linecap="round"/>`;
     decor = `<rect ${inner(3.4)} fill="none" stroke="${ornamentInk}" stroke-opacity=".5" stroke-width=".55"/><rect ${inner(5)} fill="none" stroke="${ornamentInk}" stroke-opacity=".25" stroke-width=".35"/>
 ${twig}<g fill="${ornamentInk}" fill-opacity=".55">${blossom(71, 15, 9, 10)}${blossom(80, 25, 6.5, -20)}</g><g fill="${ornamentInk}" fill-opacity=".35">${fallingPetal(13, 99, 4.4, 40)}${fallingPetal(21, 103, 3.4, -30)}</g>`;
+  } else if (style === 'cat') {
+    // Cat paw prints tiptoe along the frame, and a loose strand of yarn crosses a corner.
+    decor = `<rect ${inner(3.4)} fill="none" stroke="${ornamentInk}" stroke-opacity=".45" stroke-width=".6"/>`
+      + `<path d="M66 4.5C72 10 76 6 81 11S86 15 86 19" fill="none" stroke="${ornamentInk}" stroke-opacity=".4" stroke-width=".7" stroke-linecap="round"/>`
+      + `<g fill="${ornamentInk}" fill-opacity=".38">${catPaw(10, 100.5, 2.8, 200)}${catPaw(14.4, 96, 2.8, 200)}</g>`;
   } else if (style === 'puppy') {
     // Two tiny paw prints walk along the puppy deck's frame; they stay clear of the index.
     decor = `<rect ${inner(3.4)} fill="none" stroke="${ornamentInk}" stroke-opacity=".45" stroke-width=".6"/><rect ${inner(5)} fill="none" stroke="${ornamentInk}" stroke-opacity=".22" stroke-width=".35" stroke-dasharray="1.2 1.6"/>`
@@ -153,6 +163,7 @@ ${twig}<g fill="${ornamentInk}" fill-opacity=".55">${blossom(71, 15, 9, 10)}${bl
 
   const ring = `<circle cx="58" cy="73" r="27.5" fill="none" stroke="${ornamentInk}" stroke-opacity=".55" stroke-width=".7"/>`;
   const halo = !ace ? '' : style === 'puppy' ? `${ring}<g fill="${ornamentInk}" fill-opacity=".42">${bone(58, 104.5, 4.2)}</g>`
+    : style === 'cat' ? `${ring}<g fill="${ornamentInk}" fill-opacity=".45" stroke="${ornamentInk}" stroke-width=".05">${yarn(80.5, 99, 9, 20)}</g>`
     : style === 'modern' ? ''
       : style === 'neon' ? `<circle cx="58" cy="73" r="27" fill="none" stroke="${ink}" stroke-opacity=".75" stroke-width=".8" filter="url(#glow)"/>`
         : style === 'sakura' ? `<g fill="${ornamentInk}" fill-opacity=".45">${[0, 72, 144, 216, 288].map((angle) => fallingPetal(58 + Math.sin(angle * Math.PI / 180) * 28, 73 - Math.cos(angle * Math.PI / 180) * 28, 5.5, angle)).join('')}</g>`
@@ -179,6 +190,117 @@ ${twig}<g fill="${ornamentInk}" fill-opacity=".55">${blossom(71, 15, 9, 10)}${bl
 ${crown}`;
 }
 
+/** Pixel crowns for the Arcade court cards, 11 wide. */
+const PIXEL_CROWNS: Record<'J' | 'Q' | 'K', string[]> = {
+  K: ['10000100001', '11001110011', '11111111111', '11111111111', '01111111110', '01111111110'],
+  Q: ['00000100000', '01001110010', '01111111110', '01111111110', '00111111100', '00111111100'],
+  J: ['00011111000', '00111111100', '01111111110', '11111111111', '00000000000', '00000000000'],
+};
+/** A pixel coin for the Arcade back, 11 × 11. */
+const PIXEL_COIN = ['00011111000', '00111111100', '01111011110', '11111011111', '11000000011', '11100000111', '11110001111', '11100100111', '01101110110', '00111111100', '00011111000'];
+
+/**
+ * Arcade: everything on a 3-unit pixel grid with square corners, bold pixel ranks
+ * and chunky suits, in ordinary red and black so suits read at a glance.
+ */
+function pixelFace(identity: CardIdentity, colors: Palette, fourColor: boolean): string {
+  const ink = inkFor(identity, colors, fourColor), edge = colors.edge;
+  const court = identity.rank === 'J' || identity.rank === 'Q' || identity.rank === 'K', ace = identity.rank === 'A';
+  const p = 3;
+  // A frame with notched corners, like a sprite's outline.
+  const frame = `<path d="M${p} 0H${90 - p}V${p}H${p}Z M${p} ${110 - p}H${90 - p}V110H${p}Z M0 ${p}H${p}V${110 - p}H0Z M${90 - p} ${p}H90V${110 - p}H${90 - p}Z M${p} ${p}h${p}v${p}h${-p}Z M${90 - 2 * p} ${p}h${p}v${p}h${-p}Z M${p} ${110 - 2 * p}h${p}v${p}h${-p}Z M${90 - 2 * p} ${110 - 2 * p}h${p}v${p}h${-p}Z" fill="${edge}"/>`;
+  const rankSize = identity.rank === '10' ? 3 : 3.4;
+  const rank = `<g data-part="rank" data-id="rank" data-cx=".25" data-cy=".2" fill="${ink}">${pixelText(identity.rank, 9, 9, rankSize)}</g>`;
+  const indexSuit = `<g data-part="suit" data-id="index-suit" data-cx=".2" data-cy=".44" fill="${ink}">${bitmap(PIXEL_SUITS[identity.suit], 9, 39, 2.4)}</g>`;
+  const big = court ? 4 : 5, suitX = Math.round(58 - 4.5 * big), suitY = Math.round((court ? 80 : 74) - 4.5 * big);
+  const suit = `<g data-part="suit" data-id="suit" data-cx=".64" data-cy=".68" fill="${ink}">${bitmap(PIXEL_SUITS[identity.suit], suitX, suitY, big)}</g>`;
+  const crown = court ? `<g data-part="art" data-id="crown" data-cx=".64" data-cy=".36" fill="${darken(colors.accent, 0.08)}">${bitmap(PIXEL_CROWNS[identity.rank as 'J' | 'Q' | 'K'], 58 - 16.5, 32, 3)}</g>` : '';
+  // Four little twinkles around the ace.
+  const sparkle = (x: number, y: number): string => `<path d="M${x} ${y - 6}h3v3h3v3h-3v3h-3v-3h-3v-3h3Z"/>`;
+  const halo = ace ? `<g fill="${colors.accent}">${sparkle(30, 46)}${sparkle(83, 50)}${sparkle(33, 100)}${sparkle(81, 98)}</g>` : '';
+  return `<g data-body="1" shape-rendering="crispEdges"><rect width="90" height="110" fill="${colors.paper}"/>${frame}${halo}</g>
+<g shape-rendering="crispEdges">${rank}${indexSuit}${suit}${crown}</g>`;
+}
+
+/** Wireframe solids for the Rain District court cards: a cube, an octahedron and a pyramid. */
+function wireframe(rank: 'J' | 'Q' | 'K'): string {
+  if (rank === 'K') return '<path d="M0-12L10.4-6V6L0 12L-10.4 6V-6Z M0-12V0 M0 0L10.4 6 M0 0L-10.4 6 M-10.4-6L0 0 M10.4-6L0 0" />';
+  if (rank === 'Q') return '<path d="M0-13L9 0L0 13L-9 0Z M-9 0L2.5 3.2L9 0 M0-13L2.5 3.2L0 13 M-9 0L-2 -2.6L9 0" stroke-dasharray=""/>';
+  return '<path d="M0-12L10 8L-10 8Z M0-12L2 2 M-10 8L2 2L10 8"/>';
+}
+
+/**
+ * Rain District: tinted glass with a split-colour edge, as if projected. The index
+ * is printed three times, magenta and cyan a hair either side of the ink.
+ */
+function holoFace(identity: CardIdentity, colors: Palette, radius: number, fourColor: boolean): string {
+  const ink = inkFor(identity, colors, fourColor);
+  const court = identity.rank === 'J' || identity.rank === 'Q' || identity.rank === 'K', ace = identity.rank === 'A';
+  const rank = rankShape(identity.rank, 8.4, 9, 30.5);
+  const indexSuitX = 8.4 + Math.max(11, Math.min(rank.width, 26)) / 2, indexSuitY = identity.rank === 'J' || identity.rank === 'Q' ? 57.5 : 51.5;
+  const suitY = court ? 79 : ace ? 73 : 74.5, suitSize = court ? 34 : ace ? 38 : 42;
+  const split = (markup: string, part: string, id: string, cx: string, cy: string): string => `<g data-part="${part}" data-id="${id}" data-cx="${cx}" data-cy="${cy}">
+<g fill="#ff2e88" fill-opacity=".55" transform="translate(-.9 0)">${markup}</g><g fill="#33e1ff" fill-opacity=".55" transform="translate(.9 0)">${markup}</g><g fill="${ink}" filter="url(#hglow)">${markup}</g></g>`;
+  const inset = 3.2, inner = `x="${inset}" y="${inset}" width="${90 - inset * 2}" height="${110 - inset * 2}" rx="${n(Math.max(0, radius - 2))}"`;
+  const ticks = `<path d="M3 16V3H16M74 3H87V16M87 94V107H74M16 107H3V94" fill="none" stroke="${colors.accent}" stroke-width="1" stroke-opacity=".8"/>`;
+  const crown = court ? `<g data-part="art" data-id="crown" data-cx=".66" data-cy=".38" transform="translate(60 41)" fill="none" stroke="${colors.black}" stroke-width="1" stroke-linejoin="round" filter="url(#hglow)">${wireframe(identity.rank as 'J' | 'Q' | 'K')}</g>` : '';
+  const halo = ace ? `<circle cx="58" cy="73" r="27" fill="none" stroke="${colors.black}" stroke-opacity=".5" stroke-width=".7" stroke-dasharray="5 3"/><circle cx="58" cy="73" r="31" fill="none" stroke="${colors.accent}" stroke-opacity=".35" stroke-width=".5"/>` : '';
+  return `<defs>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ff2e0" stop-opacity=".18"/><stop offset=".55" stop-color="${colors.paper}" stop-opacity="0"/><stop offset="1" stop-color="#8a5cff" stop-opacity=".2"/></linearGradient>
+<linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1"><stop offset=".3" stop-color="#fff" stop-opacity="0"/><stop offset=".42" stop-color="#fff" stop-opacity=".09"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<pattern id="lines" width="4" height="2.6" patternUnits="userSpaceOnUse"><rect width="4" height=".6" fill="#fff" fill-opacity=".05"/></pattern>
+<filter id="hglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g data-body="1"><rect width="90" height="110" rx="${n(radius)}" fill="${colors.paper}"/><rect width="90" height="110" rx="${n(radius)}" fill="url(#glass)"/><rect width="90" height="110" rx="${n(radius)}" fill="url(#lines)"/>
+<rect width="90" height="110" rx="${n(radius)}" fill="url(#sheen)"/><rect ${inner} fill="none" stroke="${colors.black}" stroke-opacity=".35" stroke-width=".6"/>${ticks}${halo}</g>
+${split(rank.markup, 'rank', 'rank', '.25', '.22')}
+${split(suitShape(identity.suit, indexSuitX, indexSuitY, 15.5), 'suit', 'index-suit', '.2', '.47')}
+${split(suitShape(identity.suit, 58, suitY, suitSize), 'suit', 'suit', '.64', '.68')}
+${crown}`;
+}
+
+/**
+ * Breach: black cards with corner brackets and a dot-matrix index, like a terminal
+ * readout; the centre suit is an outline around a solid core.
+ */
+function cipherFace(identity: CardIdentity, colors: Palette, radius: number, fourColor: boolean): string {
+  const ink = inkFor(identity, colors, fourColor);
+  const court = identity.rank === 'J' || identity.rank === 'Q' || identity.rank === 'K', ace = identity.rank === 'A';
+  const wide = identity.rank === '10';
+  const dot = wide ? 2.6 : 3.2;
+  const suitY = court ? 79 : 74, suitSize = court ? 34 : 42;
+  // A readout line: the card's position in a sorted deck, as digits.
+  const code = String((['spades', 'hearts', 'diamonds', 'clubs'].indexOf(identity.suit) * 13) + ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'].indexOf(identity.rank) + 1).padStart(2, '0');
+  const readout = `0${code}.${String(code.split('').reverse().join('')).padStart(2, '0')}`;
+  const crown = court ? `<g data-part="art" data-id="crown" data-cx=".66" data-cy=".38" transform="translate(60 41) scale(22)" fill="${ink}" fill-opacity=".85">${CHIP_MARK}</g>`
+    + `<g transform="translate(60 41)" fill="${colors.paper}">${dotText(identity.rank, -2.4, -3.4, 1)}</g>` : '';
+  const halo = ace ? `<circle cx="58" cy="73" r="28" fill="none" stroke="${ink}" stroke-opacity=".55" stroke-width=".6" stroke-dasharray="1 2.4"/><path d="M30 73H38M78 73H86M58 45V53M58 93V101" stroke="${ink}" stroke-width=".8"/>` : '';
+  return `<defs>
+<pattern id="dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r=".4" fill="${ink}" fill-opacity=".14"/></pattern>
+<filter id="led" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation=".9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g data-body="1"><rect width="90" height="110" rx="${n(radius)}" fill="${colors.paper}"/><rect width="90" height="110" rx="${n(radius)}" fill="url(#dots)"/>
+<path d="M3 15V3H15M87 95V107H75" fill="none" stroke="${ink}" stroke-width="1.6"/><path d="M75 3H87V7M3 103V107H7" fill="none" stroke="${ink}" stroke-opacity=".4" stroke-width=".8"/>
+<g fill="${ink}" fill-opacity=".6">${dotText(readout.replace(/[^0-9.]/g, ''), 9, 100, 0.9)}</g>${halo}</g>
+<g data-part="rank" data-id="rank" data-cx=".25" data-cy=".22" fill="${ink}" filter="url(#led)">${dotText(identity.rank, 9, 10, dot)}</g>
+<g data-part="suit" data-id="index-suit" data-cx=".2" data-cy=".47" fill="${ink}">${suitShape(identity.suit, 17, 46, 14)}</g>
+<g data-part="suit" data-id="suit" data-cx=".64" data-cy=".68"><g fill="none" stroke="${ink}" stroke-width=".05">${suitShape(identity.suit, 58, suitY, suitSize)}</g><g fill="${ink}" filter="url(#led)">${suitShape(identity.suit, 58, suitY, suitSize * 0.46)}</g></g>
+${crown}`;
+}
+
+/** Breach back: a block of glyph cells, deterministic, with one warning-red row. */
+function glyphBlock(ink: string, alert: string): string {
+  let cells = '';
+  const cols = 8, rows = 10, size = 7.4, x0 = 45 - (cols * size) / 2, y0 = 55 - (rows * size) / 2;
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const on = ((i * 7 + j * 11 + i * j * 3) % 5) > 1;
+      if (on) cells += `<rect x="${n(x0 + i * size + 0.8)}" y="${n(y0 + j * size + 0.8)}" width="${n(size - 1.6)}" height="${n(size - 1.6)}" fill="${j === 6 ? alert : ink}" fill-opacity="${j === 6 ? 0.9 : 0.55 + ((i + j) % 3) * 0.12}"/>`;
+    }
+  }
+  return `<g shape-rendering="crispEdges">${cells}</g><path d="M9 17V9H17M81 93V101H73" fill="none" stroke="${ink}" stroke-width="1.2"/>`;
+}
+
 function backArt(appearance: CardAppearance, colors: Palette, radius: number): string {
   const metalTone = metal(colors.accent);
   const line = luminance(colors.back) > 0.45 ? darken(colors.back, 0.45) : metalTone.high;
@@ -198,8 +320,24 @@ function backArt(appearance: CardAppearance, colors: Palette, radius: number): s
     field = `<rect x="5" y="5" width="80" height="100" fill="url(#circuit)" clip-path="url(#panel)"/>`;
   } else if (appearance.back === 'petals') {
     field = `<rect x="5" y="5" width="80" height="100" fill="url(#petals)" clip-path="url(#panel)"/>`;
+  } else if (appearance.back === 'pixel') {
+    field = `<rect x="5" y="5" width="80" height="100" fill="url(#checker)" shape-rendering="crispEdges"/>`;
+  } else if (appearance.back === 'holo') {
+    field = `<rect x="5" y="5" width="80" height="100" fill="url(#foil)" clip-path="url(#panel)"/><rect x="5" y="5" width="80" height="100" fill="url(#foilSheen)" clip-path="url(#panel)"/><rect x="5" y="5" width="80" height="100" fill="url(#scan2)" clip-path="url(#panel)"/>`;
+  } else if (appearance.back === 'glyph') {
+    field = glyphBlock(colors.accent, colors.red);
+  } else if (appearance.back === 'yarn') {
+    field = `<rect x="5" y="5" width="80" height="100" fill="url(#yarnfield)" clip-path="url(#panel)"/>`;
   }
-  const medallion = appearance.back === 'image' && image ? '' : appearance.back === 'circuit' ? `<g transform="translate(45 55)">
+  const medallion = appearance.back === 'image' && image ? '' : appearance.back === 'glyph' ? ''
+    : appearance.back === 'pixel' ? `<g shape-rendering="crispEdges"><rect x="25" y="35" width="40" height="40" fill="${darken(colors.back, 0.45)}"/><rect x="28" y="38" width="34" height="34" fill="${colors.back}"/><g fill="${colors.accent}">${bitmap(PIXEL_COIN, 28.5, 38.5, 3)}</g></g>`
+    : appearance.back === 'holo' ? `<g transform="translate(45 55)">
+<circle r="18" fill="${darken(colors.back, 0.3)}" fill-opacity=".85" stroke="${line}" stroke-width=".8" filter="url(#bglow)"/>
+<g transform="scale(24)" fill="${line}" stroke="${line}" stroke-width=".07" filter="url(#bglow)">${SIGIL}</g></g>`
+    : appearance.back === 'yarn' ? `<g transform="translate(45 55)">
+<circle r="19" fill="${colors.back}" stroke="${line}" stroke-width=".9"/><circle r="16.2" fill="none" stroke="${line}" stroke-opacity=".55" stroke-width=".45" stroke-dasharray="1 1.4"/>
+<g transform="scale(24)" fill="${line}" stroke="${darken(colors.back, 0.25)}" stroke-width=".05">${YARN}</g></g>`
+    : appearance.back === 'circuit' ? `<g transform="translate(45 55)">
 <path d="M0-19L16.5-9.5V9.5L0 19L-16.5 9.5V-9.5Z" fill="${colors.back}" stroke="${line}" stroke-width=".9" filter="url(#bglow)"/>
 <path d="M0-14.5L12.6-7.2V7.2L0 14.5L-12.6 7.2V-7.2Z" fill="none" stroke="${line}" stroke-opacity=".5" stroke-width=".45"/>
 <g fill="${line}" filter="url(#bglow)" transform="scale(17)">${BOLT}</g>
@@ -221,6 +359,11 @@ function backArt(appearance: CardAppearance, colors: Palette, radius: number): s
 <pattern id="paws" width="20" height="20" patternUnits="userSpaceOnUse"><g fill="${line}" fill-opacity=".32">${paw(5, 6, 5.4, -18)}${paw(15, 15.5, 5.4, 22)}</g><g fill="${line}" fill-opacity=".16">${bone(15, 4.5, 2.4, -30)}${bone(5, 16, 2.4, 25)}</g></pattern>
 <pattern id="circuit" width="20" height="20" patternUnits="userSpaceOnUse"><g fill="${line}" stroke="${line}" fill-opacity=".5" stroke-opacity=".42">${CIRCUIT_TILE}</g></pattern>
 <pattern id="petals" width="22" height="22" patternUnits="userSpaceOnUse"><g fill="${line}" fill-opacity=".3">${blossom(6, 6, 7, 10)}${blossom(17, 17, 7, -16)}</g><g fill="${line}" fill-opacity=".2">${fallingPetal(17, 5, 3, 40)}${fallingPetal(5, 17, 3, -30)}</g></pattern>
+<pattern id="checker" x="5" y="5" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="${darken(colors.back, 0.35)}"/><rect width="5" height="5" fill="${colors.back}"/><rect x="5" y="5" width="5" height="5" fill="${colors.back}"/></pattern>
+<linearGradient id="foil" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(colors.back, '#3ff2e0', 0.35)}"/><stop offset=".35" stop-color="${mix(colors.back, '#8a5cff', 0.4)}"/><stop offset=".65" stop-color="${mix(colors.back, '#ff3d8b', 0.35)}"/><stop offset="1" stop-color="${mix(colors.back, '#ffb84a', 0.3)}"/></linearGradient>
+<linearGradient id="foilSheen" x1="0" y1="0" x2="1" y2=".6"><stop offset=".25" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff" stop-opacity=".22"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset=".62" stop-color="#fff" stop-opacity="0"/><stop offset=".68" stop-color="#fff" stop-opacity=".12"/><stop offset=".74" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<pattern id="scan2" width="4" height="2.4" patternUnits="userSpaceOnUse"><rect width="4" height=".7" fill="#000" fill-opacity=".18"/></pattern>
+<pattern id="yarnfield" width="22" height="22" patternUnits="userSpaceOnUse"><g fill="${line}" fill-opacity=".3" stroke="${darken(colors.back, 0.2)}" stroke-width=".05">${yarn(6, 6, 7, 10)}</g><g fill="${line}" fill-opacity=".26">${catPaw(16.5, 16.5, 5.5, 25)}</g></pattern>
 <filter id="bglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <pattern id="harlequin" width="10" height="13.75" patternUnits="userSpaceOnUse"><path d="M5 0L10 6.875L5 13.75L0 6.875Z" fill="${line}" fill-opacity=".1" stroke="${line}" stroke-opacity=".4" stroke-width=".4"/><circle cx="5" cy="6.875" r=".7" fill="${line}" fill-opacity=".55"/></pattern>
 </defs>

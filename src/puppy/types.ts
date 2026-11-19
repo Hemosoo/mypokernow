@@ -1,6 +1,6 @@
 import type { AnimationHandle } from '../animation/core/coordinator';
 import type { SeatState, TableState } from '../adapter/pokernow/table-state';
-import type { CompanionAction, Rect, Settings, Theme, VisualEvent } from '../types';
+import type { CompanionAction, CompanionKind, Rect, Settings, Theme, VisualEvent } from '../types';
 import type { Choreography } from './plan';
 
 /**
@@ -40,8 +40,10 @@ export interface Companion {
    * when it cannot: no table yet, reduced motion, or its animations are off.
    */
   perform?(action: CompanionAction): boolean;
-  /** Whether it can perform a card animation right now. */
-  ready(): boolean;
+  /** Whether it can perform a card animation right now, as the given character when one is named. */
+  ready(kind?: CompanionKind): boolean;
+  /** The studio's close-up: render at this many times the usual resolution (1 = normal). */
+  zoom?(factor: number): void;
   /** Window geometry changed (resize, scroll, zoom). */
   geometry(): void;
   dispose(): void;

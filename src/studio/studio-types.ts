@@ -12,6 +12,8 @@ export interface NowPlaying {
   hand?: boolean;
   /** A preset tried on the table without being equipped. */
   trial?: boolean;
+  /** One step of the win celebration (1–5). */
+  win?: 1 | 2 | 3 | 4 | 5;
 }
 
 /** Everything a page can read or do. The App owns the state; pages only render it. */
@@ -48,6 +50,8 @@ export interface Studio {
   tryPreset: (id: string, street: Street) => void;
   playStreet: (street: Street) => void;
   playHand: () => void;
+  /** Play one step of the win celebration on the stage. */
+  playWin: (step: 1 | 2 | 3 | 4 | 5) => void;
   toggleFavorite: (id: string) => void;
   setParameter: (key: string, value: number) => void;
   resetParameters: () => void;

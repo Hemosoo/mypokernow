@@ -12,13 +12,20 @@ const FACES: { id: Face; name: string; note: string; style: Partial<Theme['card'
   { id: 'midnight', name: 'Midnight', note: 'Dark faces under starlight', style: { faceColor: '#181c2c', redColor: '#fd8b9a', blackColor: '#dcdafa', borderColor: '#626a87', borderRadius: 8 } },
   { id: 'neon', name: 'Neon', note: 'Glowing ink on black glass', style: { faceColor: '#0c0e18', redColor: '#ff4f9a', blackColor: '#63e6ff', borderColor: '#313a66', borderRadius: 6 } },
   { id: 'sakura', name: 'Sakura', note: 'Washi paper and blossoms', style: { faceColor: '#fcf5ef', redColor: '#c23c5c', blackColor: '#2a2a3e', borderColor: '#ecd8d3', borderRadius: 10 } },
+  { id: 'pixel', name: 'Pixel', note: 'Pixel ranks, chunky suits, square corners', style: { faceColor: '#ffffff', redColor: '#e4202e', blackColor: '#141414', borderColor: '#141414', borderRadius: 0 } },
+  { id: 'holo', name: 'Hologram', note: 'Tinted glass, split-colour edges', style: { faceColor: '#0f1a22', redColor: '#ff5c9d', blackColor: '#a8f4ff', borderColor: '#2f6b78', borderRadius: 5 } },
+  { id: 'cipher', name: 'Cipher', note: 'Black, dot-matrix index, corner brackets', style: { faceColor: '#0b0c0d', redColor: '#ff4646', blackColor: '#b7ff3c', borderColor: '#30353a', borderRadius: 2 } },
   { id: 'puppy', name: 'Puppy', note: 'Dog-portrait courts, paw trims', style: { faceColor: '#fffaf0', redColor: '#c8394a', blackColor: '#2a211c', borderColor: '#ecd9bc', borderRadius: 9 } },
+  { id: 'cat', name: 'Cat', note: 'Cat-portrait courts, paw prints and yarn', style: { faceColor: '#fffaf2', redColor: '#c4374a', blackColor: '#2b2422', borderColor: '#ecdcc4', borderRadius: 9 } },
   { id: 'native', name: 'PokerNow', note: 'The site’s own artwork', style: { faceColor: '#fffdf7', redColor: '#be354a', blackColor: '#24282f', borderColor: '#d7d5cb', borderRadius: 6 } },
 ];
-const BACKS: [Theme['card']['back'], string][] = [['crosshatch', 'Guilloché'], ['diamonds', 'Harlequin'], ['solid', 'Plain'], ['circuit', 'Circuit'], ['petals', 'Petals'], ['paws', 'Paws']];
-const MOTIFS: [Theme['table']['motif'], string][] = [['classic', 'Plain'], ['puppy', 'Paw prints'], ['neon', 'Lit grid'], ['sakura', 'Petals']];
-const EMBLEMS: [Theme['table']['emblem'], string][] = [['spade', 'Spade'], ['crown', 'Crown'], ['laurel', 'Laurel'], ['blossom', 'Blossom'], ['bolt', 'Bolt'], ['paw', 'Paw'], ['none', 'None']];
-const TRIMS = [...METALS, { name: 'Neon', trim: '#43e3ff', aura: '#8af4ff' }];
+const BACKS: [Theme['card']['back'], string][] = [['crosshatch', 'Guilloché'], ['diamonds', 'Harlequin'], ['solid', 'Plain'], ['circuit', 'Circuit'], ['petals', 'Petals'], ['paws', 'Paws'],
+  ['pixel', 'Pixel coin'], ['holo', 'Hologram foil'], ['glyph', 'Glyph block'], ['yarn', 'Yarn']];
+const MOTIFS: [Theme['table']['motif'], string][] = [['classic', 'Plain'], ['puppy', 'Paw prints'], ['cat', 'Paws and yarn'], ['neon', 'Lit grid'], ['sakura', 'Petals'],
+  ['arcade', 'Pixel marquee'], ['rain', 'Wet street'], ['breach', 'Circuit traces']];
+const EMBLEMS: [Theme['table']['emblem'], string][] = [['spade', 'Spade'], ['crown', 'Crown'], ['laurel', 'Laurel'], ['blossom', 'Blossom'], ['bolt', 'Bolt'], ['paw', 'Paw'],
+  ['yarn', 'Yarn'], ['coin', 'Coin'], ['sigil', 'Sigil'], ['chip', 'Chip'], ['none', 'None']];
+const TRIMS = [...METALS, { name: 'Neon', trim: '#43e3ff', aura: '#8af4ff' }, { name: 'Magenta', trim: '#ff3d8b', aura: '#ffb84a' }, { name: 'Acid', trim: '#b7ff3c', aura: '#c8ff6a' }];
 const TABS: [AppearanceTab, string][] = [['cards', 'Cards'], ['table', 'Table'], ['room', 'Room'], ['board', 'Board']];
 const same = (a?: string, b?: string): boolean => (a ?? '').toLowerCase() === (b ?? '').toLowerCase();
 
@@ -220,7 +227,8 @@ function MoodPad({ felt, onChange }: { felt: string; onChange: (palette: ReturnT
 function RoomTab({ studio }: { studio: Studio }) {
   const { theme, baseline, library } = studio;
   const table = theme.table;
-  const particles = table.motif === 'sakura' ? 'Petals drift down' : table.motif === 'neon' ? 'Pixels flicker' : 'Dust drifts in the light';
+  const particles = table.motif === 'sakura' ? 'Petals drift down' : table.motif === 'neon' ? 'Pixels flicker' : table.motif === 'arcade' ? 'Pixels twinkle'
+    : table.motif === 'rain' ? 'Rain falls through the light' : table.motif === 'breach' ? 'Data packets run along the traces' : 'Dust drifts in the light';
   return <>
     <Section title="Room colour" note="The space around the table.">
       <ColorField label="Room" value={table.backgroundColor} onChange={(backgroundColor) => studio.patchTable({ backgroundColor })}

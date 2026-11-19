@@ -1,9 +1,25 @@
 import { darken, metal, mix, safeHex, svgDataUrl } from './color';
 import { CAP_HEIGHT, glyphs } from './glyphs';
 import { PAW } from './puppy-art';
-import { BLOSSOM, BOLT } from './motifs';
+import { BLOSSOM, BOLT, CHIP_MARK, COIN, SIGIL } from './motifs';
+import { CAT_PAW } from './cat-art';
+import type { TableMotif } from '../types';
 
-export type ChipMotif = 'classic' | 'puppy' | 'neon' | 'sakura';
+export type ChipMotif = TableMotif;
+
+/** Each decorative room's mark, in the unit box its shapes are drawn in. */
+function motifMark(motif: ChipMotif): string {
+  switch (motif) {
+    case 'puppy': return PAW;
+    case 'sakura': return BLOSSOM;
+    case 'neon': return BOLT;
+    case 'arcade': return COIN;
+    case 'rain': return `<g fill="none" stroke="currentColor" stroke-width=".09">${SIGIL}</g>`;
+    case 'breach': return CHIP_MARK;
+    case 'cat': return CAT_PAW;
+    default: return '';
+  }
+}
 
 /**
  * Casino chips, drawn at a three-quarter angle so a stack reads as an object
@@ -71,9 +87,7 @@ function chipTop(x: number, cy: number, tone: Tone, motif: ChipMotif = 'classic'
   return `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${rx}" ry="${ry}" fill="${tone.face}"/>`
     + `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(rx - 1.5)}" ry="${n(ry - 0.85)}" fill="none" stroke="${tone.insert}" stroke-opacity=".9" stroke-width="2.4" stroke-dasharray="4.1 5.05"/>`
     + `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(rx * 0.56)}" ry="${n(ry * 0.56)}" fill="${tone.inlay}" stroke="${tone.ring}" stroke-opacity=".8" stroke-width=".5"/>`
-    + (motif === 'puppy' ? `<g transform="translate(${n(cx)} ${n(cy + 0.15)}) scale(5.4 3.1)" fill="${tone.ring}" fill-opacity=".9">${PAW}</g>` : '')
-    + (motif === 'sakura' ? `<g transform="translate(${n(cx)} ${n(cy)}) scale(6 3.4)" fill="${tone.ring}" fill-opacity=".9">${BLOSSOM}</g>` : '')
-    + (motif === 'neon' ? `<g transform="translate(${n(cx)} ${n(cy)}) scale(5.6 3.2)" fill="${tone.ring}" fill-opacity=".95">${BOLT}</g>` : '')
+    + (motifMark(motif) ? `<g transform="translate(${n(cx)} ${n(cy + 0.1)}) scale(5.6 3.2)" fill="${tone.ring}" color="${tone.ring}" fill-opacity=".92">${motifMark(motif)}</g>` : '')
     + `<ellipse cx="${n(cx - 2.2)}" cy="${n(cy - 1.6)}" rx="${n(rx * 0.5)}" ry="${n(ry * 0.34)}" fill="#fff" fill-opacity=".1"/>`;
 }
 
@@ -153,7 +167,7 @@ export function puckSvg(accent: string, letter = 'D', motif: ChipMotif = 'classi
 <ellipse cx="32" cy="25" rx="27" ry="18" fill="url(#f)"/>
 <ellipse cx="32" cy="25" rx="23.2" ry="15" fill="none" stroke="url(#g)" stroke-width="1.5"/>
 <ellipse cx="32" cy="25" rx="20.6" ry="13.1" fill="none" stroke="${gold.low}" stroke-opacity=".5" stroke-width=".4"/>
-${motif === 'puppy' ? `<g transform="translate(32 25.5) scale(30 19.5)" fill="${gold.mid}" fill-opacity=".32">${PAW}</g>` : ''}${motif === 'sakura' ? `<g transform="translate(32 25) scale(30 19.5)" fill="${gold.mid}" fill-opacity=".3">${BLOSSOM}</g>` : ''}${motif === 'neon' ? `<g transform="translate(32 25) scale(26 17)" fill="${gold.mid}" fill-opacity=".3">${BOLT}</g>` : ''}${letterMark(letter)}
+${motifMark(motif) ? `<g transform="translate(32 25.3) scale(28 18)" fill="${gold.mid}" color="${gold.mid}" fill-opacity=".3" opacity="${motif === 'rain' ? 0.45 : 1}">${motifMark(motif)}</g>` : ''}${letterMark(letter)}
 <ellipse cx="24" cy="17" rx="13" ry="5" fill="#fff" fill-opacity=".35"/>
 </svg>`;
 }

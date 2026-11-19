@@ -168,10 +168,12 @@ export class AnimationCoordinator {
     this.host.append(layer);
 
     const leases: SourceLease[] = [];
-    let timeline: Timeline | undefined, done = false, paused = false, progress = 0;
+    let timeline: Timeline | undefined, done = false, paused = false, holds = 0, progress = 0;
+    // The viewer's pause and a companion's brief hold are separate: neither undoes the other.
+    const settle = (): void => { if (done) return; if (paused || holds > 0) timeline?.pause(); else timeline?.start(); };
     let resolveFinished: () => void = () => {};
     const finished = new Promise<void>(resolve => { resolveFinished = resolve; });
-    let watchdog = 0;
+    let watchdog = 0, pendingSeek: number | undefined;
     // `graceful` marks a natural finish: the overlay stays on top of the restored
     // card for two more frames, so the page has painted the real card before the
     // identical overlay is removed. Cancellation removes everything at once.
@@ -207,8 +209,12 @@ export class AnimationCoordinator {
     const handle: AnimationHandle = {
       finished,
       get progress() { return progress; },
-      pause() { paused = true; timeline?.pause(); },
-      resume() { paused = false; if (!done) timeline?.start(); },
+      pause() { paused = true; settle(); },
+      resume() { paused = false; settle(); },
+      hold() { holds++; settle(); },
+      unhold() { holds = Math.max(0, holds - 1); settle(); },
+      // Asked before the artwork is ready, the jump waits and happens on the first frame.
+      seek(value: number) { if (done) return; if (timeline) timeline.seek(value); else pendingSeek = value; },
       cancel: release,
       finish() {
         if (done) return;
@@ -247,7 +253,8 @@ export class AnimationCoordinator {
           onEnd: () => release(true),
           onError: error => { console.warn('[PokerNow Customizer] Animation recovered safely.', error); release(); },
         });
-        if (!paused) timeline.start();
+        if (pendingSeek !== undefined) timeline.seek(pendingSeek);
+        if (!paused && !holds) timeline.start();
       } catch (error) { console.warn('[PokerNow Customizer] Source replacement recovered safely.', error); release(); }
     }, error => { console.warn('[PokerNow Customizer] Artwork unavailable; original cards remain visible.', error); release(); });
     return handle;
