@@ -22,6 +22,8 @@ export interface PuppyPose {
   bow: number;
   /** 0 … 1 lying down: belly on the felt, front paws out, head resting on them. */
   lie: number;
+  /** 0 … 1 curled up asleep, the way a cat sleeps: a round bun, head tucked to its tail, tail wrapped round. Cat only. */
+  curl: number;
   headYaw: number; headPitch: number; headTilt: number;
   /** Ear flop, each side (positive swings out). */
   earL: number; earR: number;
@@ -39,7 +41,7 @@ export interface PuppyPose {
 }
 
 export const neutralPose = (): PuppyPose => ({
-  lift: 0, spin: 0, bob: 0, stretch: 1, lean: 0, roll: 0, sit: 0, bow: 0, lie: 0, headYaw: 0, headPitch: 0, headTilt: 0, earL: 0, earR: 0,
+  lift: 0, spin: 0, bob: 0, stretch: 1, lean: 0, roll: 0, sit: 0, bow: 0, lie: 0, curl: 0, headYaw: 0, headPitch: 0, headTilt: 0, earL: 0, earR: 0,
   mouth: 0, tongue: 0, blink: 0, tailWag: 0, tailLift: 0, gait: 0, stride: 0, pawL: 0, pawR: 0, reachL: 0, reachR: 0, scratch: 0, scratchPhase: 0,
 });
 
@@ -49,6 +51,9 @@ function setLeg(leg: Leg, hip: number, knee: number, paw = 0): void {
   leg.knee.rotation.x = knee;
   leg.paw.rotation.x = paw;
 }
+
+/** Which side a curled-up cat tucks its head and tail to (1 or -1). */
+const CURL_SIDE = 1;
 
 export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
   const { body, neck, head, jaw, tongue, eyes, ears, tail, legs } = rig;
@@ -60,6 +65,8 @@ export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
   body.position.z = -sit * 0.07;
   body.rotation.x = pose.lean - sit * 0.55 + bow * 0.38;
   body.rotation.z = pose.roll;
+  body.rotation.y = 0;
+  head.rotation.x = 0;
   const s = Math.max(0.6, Math.min(1.4, pose.stretch));
   body.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
 
@@ -74,6 +81,9 @@ export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
   tongue.position.z = 0.12 + pose.tongue * 0.05;
   const lid = 1 - Math.max(0, Math.min(1, pose.blink)) * 0.88;
   for (const eye of eyes) eye.scale.y = lid;
+  // Fully shut, a cat's eyes become two soft curves.
+  const shut = Boolean(rig.lids) && pose.blink > 0.82;
+  if (rig.lids) { for (const curve of rig.lids) curve.visible = shut; for (const eye of eyes) eye.visible = !shut; }
   if (cat) {
     // Upright ears that swivel and flatten a little; they never flop.
     ears[0]!.rotation.z = pose.earL * 0.45;
@@ -91,6 +101,7 @@ export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
   if (cat) tail.forEach((segment, index) => {
     const t = index / (tail.length - 1);
     segment.rotation.y = pose.tailWag * (0.12 + t * 0.32) * Math.cos(index * 0.7 - pose.tailWag);
+    segment.rotation.z = 0;
     segment.rotation.x = index === 0 ? -(0.45 + pose.tailLift * 0.75) + sit * 1.2 : (t > 0.7 ? -0.28 * pose.tailLift : 0.05 - pose.tailLift * 0.06) + sit * 0.06;
   });
   else tail.forEach((segment, index) => {
@@ -150,6 +161,45 @@ export function applyPose(rig: PuppyRig, pose: PuppyPose): void {
     tail.forEach((segment, index) => {
       segment.rotation.y = mixTo(segment.rotation.y, 0.5 + index * 0.18);
       segment.rotation.x = mixTo(segment.rotation.x, index === 0 ? 0.35 : 0.05);
+    });
+  }
+
+  // A cat curls up to sleep: belly down and leaning onto one side, the head swung
+  // round and down to rest by the tail, the tail flat on the felt and wrapped round
+  // the front, every paw tucked out of sight. Seen from above, a round bun.
+  const curl = cat ? Math.max(0, Math.min(1, pose.curl)) : 0;
+  if (curl > 0) {
+    const k = curl * curl * (3 - 2 * curl);
+    const to = (from: number, target: number): number => from + (target - from) * k;
+    body.position.y = to(body.position.y, 0.16 + pose.bob * 0.3);
+    body.position.z = to(body.position.z, 0);
+    body.rotation.x = to(body.rotation.x, 0);
+    body.rotation.z = to(body.rotation.z, 0.12);
+    body.scale.z = to(body.scale.z, 0.88 * body.scale.x);
+    // The head turns to one side and rests down on its cheek, nose towards the tail.
+    neck.rotation.x = to(neck.rotation.x, 0.95);
+    neck.rotation.y = to(neck.rotation.y, CURL_SIDE * 0.28);
+    head.rotation.x = to(head.rotation.x, -0.62);
+    head.rotation.y = to(head.rotation.y, CURL_SIDE * 0.12);
+    head.rotation.z = to(head.rotation.z, CURL_SIDE * -0.3);
+    // Every leg folds flat inside the bun: the front ones back under the chest, the hind ones forward under the belly.
+    for (const leg of [legs.fl, legs.fr]) {
+      leg.hip.rotation.x = to(leg.hip.rotation.x, 1.35);
+      leg.knee.rotation.x = to(leg.knee.rotation.x, -0.3);
+      leg.paw.rotation.x = to(leg.paw.rotation.x, 0);
+    }
+    for (const leg of [legs.bl, legs.br]) {
+      leg.hip.rotation.x = to(leg.hip.rotation.x, -1.4);
+      leg.knee.rotation.x = to(leg.knee.rotation.x, 0.3);
+      leg.paw.rotation.x = to(leg.paw.rotation.x, 0);
+    }
+    ears[0]!.rotation.z = to(ears[0]!.rotation.z, -0.2); ears[1]!.rotation.z = to(ears[1]!.rotation.z, 0.2);
+    tail.forEach((segment, index) => {
+      // The base lays the tail flat on the felt; each joint then bends it round the same
+      // side as the head, so it wraps the front and the nose rests by its tip.
+      segment.rotation.x = to(segment.rotation.x, index === 0 ? -1.5 : 0);
+      segment.rotation.y = to(segment.rotation.y, 0);
+      segment.rotation.z = to(segment.rotation.z, CURL_SIDE * -(index === 0 ? 1.2 : 0.36) + Math.sin(pose.tailWag) * 0.03);
     });
   }
 

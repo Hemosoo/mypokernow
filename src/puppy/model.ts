@@ -29,6 +29,8 @@ export interface PuppyRig {
   jaw: Group;
   tongue: Mesh;
   eyes: Group[];
+  /** Closed-eye curves shown instead of the eyes when fully asleep (the cat's). */
+  lids?: Object3D[];
   ears: Group[];
   tail: Group[];
   legs: { fl: Leg; fr: Leg; bl: Leg; br: Leg };

@@ -228,3 +228,20 @@ test('a theme written by an AI imports from its whole answer, and refusals say w
  await assert.rejects(importThemeText('no theme here'));
  assert.match(explain(new SyntaxError('x')), /first \{ to the last \}/);
 });
+
+test('every built-in theme, and Classic in each colourway, has a recording for the simple view to play', async () => {
+ const { existsSync } = await import('node:fs');
+ const { builtInThemes, CLASSIC_COLOURWAYS, withColourway } = await import('../src/themes/defaults');
+ const { themeClip } = await import('../src/studio/Simple');
+ const looks = builtInThemes.flatMap((theme) => theme.id === 'room-monte-carlo' ? CLASSIC_COLOURWAYS.map((colourway) => withColourway(theme, colourway)) : [theme]);
+ for (const theme of looks) {
+  const clip = themeClip(theme);
+  assert.ok(clip, `${theme.name} has a clip`);
+  assert.ok(existsSync(`public/${clip!.replace('./', '')}`), `${clip} was recorded`);
+ }
+ assert.equal(themeClip(withColourway(builtInThemes[0]!, CLASSIC_COLOURWAYS[2]!)), './media/theme-room-monte-carlo.claret.webm');
+ // A theme someone changed, or made, has no recording: it would show the wrong look.
+ const edited = { ...structuredClone(builtInThemes[1]!), table: { ...builtInThemes[1]!.table, feltColor: '#123456' } };
+ assert.equal(themeClip(edited), undefined);
+ assert.equal(themeClip({ ...structuredClone(builtInThemes[1]!), id: 'theme-mine' }), undefined);
+});

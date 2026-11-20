@@ -214,9 +214,16 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   await save();assert.equal(stored().settings.effects.winSize,'loud','A performance mode leaves the win size alone');
   assert.ok(!document.querySelector('.save-status.s-failed'));
   // Simple view: one page of tables, Classic's colourways, and importing a theme an AI wrote.
+  // Reduced motion hides the theme clips; switch it back off to watch them.
+  await click('[aria-label="Reduced motion"]');
   await clickText('.simple-switch','Simple view');
   assert.ok(document.querySelector('.simple')&&!document.querySelector('.rail'),'Simple view is one page, without the studio');
   await save();assert.equal(stored().settings.mode,'simple');
+  // Hovering a card, or its Watch button, plays the theme for real.
+  await click('[aria-label="Watch Neon play"]');
+  assert.equal(document.querySelector('.simple-card video')?.getAttribute('src'),'./media/theme-room-neon.webm');
+  await click('[aria-label="Stop the Neon preview"]');
+  assert.ok(!document.querySelector('.simple-card video'),'Stopping removes the clip');
   await click('.simple [aria-label="Classic colourway"] [aria-label="Midnight"]');
   await save();assert.equal(stored().settings.activeThemeId,'room-monte-carlo');assert.equal(stored().themes.find(t=>t.id==='room-monte-carlo')!.table.feltColor,'#133a60');
   await click('.simple-import');
