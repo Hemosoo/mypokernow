@@ -80,7 +80,7 @@ test('version 3 moves untuned house presets to the showpieces once and keeps del
  v2.themes[0]!.animations = { deal: { preset: 'deal.pitch', parameters: pitchDefaults }, flop: { preset: 'flop.cascade', parameters: {} },
    turn: { preset: 'reveal.turnover', parameters: { duration: 1200 } }, river: { preset: 'reveal.slam', parameters: {} } };
  const upgraded = validateLibrary(v2);
- assert.equal(upgraded.version, 6);
+ assert.equal(upgraded.version, 7);
  assert.equal(upgraded.themes[0]!.animations.deal.preset, 'deal.storm');
  assert.equal(upgraded.themes[0]!.animations.flop.preset, 'flop.grand');
  assert.equal(upgraded.themes[0]!.animations.turn.preset, 'reveal.turnover', 'tuned choices are kept');
@@ -90,7 +90,7 @@ test('version 3 moves untuned house presets to the showpieces once and keeps del
  assert.equal(validateLibrary(later).themes[0]!.animations.deal.preset, 'deal.pitch');
 });
 
-test('library v5 adds Neon and Sakura once, keeps every saved theme and choice, and reads older companions', () => {
+test('library v5 adds Neon once (Sakura is now a Classic colourway), keeps every saved theme and choice, and reads older companions', () => {
  const v4 = structuredClone(createDefaultLibrary()) as unknown as { version: number; settings: Record<string, unknown>; themes: Record<string, unknown>[] };
  v4.version = 4;
  delete v4.settings.recent;
@@ -101,11 +101,11 @@ test('library v5 adds Neon and Sakura once, keeps every saved theme and choice, 
  v4.themes.push(own);
  v4.settings.activeThemeId = 'mine-1';
  const upgraded = validateLibrary(v4);
- assert.equal(upgraded.version, 6);
+ assert.equal(upgraded.version, 7);
  assert.deepEqual(upgraded.settings.recent, [], 'Older libraries gain an empty recent list');
  assert.equal(upgraded.settings.activeThemeId, 'mine-1', 'The owner keeps their theme');
  assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-neon').length, 1);
- assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-sakura').length, 1);
+ assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-sakura').length, 0, 'Sakura arrives as a Classic colourway, not a room');
  const kept = upgraded.themes.find((theme) => theme.id === 'mine-1')!;
  assert.equal(kept.name, 'Friday club');
  assert.deepEqual(kept.companion, { kind: 'puppy', animations: true, intensity: 'playful', scale: 'large' }, 'Nothing is added to a saved companion');
@@ -113,7 +113,7 @@ test('library v5 adds Neon and Sakura once, keeps every saved theme and choice, 
  const deleted = structuredClone(upgraded); deleted.themes = deleted.themes.filter((theme) => theme.id !== 'room-neon');
  assert.equal(validateLibrary(deleted).themes.some((theme) => theme.id === 'room-neon'), false);
  // The new decks, backs, felt patterns and emblems all validate and render.
- for (const id of ['room-neon', 'room-sakura']) {
+ for (const id of ['room-neon']) {
   const theme = upgraded.themes.find((item) => item.id === id)!;
   assert.deepEqual(validateTheme(theme), theme);
   assert.ok(cardSvg({ rank: 'K', suit: 'hearts' }, theme.card).includes('data-part="rank"'));
@@ -134,7 +134,7 @@ test('library v6 adds Arcade, Rain District, Breach and Cat Café once, keeps ev
  v5.themes.push(own);
  v5.settings.activeThemeId = 'mine-2';
  const upgraded = validateLibrary(v5);
- assert.equal(upgraded.version, 6);
+ assert.equal(upgraded.version, 7);
  assert.equal(upgraded.settings.activeThemeId, 'mine-2', 'The owner keeps their theme');
  assert.deepEqual(upgraded.settings.effects, { chips: true, celebrations: false, moments: true, ambience: false, winSize: 'balanced', othersWins: true }, 'Earlier choices stay; the new settings take their defaults');
  for (const id of added) assert.equal(upgraded.themes.filter((theme) => theme.id === id).length, 1, `${id} added once`);
@@ -155,4 +155,76 @@ test('library v6 adds Arcade, Rain District, Breach and Cat Café once, keeps ev
  full.settings.activeThemeId = 'owned-0';
  const kept = validateLibrary(full);
  assert.equal(kept.themes.filter((theme) => String(theme.id).startsWith('owned-')).length, 100);
+});
+
+test('library v7 folds Obsidian, Rouge, Riviera and Sakura into Classic, keeping any the owner changed and the look in use', async () => {
+ const { CLASSIC_COLOURWAYS, BUILT_IN_TIMESTAMP, builtInTheme, colourwayOf } = await import('../src/themes/defaults');
+ const shipped = (id: string, name: string, colourway: string) => ({ ...structuredClone(builtInTheme('room-monte-carlo')!), ...structuredClone(CLASSIC_COLOURWAYS.find((c) => c.id === colourway)!.look), id, name });
+ const v6 = structuredClone(createDefaultLibrary()) as unknown as { version: number; settings: Record<string, unknown>; themes: Record<string, unknown>[] };
+ v6.version = 6;
+ delete v6.settings.mode;
+ // The four rooms as they shipped in version 6, one of them edited by its owner.
+ const rouge = shipped('room-rouge', 'Rouge', 'claret'), obsidian = shipped('room-obsidian', 'Obsidian', 'obsidian'), riviera = shipped('room-riviera', 'Riviera', 'midnight');
+ const sakura = { ...shipped('room-sakura', 'Sakura', 'sakura'), updatedAt: '2026-11-15T10:00:00.000Z' };
+ (sakura.table as unknown as Record<string, unknown>).inscription = 'Hanami';
+ const monteCarlo = { ...v6.themes[0]!, name: 'Monte Carlo' };
+ const catCafe = v6.themes.find((theme) => theme.id === 'room-cat')!;
+ catCafe.companion = { ...(catCafe.companion as object), catCoat: 'tabby', eyes: 'green' };
+ v6.themes = [monteCarlo, obsidian, rouge, riviera, sakura, ...v6.themes.slice(1)];
+ v6.settings.activeThemeId = 'room-rouge';
+ v6.settings.recent = ['room-rouge', 'room-obsidian', 'room-neon'];
+ const upgraded = validateLibrary(v6);
+ assert.equal(upgraded.version, 7);
+ const ids = upgraded.themes.map((theme) => theme.id);
+ for (const gone of ['room-obsidian', 'room-rouge', 'room-riviera']) assert.ok(!ids.includes(gone), `${gone} folds into Classic`);
+ assert.ok(ids.includes('room-sakura'), 'A room its owner changed stays');
+ assert.equal(upgraded.themes.find((theme) => theme.id === 'room-sakura')!.table.inscription, 'Hanami');
+ // Rouge was in use: Classic takes over, wearing Claret, so the table looks the same.
+ assert.equal(upgraded.settings.activeThemeId, 'room-monte-carlo');
+ const classic = upgraded.themes.find((theme) => theme.id === 'room-monte-carlo')!;
+ assert.equal(classic.name, 'Classic');
+ assert.equal(colourwayOf(classic)?.id, 'claret');
+ assert.equal(classic.updatedAt, BUILT_IN_TIMESTAMP, 'Wearing a colourway still counts as untouched');
+ assert.deepEqual(upgraded.settings.recent, ['room-neon'], 'Recent drops the rooms that went');
+ assert.equal(upgraded.settings.mode, undefined, 'The owner is asked how to start');
+ // An untouched Cat Café gets the new grey tabby.
+ assert.equal(upgraded.themes.find((theme) => theme.id === 'room-cat')!.companion!.catCoat, 'grey');
+
+ // A Classic the owner edited is never overwritten: the room in use stays instead.
+ const edited = structuredClone(v6);
+ edited.themes[0] = { ...edited.themes[0]!, updatedAt: '2026-11-16T09:00:00.000Z', table: { ...(edited.themes[0]!.table as object), inscription: 'Friday' } };
+ const kept = validateLibrary(edited);
+ assert.equal(kept.settings.activeThemeId, 'room-rouge');
+ assert.equal(kept.themes.find((theme) => theme.id === 'room-monte-carlo')!.table.inscription, 'Friday');
+ assert.ok(!kept.themes.some((theme) => theme.id === 'room-obsidian'), 'Rooms not in use still fold');
+ // An edited Cat Café keeps its owner's cat.
+ const ownCat = structuredClone(v6); const cafe = ownCat.themes.find((theme) => theme.id === 'room-cat')!; cafe.updatedAt = '2026-11-17T09:00:00.000Z';
+ assert.equal(validateLibrary(ownCat).themes.find((theme) => theme.id === 'room-cat')!.companion!.catCoat, 'tabby');
+});
+
+test('a theme written by an AI imports from its whole answer, and refusals say what is wrong', async () => {
+ const { completeTheme, explain, importThemeText, aiPrompt } = await import('../src/themes/ai');
+ const prompt = aiPrompt();
+ for (const word of ['"face"', 'pixel', 'reveal.decrypt', 'deal.packet', '#rrggbb']) assert.ok(prompt.includes(word), `The prompt lists ${word}`);
+ assert.ok(!/deal\.puppy|flop\.cat/.test(prompt), 'Companion effects are not offered to an AI');
+ const answer = `Here's a theme for you!\n\`\`\`json\n${JSON.stringify({
+  name: 'Deep Sea', description: 'Glowing jellyfish over a dark ocean', extra: 'ignored',
+  card: { face: 'neon', back: 'circuit', backColor: '#0a2a3a', faceColor: '#06141c', redColor: '#f6b', blackColor: '7ff3ff', borderColor: '#1d4a5a', borderRadius: 8, shadow: 0.5, sparkle: true },
+  table: { feltColor: '#0b3550', railColor: '#04121a', backgroundColor: '#020a10', trimColor: '#5cf2ff', inscription: 'Deep Sea', emblem: 'none', motif: 'neon' },
+  animations: { deal: { preset: 'deal.storm' }, flop: 'flop.hologram', turn: { preset: 'reveal.decrypt' }, river: { preset: 'reveal.does-not-exist' } },
+ })}\n\`\`\`\nEnjoy the depths.`;
+ const theme = await importThemeText(answer);
+ assert.equal(theme.name, 'Deep Sea');
+ assert.equal(theme.card.redColor, '#ff66bb', 'Short colours are expanded');
+ assert.equal(theme.card.blackColor, '#7ff3ff', 'A missing # is forgiven');
+ assert.equal(theme.board.color, '#0b3550', 'A missing board takes the felt');
+ assert.deepEqual(Object.values(theme.animations).map((a) => a.preset), ['deal.storm', 'flop.hologram', 'reveal.decrypt', 'reveal.showdown'], 'An unknown effect falls back to the house one');
+ assert.match(theme.id, /^theme-/);
+ // Strict where it matters: a face that does not exist is refused, and the reason names the field.
+ let message = '';
+ try { completeTheme({ ...JSON.parse(answer.slice(answer.indexOf('{'), answer.lastIndexOf('}') + 1)), card: { face: 'glitter', back: 'solid', backColor: '#000000', faceColor: '#ffffff', redColor: '#ff0000', blackColor: '#000000', borderColor: '#cccccc' } }); }
+ catch (error) { message = explain(error); }
+ assert.match(message, /card\.face/);
+ await assert.rejects(importThemeText('no theme here'));
+ assert.match(explain(new SyntaxError('x')), /first \{ to the last \}/);
 });

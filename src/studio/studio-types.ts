@@ -57,6 +57,8 @@ export interface Studio {
   resetParameters: () => void;
 
   applyTheme: (id: string) => void;
+  /** Dress Classic in a colourway and put it in use. */
+  useColourway: (colourwayId: string) => void;
   previewTheme: (id: string | undefined) => void;
   createTheme: () => void;
   duplicateTheme: (id: string) => void;

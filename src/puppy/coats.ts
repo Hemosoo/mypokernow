@@ -14,15 +14,17 @@ export const COATS: Record<PuppyCoat, { fur: string; sheen: string; cream: strin
 export const COLLARS: Record<PuppyCollar, string> = { ruby: '#d8475f', sapphire: '#3f6fd8', emerald: '#2f9d6a', violet: '#8b5cf6' };
 
 /**
- * The cat's coats: main fur, the lighter chest and paws, and markings. Tabby and
- * blue-grey have stripes; calico has orange and black patches; tuxedo is black with
+ * The cat's coats: main fur, the lighter chest and paws, and markings. The grey
+ * tabby (the default), orange tabby and blue-grey have stripes; calico has orange and black patches; tuxedo is black with
  * a white bib and socks.
  */
-export const CAT_COATS: Record<CatCoat, { name: string; fur: string; sheen: string; cream: string; stripe?: string; patchA?: string; patchB?: string }> = {
+export const CAT_COATS: Record<CatCoat, { name: string; fur: string; sheen: string; cream: string; creamSheen?: string; stripe?: string; patchA?: string; patchB?: string }> = {
+  grey: { name: 'Grey tabby', fur: '#8b8e96', sheen: '#e6e9ef', cream: '#efece7', stripe: '#3c3e45' },
+  black: { name: 'Black', fur: '#1d1c21', sheen: '#7b7686', cream: '#26242a', creamSheen: '#6b6672' },
   tabby: { name: 'Orange tabby', fur: '#e9a45c', sheen: '#ffe0b5', cream: '#fff1de', stripe: '#b5652b' },
   tuxedo: { name: 'Tuxedo', fur: '#232126', sheen: '#6d6870', cream: '#f5f2ec' },
   calico: { name: 'Calico', fur: '#f6efe4', sheen: '#ffffff', cream: '#fffaf3', patchA: '#e3924a', patchB: '#2b2624' },
-  black: { name: 'Black', fur: '#1c1b1f', sheen: '#5d5864', cream: '#2f2d33' },
+  // No longer offered; kept so a cat saved in blue-grey still looks as it did.
   bluegrey: { name: 'Blue-grey', fur: '#8d98a6', sheen: '#dfe6ef', cream: '#d3d9e0', stripe: '#6b7685' },
 };
 export const CAT_EYES: Record<CatEyes, { name: string; iris: string }> = {

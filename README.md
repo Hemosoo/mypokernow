@@ -15,7 +15,14 @@ npm run dev
 
 Open the localhost URL printed by Vite. The studio runs independently of PokerNow and uses exactly the same registry, artwork, fragment system, timeline, and coordinator as the content script.
 
-The studio is laid out like a game's cosmetics screen: a navigation rail on the left, the live table in the middle, and a panel for the page you are on. Drag the panel's edge to resize it (double-click resets), or hide it to give the table the whole width. The top bar shows the theme in use (click it for recent and all themes), search, undo and redo, the save state, and the **PokerNow** switch, which says whether your theme is *Live* on PokerNow, *Off*, or *Preview only* (the localhost studio, which cannot reach PokerNow).
+The first time it opens, the studio asks how you would like to start:
+
+- **Just pick a theme** is a single page of ready-made tables. Click one to use it, choose Classic's colourway, switch PokerNow on or off, or **Import a theme**. **Customize** (top right) opens the full studio.
+- **Customize everything** is the full studio below. **Simple view** in its top bar goes back.
+
+**Import a theme** takes a file someone exported, or theme code pasted from anywhere, including an AI assistant's whole answer (anything around the theme is ignored). **Make one with AI** copies a prompt that lists every field and allowed value; paste it into ChatGPT, Claude, Gemini or any assistant, add what you want ("a deep-sea table with glowing jellyfish colours"), and paste the answer back. The import is forgiving about form (short colours, a missing board, an effect that does not exist falls back to the house one) and strict about content: only colours, fixed choices and known effects, never code, links or images. A refusal names the field that is wrong.
+
+The full studio is laid out like a game's cosmetics screen: a navigation rail on the left, the live table in the middle, and a panel for the page you are on. Drag the panel's edge to resize it (double-click resets), or hide it to give the table the whole width. The top bar shows the theme in use (click it for recent and all themes), search, undo and redo, the save state, and the **PokerNow** switch, which says whether your theme is *Live* on PokerNow, *Off*, or *Preview only* (the localhost studio, which cannot reach PokerNow).
 
 - **Discover** opens with the same hand recorded on a plain table and with the Puppy theme, looping in step behind a divider you can drag, with chapters for the deal, each street and the win. Out of the box the plain side is an illustration on the replica table, and is labelled so; see *Record the comparison on PokerNow* below to replace it with a real hand. Below it: the themes, featured cinematic effects and the companions. Returning visitors get a *Continue with…* bar instead of the getting-started steps. No live table runs on Discover.
 - **Themes** is the gallery. Each card is drawn with the theme's own table, deck, card back and room light. Click a card to preview it on the table without applying it (the table says so; **Esc** goes back), then **Use** it. Built-in themes can be edited and restored to their original look but never deleted; your own themes can be renamed, duplicated, exported or deleted (with confirmation and an Undo). **Surprise me** makes a new theme from a coordinated palette, a deck and a random set of effects.
@@ -71,23 +78,21 @@ Table settings include metal trim, inscription and emblem; Settings independentl
 
 ## Rooms
 
-Eleven built-in themes, each with its own palette, deck, emblem and pace:
+Seven built-in themes:
 
 | Theme | Look | Effects |
 | --- | --- | --- |
-| Monte Carlo | Emerald felt, gold inlay, classic engraved deck | The signature set: Dealer's Storm, Grand Flop, Spotlight, Showdown |
-| Obsidian | Charcoal felt, brushed silver, flat modern deck | Restrained: Dealer Flick, Triple Spread, Velvet Turnover |
-| Rouge | Claret felt, warm gold, laurel emblem | Theatrical: Orbit Deal, Triple Orbit, Slam, Showdown |
-| Riviera | Midnight-blue felt, rose-gold inlay | Fluid: House Pitch, Silk Cascade, River Squeeze, Spotlight |
+| Classic | Classic felt and cards in five colourways. **Emerald**: green felt, gold inlay, engraved deck. **Obsidian**: charcoal felt, brushed silver, flat modern deck. **Claret**: deep red felt, warm gold, laurel emblem. **Midnight**: midnight-blue felt, rose-gold inlay. **Sakura**: dusk-blue felt with petals, cherry-wood rail set with blossoms, washi-paper deck, falling petals | Each colourway has its own pace: signature, restrained, theatrical, fluid or gentle |
 | Neon | Night-city felt with a lit grid, a neon tube around the rail, glowing cards on black, circuit backs, flickering pixels | Digital: Dealer's Storm, Crystal Spread, Fragment Assembly, Crystallization |
-| Sakura | Dusk-blue felt with petals, cherry-wood rail set with blossoms, washi-paper deck, falling petals | Gentle: House Pitch, Silk Cascade, Velvet Turnover, River Squeeze |
 | Arcade | Dithered blue pixel felt, a marquee of gold and magenta bulbs, pixel cards in plain red and black, pixel-coin backs, twinkling pixels | Stepped, 12 frames a second: Pixel Deal, Pixel Flop, Pixel Drop |
 | Rain District | Wet asphalt felt with sign light pooled in puddles, scuffed chrome rail with hazard marks, holographic glass cards, foil backs with the room's own sigil, rain | Projected: Dealer Flick, Hologram Flop, Hologram Boot |
 | Breach | Graphite felt with circuit traces, a data line around the rail, black dot-matrix cards with corner brackets, glyph-block backs, data packets | Encrypted: Packet Deal, Decrypt Flop, Decrypt |
 | Puppy | Walnut and forest felt with paw prints, puppy deck, the 3D puppy | The puppy deals and reveals every street |
-| Cat Café | Teal felt with cat paws and yarn, warm wood, a strand of yarn round the rail, cat deck, the 3D cat | The cat deals and reveals every street |
+| Cat Café | Teal felt with cat paws and yarn, warm wood, a strand of yarn round the rail, cat deck, the 3D grey tabby | The cat deals and reveals every street |
 
-Libraries saved before Neon and Sakura existed gain them once (library version 5), and before Arcade, Rain District, Breach and Cat Café, those four (version 6), after every theme the owner made; nothing is replaced, a room deleted later stays deleted, and a library already holding 100 themes keeps all of them. Version 6 also adds the two win settings with their defaults; every earlier effect choice stays as it was. A new theme starts from Monte Carlo; the Theme gallery's *Surprise me* builds one at random.
+Classic's colourways are a row of swatches on its card, in the studio's Themes page and in the simple view; one click dresses Classic in that colourway and puts it in use.
+
+Libraries gain new rooms once, after every theme the owner made; nothing is replaced, a room deleted later stays deleted, and a library already holding 100 themes keeps all of them. Version 7 folds Obsidian, Rouge, Riviera and Sakura (separate rooms until then) into Classic: copies exactly as shipped go, any the owner changed stay as their own themes, and if one was in use, Classic takes over wearing that colourway so the table looks the same. An untouched Cat Café gets the new grey tabby.
 
 ## Wins
 
@@ -95,7 +100,7 @@ A win is celebrated in steps that grow with what happened, and your own wins cou
 
 1. **Small pot:** the chips slide over and the name plate glows softly.
 2. **Medium pot:** a sweep of light crosses the felt and the plate shines.
-3. **Big pot:** the room dims and a spotlight finds the winner, chips fountain over, and the room's own flourish plays: gold leaf (Monte Carlo and the classic rooms), a glitch (Neon), a gust of petals (Sakura), a pixel score counting up (Arcade), a WINNER sign buzzing on (Rain District), an ACCESS GRANTED stamp (Breach), the puppy's victory leap and dance, or the cat's pounce and a purring loaf by the chips.
+3. **Big pot:** the room dims and a spotlight finds the winner, chips fountain over, and the room's own flourish plays: gold leaf (Classic), a glitch (Neon), a gust of petals (Classic in Sakura), a pixel score counting up (Arcade), a WINNER sign buzzing on (Rain District), an ACCESS GRANTED stamp (Breach), the puppy's victory leap and dance, or the cat's pounce and a purring loaf by the chips.
 4. **All-in won:** the cards PokerNow marks as the winning hand light up for a beat before the chips move.
 5. **You won:** a banner under the board names your hand the way a dealer says it ("Full house, kings over sevens", "Two pair, aces and eights") and what you won. It reads only your own cards and the board, already face up on your screen.
 
@@ -103,7 +108,7 @@ A win is celebrated in steps that grow with what happened, and your own wins cou
 
 ## Cat
 
-Choose **Cat Café** in the theme switcher, or the cat on the **Companion** page (in any room). The cat is built on the same rig as the puppy, slimmer and longer, with upright ears, slit-pupil eyes, whiskers, a long tail and a bell on its collar:
+Choose **Cat Café** in the theme switcher, or the cat on the **Companion** page (in any room). The cat is built on the same rig as the puppy and in the same style: a big round head, big glossy eyes, fluffy cheeks and blush, upright ears, whiskers, a plump tail and a bell on its collar:
 
 - **Deal:** it sits up by the deck and flicks each card out to its player.
 - **Flop:** it paws the three cards out face down, trots to the end of the row, crouches and bats a ball of yarn along it. Each card flips as the ball rolls over it, and the strand it trails fades.
@@ -112,7 +117,7 @@ Choose **Cat Café** in the theme switcher, or the cat on the **Companion** page
 - **Win:** a pounce for a real pot, then it curls up by the winner's chips, eyes half shut, purring.
 - It grooms instead of scratching, meows instead of barking, naps when someone tanks and wakes at the timer warning.
 
-Coats: orange tabby, tuxedo, calico, black and blue-grey; eyes green, amber or blue. A room's own companion only performs its own moves; in a room without one, the puppy or the cat drops in for its moves and leaves.
+Coats: grey tabby (the default), black, tuxedo, calico and orange tabby; eyes amber, green or blue. A room's own companion only performs its own moves; in a room without one, the puppy or the cat drops in for its moves and leaves.
 
 ## Puppy skin
 

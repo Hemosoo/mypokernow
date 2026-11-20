@@ -5,8 +5,12 @@ import { liveTableSupported, type LiveTableHandle } from '../preview/LiveTable';
 import { loadLibrary, saveLibrary } from '../storage/library';
 import { resolveThemeAssets, saveAsset } from '../storage/assets';
 import { inspectRuntime, isExtensionStudio, type RuntimeInspection } from '../storage/diagnostics';
-import { builtInTheme, builtInThemes, createDefaultLibrary, createDefaultTheme, isBuiltIn } from '../themes/defaults';
-import { exportTheme, importTheme } from '../themes/transfer';
+import { CLASSIC_COLOURWAYS, builtInTheme, builtInThemes, createDefaultLibrary, createDefaultTheme, isBuiltIn, withColourway } from '../themes/defaults';
+
+const CLASSIC_ID = 'room-monte-carlo';
+import { exportTheme } from '../themes/transfer';
+import { explain, importThemeText } from '../themes/ai';
+import { ImportDialog, SimpleHome, Welcome } from './Simple';
 import type { CompanionAction, Library, Street, Theme } from '../types';
 import { PALETTES, STREETS, assignmentLabel, presetName, presetsFor, streetLower } from './catalog';
 import { CommandMenu, ShortcutSheet, type Command } from './CommandMenu';
@@ -50,6 +54,7 @@ export function App() {
   const [notice, setNotice] = useState<{ message: string; action?: { label: string; run: () => void }; at: number } | null>(null);
   const [previewId, setPreviewId] = useState<string | undefined>();
   const [themeResolution, setThemeResolution] = useState<{ source: Theme; theme: Theme } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [pendingPreview, setPendingPreview] = useState<{ street: Street; presetId?: string } | null>(null);
   const [inspection, setInspection] = useState<RuntimeInspection | null>(null);
   const [checkingConnection, setCheckingConnection] = useState(false);
@@ -279,6 +284,15 @@ export function App() {
     setLibrary((current) => ({ ...current, settings: { ...current.settings, activeThemeId: id,
       recent: [id, ...current.settings.recent.filter((item) => item !== id)].slice(0, 6) } }));
   }
+  /** Dress Classic in one of its colourways and put it in use. */
+  function useColourway(colourwayId: string) {
+    const colourway = CLASSIC_COLOURWAYS.find((item) => item.id === colourwayId);
+    if (!colourway) return;
+    setPreviewId(undefined);
+    setLibrary((current) => ({ ...current,
+      themes: current.themes.map((theme) => theme.id === CLASSIC_ID ? { ...withColourway(theme, colourway), updatedAt: new Date().toISOString() } : theme),
+      settings: { ...current.settings, activeThemeId: CLASSIC_ID, recent: [CLASSIC_ID, ...current.settings.recent.filter((item) => item !== CLASSIC_ID)].slice(0, 6) } }));
+  }
   function addTheme(theme: Theme): boolean {
     if (library.themes.length >= 100) { notify('Your library can hold 100 themes. Delete one to make room.'); return false; }
     baselines.current.set(theme.id, structuredClone(theme));
@@ -296,7 +310,7 @@ export function App() {
     const now = new Date().toISOString();
     if (addTheme({ ...createDefaultTheme(), id: uid(), name: nextName('My theme'), description: undefined, createdAt: now, updatedAt: now })) {
       setPage('appearance');
-      notify('New theme created from Monte Carlo. Every change saves to it.');
+      notify('New theme created from Classic. Every change saves to it.');
     }
   }
   function duplicateTheme(id: string) {
@@ -341,10 +355,18 @@ export function App() {
   }
   async function readTheme(file?: File) {
     if (!file) return;
+    const problem = await importText(await file.text());
+    if (problem) notify(problem);
+  }
+  /** Import from text: an exported file, or a theme an AI or a person wrote. Returns why it failed, if it did. */
+  async function importText(text: string): Promise<string | undefined> {
     try {
-      const imported = await importTheme(await file.text());
-      if (addTheme({ ...imported, id: uid(), name: nextName(imported.name) })) notify(`“${imported.name}” is imported and in use.`);
-    } catch (error) { notify(error instanceof Error ? error.message : 'This file is not a valid theme.'); }
+      const imported = await importThemeText(text);
+      if (!addTheme({ ...imported, id: uid(), name: nextName(imported.name) })) return 'Your library is full. Delete a theme to make room.';
+      setImportOpen(false);
+      notify(`“${imported.name}” is imported and in use.`);
+      return undefined;
+    } catch (error) { return explain(error); }
   }
   /** A new theme with a coordinated palette and a random deck, pattern and set of effects. */
   function surpriseTheme() {
@@ -393,7 +415,7 @@ export function App() {
     equipPreset, tryPreset: (id, item) => play(item, id), playStreet: (item) => play(item), playHand: () => { void playHand(); }, playWin: (step) => { void playWin(step); },
     toggleFavorite, setParameter, resetParameters: () => equipPreset(activeTheme.animations[street].preset, street),
     applyTheme, previewTheme: setPreviewId, createTheme, duplicateTheme, renameTheme, deleteTheme, resetTheme,
-    exportTheme: (id) => { void downloadTheme(id); }, openImport: () => importInput.current?.click(), surpriseTheme,
+    useColourway, exportTheme: (id) => { void downloadTheme(id); }, openImport: () => setImportOpen(true), surpriseTheme,
     uploadImage: (target) => (target === 'back' ? uploadBackInput : uploadTableInput).current?.click(),
     companionAct, notify, extensionContext, inspection, checkingConnection, checkConnection: () => { void checkConnection(); },
     resetEverything, openShortcuts: () => setSheet(true),
@@ -484,6 +506,17 @@ export function App() {
     {page === 'settings' && <SettingsPage studio={studio} />}
   </>;
 
+  const mode = library.settings.mode;
+  const overlays = <>
+    {mode === undefined && !loadFailed && <Welcome studio={studio} onChoose={(choice) => setting('mode', choice)} />}
+    {importOpen && <ImportDialog onClose={() => setImportOpen(false)} onFile={() => importInput.current?.click()} onText={importText} />}
+    {notice && <div className="toast" role="status" key={notice.at}><p>{notice.message}</p>
+      {notice.action && <button type="button" className="toast-action" onClick={() => { notice.action!.run(); setNotice(null); }}>{notice.action.label}</button>}
+      <button type="button" className="icon-button" onClick={() => setNotice(null)} aria-label="Dismiss notification"><Icon name="close" size={15} /></button></div>}
+    <input hidden ref={importInput} type="file" accept="application/json,.json,.txt" onChange={(event) => { void readTheme(event.target.files?.[0]); event.target.value = ''; }} />
+  </>;
+  if (mode === 'simple') return <><SimpleHome studio={studio} />{overlays}</>;
+
   return <div className={`studio page-${page}`}>
     <TopBar studio={studio} saveStatus={saveStatus} canUndo={history.current.past.length > 0} canRedo={history.current.future.length > 0}
       onUndo={undo} onRedo={redo} onSearch={() => setMenu(true)} />
@@ -517,10 +550,7 @@ export function App() {
 
     {menu && <CommandMenu commands={commands} onClose={() => setMenu(false)} />}
     {sheet && <ShortcutSheet onClose={() => setSheet(false)} />}
-    {notice && <div className="toast" role="status" key={notice.at}><p>{notice.message}</p>
-      {notice.action && <button type="button" className="toast-action" onClick={() => { notice.action!.run(); setNotice(null); }}>{notice.action.label}</button>}
-      <button type="button" className="icon-button" onClick={() => setNotice(null)} aria-label="Dismiss notification"><Icon name="close" size={15} /></button></div>}
-    <input hidden ref={importInput} type="file" accept="application/json,.json" onChange={(event) => { void readTheme(event.target.files?.[0]); event.target.value = ''; }} />
+    {overlays}
     <input hidden ref={uploadBackInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void upload(event.target.files?.[0], 'back'); event.target.value = ''; }} />
     <input hidden ref={uploadTableInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void upload(event.target.files?.[0], 'table'); event.target.value = ''; }} />
   </div>;

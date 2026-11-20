@@ -37,7 +37,7 @@ test('Puppy is a valid built-in theme with a companion, puppy deck, paw table an
   assert.ok(builtInThemes.some((room) => room.id === 'room-puppy'));
   // Other rooms have no companion, except the Cat Café's cat; each keeps its own felt pattern.
   for (const room of builtInThemes.filter((r) => r.id !== 'room-puppy' && r.id !== 'room-cat')) { assert.equal(room.companion, undefined); assert.notEqual(room.table.motif, 'puppy'); }
-  assert.deepEqual(builtInThemes.map((room) => room.table.motif), ['classic', 'classic', 'classic', 'classic', 'neon', 'sakura', 'arcade', 'rain', 'breach', 'puppy', 'cat']);
+  assert.deepEqual(builtInThemes.map((room) => room.table.motif), ['classic', 'neon', 'arcade', 'rain', 'breach', 'puppy', 'cat']);
   assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'puppy', animations: true, intensity: 'wild', scale: 'medium' } }));
   assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'dog', animations: true, intensity: 'normal', scale: 'medium' } }));
   assert.throws(() => validateTheme({ ...structuredClone(puppyTheme), companion: { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', catCoat: 'spotted' } }));
@@ -46,7 +46,7 @@ test('Puppy is a valid built-in theme with a companion, puppy deck, paw table an
 test('Cat Café is a valid built-in theme with the cat, a cat deck, yarn table and the cat\'s four moves', () => {
   const theme = validateTheme(structuredClone(catTheme));
   assert.equal(theme.name, 'Cat Café');
-  assert.deepEqual(theme.companion, { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', collar: 'sapphire', catCoat: 'tabby', eyes: 'green' });
+  assert.deepEqual(theme.companion, { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', collar: 'sapphire', catCoat: 'grey', eyes: 'amber' });
   assert.equal(theme.card.face, 'cat'); assert.equal(theme.card.back, 'yarn'); assert.equal(theme.table.motif, 'cat'); assert.equal(theme.table.emblem, 'yarn');
   assert.deepEqual(Object.values(theme.animations).map((a) => a.preset), ['deal.cat', 'flop.cat', 'turn.cat', 'river.cat']);
   for (const id of ['deal.cat', 'flop.cat', 'turn.cat', 'river.cat']) { assert.equal(presetSpecies(id), 'cat'); assert.equal(counterpart(id, 'puppy'), id.replace('.cat', '.puppy')); }
@@ -58,11 +58,11 @@ test('library v4 adds the Puppy room once, keeps the owner\'s themes and choice,
   const v3 = structuredClone(createDefaultLibrary()) as unknown as { version: number; settings: { activeThemeId: string }; themes: { id: string }[] };
   v3.version = 3;
   v3.themes = v3.themes.filter((theme) => theme.id !== 'room-puppy');
-  v3.settings.activeThemeId = 'room-rouge';
+  v3.settings.activeThemeId = 'room-neon';
   const upgraded = validateLibrary(v3);
-  assert.equal(upgraded.version, 6);
+  assert.equal(upgraded.version, 7);
   assert.equal(upgraded.themes.filter((theme) => theme.id === 'room-puppy').length, 1);
-  assert.equal(upgraded.settings.activeThemeId, 'room-rouge', 'the active theme is not switched');
+  assert.equal(upgraded.settings.activeThemeId, 'room-neon', 'the active theme is not switched');
   // A theme missing `motif` (saved before this release) reads as classic.
   const legacy = structuredClone(builtInThemes[0]!) as unknown as { table: Record<string, unknown> };
   delete legacy.table.motif;

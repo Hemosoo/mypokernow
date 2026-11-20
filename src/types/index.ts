@@ -48,13 +48,13 @@ export interface CompanionSettings {
   coat?: PuppyCoat;
   /** Collar colour, shared by both characters. Absent means ruby. */
   collar?: PuppyCollar;
-  /** The cat's coat, kept apart so switching character never loses either. Absent means tabby. */
+  /** The cat's coat, kept apart so switching character never loses either. Absent means the grey tabby. */
   catCoat?: CatCoat;
-  /** The cat's eye colour. Absent means green. */
+  /** The cat's eye colour. Absent means amber. */
   eyes?: CatEyes;
 }
 export type CompanionKind = 'puppy' | 'cat';
-export type CatCoat = 'tabby' | 'tuxedo' | 'calico' | 'black' | 'bluegrey';
+export type CatCoat = 'grey' | 'black' | 'tabby' | 'tuxedo' | 'calico' | 'bluegrey';
 export type CatEyes = 'green' | 'amber' | 'blue';
 export type PuppyCoat = 'golden' | 'chocolate' | 'cream' | 'midnight' | 'silver';
 export type PuppyCollar = 'ruby' | 'sapphire' | 'emerald' | 'violet';
@@ -88,7 +88,10 @@ export interface Settings {enabled: boolean; reducedMotion: boolean; speed: numb
   /** Hearted presets. Shuffle ("random") draws from these when any suit the street. */
   favorites: string[];
   /** Most recently applied themes, newest first, for quick switching. */
-  recent: string[]}
-export interface Library {version: 6; settings: Settings; themes: Theme[]}
+  recent: string[];
+  /** How the studio opens: just picking themes, or the full workspace. Absent until the owner chooses. */
+  mode?: StudioMode}
+export type StudioMode = 'simple' | 'studio';
+export interface Library {version: 7; settings: Settings; themes: Theme[]}
 export const streetForEvent = (type: VisualEventType): Street | undefined => ({HOLE_CARDS_APPEARED: 'deal', FLOP_REVEALED: 'flop', TURN_REVEALED: 'turn', RIVER_REVEALED: 'river'} as Partial<Record<VisualEventType, Street>>)[type];
 export const eventForStreet: Record<Street, VisualEventType> = {deal: 'HOLE_CARDS_APPEARED', flop: 'FLOP_REVEALED', turn: 'TURN_REVEALED', river: 'RIVER_REVEALED'};

@@ -1,5 +1,5 @@
 import {
-  CanvasTexture, CapsuleGeometry, Color, ConeGeometry, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshPhysicalMaterial,
+  CanvasTexture, CapsuleGeometry, CircleGeometry, Color, ConeGeometry, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshPhysicalMaterial,
   PlaneGeometry, SphereGeometry, TorusGeometry, type BufferGeometry, type Material, type Object3D,
 } from 'three';
 import { CAT_COATS, CAT_EYES, COLLARS } from './coats';
@@ -8,11 +8,12 @@ import type { Leg, PuppyRig } from './model';
 /**
  * A procedurally modelled, rigged cartoon cat on the same joint hierarchy as the
  * puppy (body, four legs, neck, head, jaw, ears, tail), so the same poses, gait and
- * contact solving drive it. It is slimmer and longer, with upright pointed ears,
- * almond eyes with slit pupils, whiskers, a long tail and a bell on its collar.
+ * contact solving drive it. Like the puppy it has a big round head, big glossy eyes
+ * and a small soft body, with upright ears, fluffy cheeks, whiskers, a plump tail
+ * and a bell on its collar.
  *
  * Model space: +z is forward, +y is up, the floor is y = 0. Standing, the cat is
- * about 1.15 units tall to the tips of its ears.
+ * about 1.2 units tall to the tips of its ears.
  */
 export function buildCat(): PuppyRig {
   const geometries: BufferGeometry[] = [], materials: Material[] = [];
@@ -34,6 +35,7 @@ export function buildCat(): PuppyRig {
   const gold = mat(new MeshPhysicalMaterial({ color: '#ffcf5a', roughness: 0.22, metalness: 0.9 }));
   const mouthMat = mat(new MeshPhysicalMaterial({ color: '#5a2a2e', roughness: 0.6 }));
   const tongueMat = mat(new MeshPhysicalMaterial({ color: '#ff8fa0', roughness: 0.45, clearcoat: 0.6 }));
+  const blush = mat(new MeshBasicMaterial({ color: '#ff9fb0', transparent: true, opacity: 0.32, depthWrite: false }));
 
   const sphere = geo(new SphereGeometry(1, 28, 20));
   const lowSphere = geo(new SphereGeometry(1, 16, 12));
@@ -48,52 +50,52 @@ export function buildCat(): PuppyRig {
   const root = new Group();
   root.name = 'cat';
 
-  // ── body: long and lean, a little higher at the hips
-  const body = joint(root, 0, 0.4, 0);
-  const torso = new Mesh(geo(new CapsuleGeometry(0.2, 0.44, 10, 24)), fur);
-  torso.rotation.x = Math.PI / 2; torso.scale.set(1, 1, 0.92); torso.position.set(0, 0.04, -0.03);
+  // ── body: a soft, compact loaf; the head does most of the talking
+  const body = joint(root, 0, 0.36, 0);
+  const torso = new Mesh(geo(new CapsuleGeometry(0.21, 0.3, 10, 24)), fur);
+  torso.rotation.x = Math.PI / 2; torso.scale.set(1, 1, 0.94); torso.position.set(0, 0.05, -0.03);
   body.add(torso);
-  body.add(mesh(sphere, cream, 0, -0.02, 0.2, 0.15, 0.17, 0.13));         // chest bib
-  body.add(mesh(lowSphere, cream, 0, -0.13, -0.03, 0.13, 0.07, 0.3));     // belly
+  body.add(mesh(sphere, cream, 0, 0, 0.17, 0.16, 0.18, 0.12));            // chest ruff
+  body.add(mesh(lowSphere, cream, 0, -0.12, -0.03, 0.14, 0.07, 0.25));     // belly
   // Tabby bands over the back: half rings around the body's long axis.
-  const band = geo(new TorusGeometry(0.205, 0.022, 8, 24, Math.PI));
-  for (const z of [-0.26, -0.14, -0.02, 0.1]) {
+  const band = geo(new TorusGeometry(0.215, 0.026, 8, 24, Math.PI));
+  for (const z of [-0.2, -0.08, 0.04]) {
     const ring = new Mesh(band, stripe);
-    ring.position.set(0, 0.04, z); ring.scale.set(1, 1, 0.5);
+    ring.position.set(0, 0.05, z); ring.scale.set(1, 1, 0.55);
     body.add(ring); stripes.push(ring);
   }
   // Calico patches.
   const patch = (material: Material, x: number, y: number, z: number, sx: number, sy: number, sz: number): void => {
     const m = mesh(sphere, material, x, y, z, sx, sy, sz); body.add(m); patches.push(m);
   };
-  patch(patchA, 0.09, 0.13, -0.12, 0.14, 0.11, 0.2);
-  patch(patchB, -0.1, 0.12, 0.06, 0.12, 0.1, 0.14);
-  patch(patchA, -0.06, 0.15, -0.3, 0.12, 0.08, 0.12);
+  patch(patchA, 0.1, 0.14, -0.1, 0.14, 0.11, 0.18);
+  patch(patchB, -0.1, 0.13, 0.04, 0.12, 0.1, 0.13);
+  patch(patchA, -0.06, 0.16, -0.24, 0.12, 0.08, 0.11);
 
-  // ── legs: slender, with small round paws
+  // ── legs: short and round, with plump paws and pink beans
   const leg = (x: number, y: number, z: number, front: boolean): Leg => {
     const hip = joint(body, x, y, z);
-    hip.add(mesh(sphere, fur, 0, -0.02, 0, 0.085, 0.1, 0.1));
-    const upper = new Mesh(geo(new CapsuleGeometry(0.055, 0.12, 6, 12)), fur);
-    upper.position.y = -0.085; hip.add(upper);
-    const knee = joint(hip, 0, -0.17, front ? 0.005 : -0.012);
-    const lower = new Mesh(geo(new CapsuleGeometry(0.047, 0.1, 6, 12)), front ? cream : fur);
-    lower.position.y = -0.06; knee.add(lower);
-    const paw = joint(knee, 0, -0.135, 0.02);
-    paw.add(mesh(sphere, cream, 0, 0, 0.012, 0.066, 0.045, 0.085));
-    for (const tx of [-0.026, 0, 0.026]) paw.add(mesh(lowSphere, pink, tx, -0.026, 0.05, 0.013, 0.009, 0.013));
+    hip.add(mesh(sphere, fur, 0, -0.02, 0, 0.095, 0.1, 0.1));
+    const upper = new Mesh(geo(new CapsuleGeometry(0.06, 0.08, 6, 12)), fur);
+    upper.position.y = -0.07; hip.add(upper);
+    const knee = joint(hip, 0, -0.14, front ? 0.005 : -0.01);
+    const lower = new Mesh(geo(new CapsuleGeometry(0.055, 0.06, 6, 12)), front ? cream : fur);
+    lower.position.y = -0.05; knee.add(lower);
+    const paw = joint(knee, 0, -0.11, 0.02);
+    paw.add(mesh(sphere, cream, 0, 0, 0.012, 0.075, 0.05, 0.09));
+    for (const tx of [-0.03, 0, 0.03]) paw.add(mesh(lowSphere, pink, tx, -0.03, 0.055, 0.015, 0.01, 0.015));
     return { hip, knee, paw };
   };
-  const legs = { fl: leg(-0.11, -0.06, 0.2, true), fr: leg(0.11, -0.06, 0.2, true), bl: leg(-0.115, -0.04, -0.25, false), br: leg(0.115, -0.04, -0.25, false) };
+  const legs = { fl: leg(-0.11, -0.07, 0.17, true), fr: leg(0.11, -0.07, 0.17, true), bl: leg(-0.12, -0.05, -0.2, false), br: leg(0.12, -0.05, -0.2, false) };
 
-  // ── tail: eight segments, long and thin, ringed on a tabby
+  // ── tail: seven plump segments, ringed on a tabby
   const tail: Group[] = [];
-  let parent: Object3D = joint(body, 0, 0.1, -0.46);
-  for (let index = 0; index < 8; index++) {
-    const radius = 0.045 - index * 0.002;
-    const segment = joint(parent, 0, index ? 0.075 : 0, index ? -0.005 : 0);
+  let parent: Object3D = joint(body, 0, 0.1, -0.38);
+  for (let index = 0; index < 7; index++) {
+    const radius = 0.058 - index * 0.002;
+    const segment = joint(parent, 0, index ? 0.075 : 0, index ? -0.004 : 0);
     const ringed = index % 2 === 1;
-    const piece = new Mesh(geo(new CapsuleGeometry(radius, 0.06, 6, 12)), ringed ? stripe : fur);
+    const piece = new Mesh(geo(new CapsuleGeometry(radius, 0.055, 6, 12)), ringed ? stripe : fur);
     piece.position.y = 0.04;
     segment.add(piece);
     if (ringed) { const plain = new Mesh(piece.geometry, fur); plain.position.y = 0.04; plain.visible = false; segment.add(plain); stripes.push(piece); plains.push(plain); }
@@ -101,74 +103,81 @@ export function buildCat(): PuppyRig {
     parent = segment;
   }
 
-  // ── head on the neck
-  const neck = joint(body, 0, 0.13, 0.3);
-  const collarRing = new Mesh(geo(new TorusGeometry(0.125, 0.022, 10, 32)), collar);
+  // ── a big round head on the neck, the way the puppy has one
+  const neck = joint(body, 0, 0.15, 0.25);
+  const collarRing = new Mesh(geo(new TorusGeometry(0.14, 0.024, 10, 32)), collar);
   collarRing.rotation.x = Math.PI / 2 - 0.35; collarRing.position.set(0, 0.03, 0);
   neck.add(collarRing);
   const bell = new Group();
-  bell.position.set(0, -0.06, 0.125);
-  bell.add(mesh(sphere, gold, 0, 0, 0, 0.038, 0.038, 0.038));
-  const slot = new Mesh(geo(new CylinderGeometry(0.005, 0.005, 0.06, 6)), pupil);
-  slot.rotation.z = Math.PI / 2; slot.position.set(0, -0.012, 0.03); bell.add(slot);
+  bell.position.set(0, -0.065, 0.14);
+  bell.add(mesh(sphere, gold, 0, 0, 0, 0.042, 0.042, 0.042));
+  const slot = new Mesh(geo(new CylinderGeometry(0.006, 0.006, 0.066, 6)), pupil);
+  slot.rotation.z = Math.PI / 2; slot.position.set(0, -0.014, 0.034); bell.add(slot);
   neck.add(bell);
-  const head = joint(neck, 0, 0.22, 0.05);
-  head.add(mesh(sphere, fur, 0, 0, 0, 0.25, 0.215, 0.23));
-  // Full cheeks give the cat its rounder face.
-  head.add(mesh(sphere, fur, -0.1, -0.06, 0.08, 0.13, 0.11, 0.12));
-  head.add(mesh(sphere, fur, 0.1, -0.06, 0.08, 0.13, 0.11, 0.12));
-  // Whisker pads and chin.
-  head.add(mesh(sphere, cream, -0.042, -0.085, 0.19, 0.06, 0.05, 0.05));
-  head.add(mesh(sphere, cream, 0.042, -0.085, 0.19, 0.06, 0.05, 0.05));
-  const noseMesh = new Mesh(geo(new ConeGeometry(0.03, 0.03, 3)), nose);
-  noseMesh.rotation.set(Math.PI / 2, 0, Math.PI); noseMesh.scale.set(1, 1, 0.6); noseMesh.position.set(0, -0.045, 0.232);
+  const head = joint(neck, 0, 0.26, 0.05);
+  head.add(mesh(sphere, fur, 0, 0, 0, 0.34, 0.29, 0.3));
+  // Fluffy cheeks widen the face at the bottom.
+  head.add(mesh(sphere, fur, -0.15, -0.08, 0.08, 0.17, 0.14, 0.16));
+  head.add(mesh(sphere, fur, 0.15, -0.08, 0.08, 0.17, 0.14, 0.16));
+  // Little whisker pads and chin, low on the face so the eyes stay big.
+  head.add(mesh(sphere, cream, -0.05, -0.115, 0.255, 0.07, 0.055, 0.05));
+  head.add(mesh(sphere, cream, 0.05, -0.115, 0.255, 0.07, 0.055, 0.05));
+  const noseMesh = new Mesh(geo(new ConeGeometry(0.032, 0.03, 3)), nose);
+  noseMesh.rotation.set(Math.PI / 2, 0, Math.PI); noseMesh.scale.set(1, 1, 0.6); noseMesh.position.set(0, -0.072, 0.302);
   head.add(noseMesh);
-  head.add(mesh(lowSphere, mouthMat, 0, -0.112, 0.205, 0.03, 0.01, 0.015));
-  // Tabby forehead marks: a few short bars.
-  for (const [x, rz] of [[-0.05, 0.25], [0, 0], [0.05, -0.25]] as const) {
-    const mark = mesh(lowSphere, stripe, x, 0.13, 0.15, 0.015, 0.055, 0.02); mark.rotation.z = rz; head.add(mark); stripes.push(mark);
+  // A small "w" mouth under the nose.
+  for (const side of [-1, 1]) { const lip = mesh(lowSphere, mouthMat, side * 0.022, -0.115, 0.296, 0.024, 0.008, 0.01); lip.rotation.z = side * 0.45; head.add(lip); }
+  // Blush, like the puppy's.
+  for (const side of [-1, 1]) {
+    const cheek = new Mesh(geo(new CircleGeometry(0.05, 20)), blush);
+    cheek.position.set(side * 0.2, -0.075, 0.22); cheek.rotation.y = side * 0.75;
+    head.add(cheek);
   }
-  const headPatch = mesh(sphere, patchB, 0.11, 0.07, 0.06, 0.12, 0.12, 0.13); head.add(headPatch); patches.push(headPatch);
-  const jaw = joint(head, 0, -0.11, 0.14);
-  jaw.add(mesh(sphere, cream, 0, -0.012, 0.035, 0.07, 0.03, 0.065));
-  const tongue = mesh(sphere, tongueMat, 0, -0.008, 0.06, 0.035, 0.012, 0.045);
+  // Tabby forehead marks: an M of short bars.
+  for (const [x, rz] of [[-0.07, 0.3], [-0.025, 0.08], [0.025, -0.08], [0.07, -0.3]] as const) {
+    const mark = mesh(lowSphere, stripe, x, 0.19, 0.2, 0.016, 0.06, 0.02); mark.rotation.z = rz; mark.rotation.x = -0.6; head.add(mark); stripes.push(mark);
+  }
+  const headPatch = mesh(sphere, patchB, 0.14, 0.1, 0.06, 0.16, 0.16, 0.17); head.add(headPatch); patches.push(headPatch);
+  const jaw = joint(head, 0, -0.14, 0.2);
+  jaw.add(mesh(sphere, cream, 0, -0.012, 0.04, 0.075, 0.03, 0.065));
+  const tongue = mesh(sphere, tongueMat, 0, -0.008, 0.065, 0.035, 0.012, 0.045);
   jaw.add(tongue);
   // Whiskers fan out from the pads.
-  const whiskerGeometry = geo(new CylinderGeometry(0.0028, 0.0018, 0.24, 4));
+  const whiskerGeometry = geo(new CylinderGeometry(0.0025, 0.0015, 0.2, 4));
   for (const side of [-1, 1]) {
-    for (const [lift, spread] of [[0.03, 0.22], [0, 0.08], [-0.03, -0.08]] as const) {
+    for (const [lift, spread] of [[0.012, 0.16], [-0.016, -0.04]] as const) {
       const w = new Mesh(whiskerGeometry, whisker);
-      w.position.set(side * 0.16, -0.08 + lift, 0.17);
-      w.rotation.set(0, side * 0.35, side * (Math.PI / 2 - spread));
+      w.position.set(side * 0.16, -0.11 + lift, 0.22);
+      w.rotation.set(0, side * 0.4, side * (Math.PI / 2 - spread));
       head.add(w);
     }
   }
-  // Almond eyes: iris, slit pupil and a catch-light.
+  // Big round eyes: a coloured iris, a wide pupil and two catch-lights.
   const eyes = [-1, 1].map((side) => {
-    const eye = joint(head, side * 0.085, 0.015, 0.185);
-    eye.rotation.z = side * -0.18;
-    eye.add(mesh(sphere, iris, 0, 0, 0, 0.052, 0.04, 0.03));
-    eye.add(mesh(lowSphere, pupil, 0, 0, 0.024, 0.011, 0.034, 0.01));
-    eye.add(mesh(lowSphere, sparkle, 0.018, 0.016, 0.028, 0.009, 0.009, 0.004));
+    const eye = joint(head, side * 0.125, 0.025, 0.24);
+    eye.add(mesh(sphere, iris, 0, 0, 0, 0.078, 0.088, 0.05));
+    eye.add(mesh(lowSphere, pupil, 0, -0.004, 0.03, 0.05, 0.066, 0.03));
+    eye.add(mesh(lowSphere, sparkle, 0.026, 0.032, 0.054, 0.022, 0.024, 0.01));
+    eye.add(mesh(lowSphere, sparkle, -0.02, -0.03, 0.056, 0.01, 0.01, 0.006));
     return eye;
   });
-  // Upright, pointed ears with a pink inside.
-  const earCone = geo(new ConeGeometry(0.085, 0.17, 4, 1));
-  const innerCone = geo(new ConeGeometry(0.055, 0.12, 4, 1));
+  // Big upright ears, rounded at the tip, with a pink inside.
+  const earCone = geo(new ConeGeometry(0.11, 0.2, 18, 1));
+  const innerCone = geo(new ConeGeometry(0.07, 0.14, 18, 1));
   const ears = [-1, 1].map((side) => {
-    const ear = joint(head, side * 0.13, 0.15, -0.01);
+    const ear = joint(head, side * 0.19, 0.19, -0.02);
     const outer = new Mesh(earCone, fur);
-    outer.position.y = 0.07; outer.rotation.set(-0.12, Math.PI / 4, side * -0.22); outer.scale.set(1, 1, 0.55);
+    outer.position.y = 0.08; outer.rotation.set(-0.1, 0, side * -0.38); outer.scale.set(1, 1, 0.5);
     ear.add(outer);
     const inner = new Mesh(innerCone, pink);
-    inner.position.set(side * -0.006, 0.06, 0.022); inner.rotation.set(-0.12, Math.PI / 4, side * -0.22); inner.scale.set(1, 1, 0.3);
+    inner.position.set(side * -0.012, 0.068, 0.03); inner.rotation.set(-0.1, 0, side * -0.38); inner.scale.set(1, 1, 0.3);
     ear.add(inner);
     return ear;
   });
 
   const socket = (parentObject: Object3D, x: number, y: number, z: number): Object3D => joint(parentObject, x, y, z);
   const sockets = {
-    nose: socket(head, 0, -0.04, 0.27), mouth: socket(jaw, 0, -0.01, 0.1),
+    nose: socket(head, 0, -0.07, 0.32), mouth: socket(jaw, 0, -0.01, 0.1),
     pawL: socket(legs.fl.paw, 0, -0.035, 0.06), pawR: socket(legs.fr.paw, 0, -0.035, 0.06),
   };
 
@@ -187,12 +196,12 @@ export function buildCat(): PuppyRig {
   root.add(shadow);
 
   return {
-    kind: 'cat', bodyY: 0.4, height: 1.15,
+    kind: 'cat', bodyY: 0.36, height: 1.2,
     root, body, neck, head, jaw, tongue, eyes, ears, tail, legs, shadow, sockets,
     paint(settings) {
-      const coat = CAT_COATS[settings.catCoat ?? 'tabby'] ?? CAT_COATS.tabby;
+      const coat = CAT_COATS[settings.catCoat ?? 'grey'] ?? CAT_COATS.grey;
       fur.color.set(coat.fur); fur.sheenColor.set(coat.sheen);
-      cream.color.set(coat.cream);
+      cream.color.set(coat.cream); cream.sheenColor.set(coat.creamSheen ?? '#ffffff');
       for (const m of stripes) m.visible = Boolean(coat.stripe);
       // Ringed tail segments carry a plain twin that shows when there are no stripes.
       for (const m of plains) m.visible = !coat.stripe;
@@ -200,7 +209,7 @@ export function buildCat(): PuppyRig {
       for (const m of patches) m.visible = Boolean(coat.patchA);
       if (coat.patchA) patchA.color.set(coat.patchA);
       if (coat.patchB) patchB.color.set(coat.patchB);
-      iris.color.set((CAT_EYES[settings.eyes ?? 'green'] ?? CAT_EYES.green).iris);
+      iris.color.set((CAT_EYES[settings.eyes ?? 'amber'] ?? CAT_EYES.amber).iris);
       collar.color.set(COLLARS[settings.collar ?? 'sapphire'] ?? COLLARS.sapphire);
     },
     dispose() {
