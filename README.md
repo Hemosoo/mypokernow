@@ -17,7 +17,7 @@ Open the localhost URL printed by Vite. The studio runs independently of PokerNo
 
 The first time it opens, the studio asks how you would like to start:
 
-- **Just pick a theme** is a single page of ready-made tables. Click one to use it, choose Classic's colourway, switch PokerNow on or off, or **Import a theme**. **Customize** (top right) opens the full studio.
+- **Just pick a theme** is a single page of ready-made tables. Hover a theme (or press its **Watch** button on a touch screen) and it plays for real: a recording of its flop and river on the table, with its own deck, effects, ambience and companion. Click one to use it, choose Classic's colourway, switch PokerNow on or off, or **Import a theme**. **Customize** (top right) opens the full studio.
 - **Customize everything** is the full studio below. **Simple view** in its top bar goes back.
 
 **Import a theme** takes a file someone exported, or theme code pasted from anywhere, including an AI assistant's whole answer (anything around the theme is ignored). **Make one with AI** copies a prompt that lists every field and allowed value; paste it into ChatGPT, Claude, Gemini or any assistant, add what you want ("a deep-sea table with glowing jellyfish colours"), and paste the answer back. The import is forgiving about form (short colours, a missing board, an effect that does not exist falls back to the house one) and strict about content: only colours, fixed choices and known effects, never code, links or images. A refusal names the field that is wrong.
@@ -35,7 +35,7 @@ The player under the table plays, pauses, replays and resets, plays any moment o
 
 Keys: **⌘K** or **/** search, **⌘Z** / **⇧⌘Z** undo and redo, **Space** play or pause, **1–4** play a moment, **[** and **]** try the previous or next effect, **H** a whole hand, **F** heart the effect on the table, **R** replay, **Esc** stop previewing a theme, **?** the full list.
 
-Effect posters and clips in `public/media/` are recorded from the replica table by `scripts/capture-media.mjs` (Playwright and ffmpeg), which hands the frames to `scripts/frame-media.py` (numpy, Pillow) to crop each one to its own motion and pick its poster. Run it again after changing a preset; each room's own effects are recorded in that room. The comparison clips are `public/media/compare-*.webm`.
+The simple view's theme clips (`public/media/theme-*.webm`) are recorded by `scripts/capture-themes.mjs`: every built-in theme, and Classic in each colourway, playing its flop and river on the replica table. A theme someone changed has no clip, since it would show the wrong look. Effect posters and clips in `public/media/` are recorded from the replica table by `scripts/capture-media.mjs` (Playwright and ffmpeg), which hands the frames to `scripts/frame-media.py` (numpy, Pillow) to crop each one to its own motion and pick its poster. Run it again after changing a preset; each room's own effects are recorded in that room. The comparison clips are `public/media/compare-*.webm`.
 
 ### Record the comparison on PokerNow
 
@@ -108,14 +108,14 @@ A win is celebrated in steps that grow with what happened, and your own wins cou
 
 ## Cat
 
-Choose **Cat Café** in the theme switcher, or the cat on the **Companion** page (in any room). The cat is built on the same rig as the puppy and in the same style: a big round head, big glossy eyes, fluffy cheeks and blush, upright ears, whiskers, a plump tail and a bell on its collar:
+Choose **Cat Café** in the theme switcher, or the cat on the **Companion** page (in any room). The cat is built on the same rig as the puppy and cute in its own way: one smooth, round head that widens at the cheeks, big glossy eyes, a soft loaf of a body, short legs with white mitten paws, a plump tail and a bell on its collar. Its markings (the tabby's bands and forehead "M", a calico's patches) are painted into the fur, so it stays one soft shape:
 
 - **Deal:** it sits up by the deck and flicks each card out to its player.
 - **Flop:** it paws the three cards out face down, trots to the end of the row, crouches and bats a ball of yarn along it. Each card flips as the ball rolls over it, and the strand it trails fades.
 - **Turn** (*Cat Push*): it pushes the card into place with one paw, slowly, staring at you, then flicks it over.
 - **River** (*Pounce*): it slides the card in, backs off, crouches with a wiggle and pounces; the card flips under its paws.
 - **Win:** a pounce for a real pot, then it curls up by the winner's chips, eyes half shut, purring.
-- It grooms instead of scratching, meows instead of barking, naps when someone tanks and wakes at the timer warning.
+- It grooms instead of scratching and meows instead of barking. When someone tanks (or on **Nap**) it curls up the way a real cat does: a round bun with its paws tucked in, its head resting down on its cheek, its tail wrapped round its side and its eyes shut as two soft curves. It wakes at the timer warning.
 
 Coats: grey tabby (the default), black, tuxedo, calico and orange tabby; eyes amber, green or blue. A room's own companion only performs its own moves; in a room without one, the puppy or the cat drops in for its moves and leaves.
 

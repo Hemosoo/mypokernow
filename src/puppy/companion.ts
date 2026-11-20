@@ -798,7 +798,7 @@ export class PuppyCompanion implements Companion {
     // A visitor that has left does nothing until its next card animation calls it in.
     if (!this.resident && !this.card && this.presence <= 0) { this.setState('AWAY'); return; }
     const p = this.pose, intensity = this.intensity;
-    Object.assign(p, { lift: 0, spin: 0, lean: 0, roll: 0, bow: 0, lie: 0, stretch: 1, blink: 0, pawL: 0, pawR: 0, reachL: 0, reachR: 0, mouth: 0, tongue: 0, scratch: 0, headPitch: 0.1, headTilt: 0 });
+    Object.assign(p, { lift: 0, spin: 0, lean: 0, roll: 0, bow: 0, lie: 0, curl: 0, stretch: 1, blink: 0, pawL: 0, pawR: 0, reachL: 0, reachR: 0, mouth: 0, tongue: 0, scratch: 0, headPitch: 0.1, headTilt: 0 });
     let target: Pt = this.home, part: 'body' | 'paw' | 'nose' | 'mouth' = 'body', face: Pt | undefined, speed = 0, sitGoal = 1, look: Pt | undefined;
     let follow = false; // true: `target` is exact (contact), not a destination to walk to
     // When set, the puppy turns toward this heading rather than the way it happens to be moving.
@@ -905,7 +905,7 @@ export class PuppyCompanion implements Companion {
           // Asleep when the clock started beeping: jolts awake, leaps, then barks at the clock.
           this.setState('STARTLED');
           target = this.at; this.sleep = 0; this.excite = 1;
-          p.lie = Math.max(0, 1 - u / 0.05);
+          if (this.rig.kind === 'cat') p.curl = Math.max(0, 1 - u / 0.05); else p.lie = Math.max(0, 1 - u / 0.05);
           const air = Math.sin(Math.PI * range(u, 0.04, 0.36));
           p.lift = air * 0.62 * Math.min(1.25, 0.7 + intensity * 0.4);
           p.stretch = u < 0.04 ? 0.82 : 1 + air * 0.16;
@@ -947,7 +947,8 @@ export class PuppyCompanion implements Companion {
     if (this.state !== 'SLEEPING' && this.state !== 'IDLE') this.sleep = approach(this.sleep, 0, 9, dt);
     if (this.sleep > 0.01) {
       const z = this.sleep;
-      p.lie = Math.max(p.lie, z);
+      // The puppy lies down; the cat curls up into a bun.
+      if (this.rig.kind === 'cat') p.curl = Math.max(p.curl, z); else p.lie = Math.max(p.lie, z);
       p.blink = Math.max(p.blink, smooth(range(z, 0.35, 0.85)));
       p.bob += Math.sin(now / 950) * 0.018 * z;
       p.stretch *= 1 + Math.sin(now / 950) * 0.025 * z;
@@ -960,7 +961,7 @@ export class PuppyCompanion implements Companion {
     const before = { ...this.at };
     // Up on its feet before it goes anywhere: no sliding along the felt while still
     // sitting or lying down, which is what made a first step from rest look wrong.
-    const ready = Math.max(0.08, clamp(1 - Math.max(p.sit, p.lie) * 1.6));
+    const ready = Math.max(0.08, clamp(1 - Math.max(p.sit, p.lie, p.curl) * 1.6));
     if (headingGoal !== undefined) this.heading += wrap(headingGoal - this.heading) * (1 - Math.exp(-12 * dt));
     if (follow) {
       const solved = part === 'body' ? target : this.solve(part, target, this.heading, cue ? contactPose(cue.action) : {});

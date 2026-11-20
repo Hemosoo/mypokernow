@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { aiPrompt } from '../themes/ai';
-import { colourwayOf, isBuiltIn } from '../themes/defaults';
+import { colourwayOf, isBuiltIn, isOriginal } from '../themes/defaults';
 import type { StudioMode, Theme } from '../types';
 import { Colourways } from './pages/Themes';
 import type { Studio } from './studio-types';
@@ -75,14 +75,46 @@ export function SimpleHome({ studio }: { studio: Studio }) {
   </div>;
 }
 
+/**
+ * A recording of the theme playing on a table (scripts/capture-themes.mjs): built-in
+ * themes exactly as shipped, and Classic in each of its colourways. A theme someone
+ * changed has no recording, since it would show the wrong look.
+ */
+export function themeClip(theme: Theme): string | undefined {
+  if (!isBuiltIn(theme.id) || !isOriginal(theme)) return undefined;
+  const colourway = theme.id === 'room-monte-carlo' ? colourwayOf(theme)?.id : undefined;
+  if (theme.id === 'room-monte-carlo' && !colourway) return undefined;
+  return `./media/theme-${colourway ? `${theme.id}.${colourway}` : theme.id}.webm`;
+}
+
+/** React sets `muted` as a property only; Chrome needs the attribute to autoplay without a click. */
+function startMuted(video: HTMLVideoElement | null): void {
+  if (!video) return;
+  video.muted = true; video.defaultMuted = true; video.setAttribute('muted', '');
+  void video.play?.()?.catch(() => { /* The still preview stays. */ });
+}
+
 function SimpleCard({ item, studio, active, own }: { item: Theme; studio: Studio; active: boolean; own: boolean }) {
   const classic = item.id === 'room-monte-carlo';
   const note = classic ? `${colourwayOf(item)?.name ?? 'Your colours'} · choose a colourway below` : item.description || (own ? 'Your theme' : '');
-  return <article className={`simple-card ${active ? 'active' : ''}`}>
+  const clip = studio.motionAllowed ? themeClip(item) : undefined;
+  // Hovering (or focusing) a card plays the theme for real; the Watch button does the same on a touch screen.
+  const [watching, setWatching] = useState(false);
+  const [ready, setReady] = useState(false);
+  const timer = useRef<number>(0);
+  const watch = (): void => { window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setWatching(true), 120); };
+  const stop = (): void => { window.clearTimeout(timer.current); setWatching(false); setReady(false); };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => { setReady(false); }, [clip]);
+  return <article className={`simple-card ${active ? 'active' : ''} ${watching && ready ? 'watching' : ''}`} onMouseEnter={clip ? watch : undefined} onMouseLeave={clip ? stop : undefined}
+    onFocus={clip ? watch : undefined} onBlur={clip ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) stop(); } : undefined}>
     <button type="button" className="simple-pick" onClick={() => studio.applyTheme(item.id)} aria-pressed={active} aria-label={active ? `${item.name}, in use` : `Use ${item.name}`}>
       <ThemePreview theme={item} />
+      {clip && watching && <video key={clip} ref={startMuted} className={ready ? 'ready' : ''} src={clip} autoPlay muted loop playsInline preload="auto" aria-hidden="true" onPlaying={() => setReady(true)} />}
       {active && <span className="theme-flag"><Icon name="check" size={12} />In use</span>}
     </button>
+    {clip && <button type="button" className={`simple-watch ${watching ? 'on' : ''}`} aria-pressed={watching} aria-label={watching ? `Stop the ${item.name} preview` : `Watch ${item.name} play`}
+      onClick={() => (watching ? stop() : setWatching(true))}><Icon name={watching ? 'pause' : 'play'} size={13} />{watching ? 'Playing' : 'Watch'}</button>}
     <div className="simple-info">
       <b>{item.name}{own && <span className="tag">Yours</span>}</b>
       <small>{note}</small>

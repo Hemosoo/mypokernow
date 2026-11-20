@@ -797,3 +797,11 @@ body { background: var(--bg); color: var(--fg); font: var(--t-md)/1.45 var(--san
 @media (max-width: 560px) { .import-part { flex-direction: column; align-items: stretch } }
 .simple-switch { white-space: nowrap }
 @media (max-width: 940px) { .simple-switch { display: none } }
+
+/* Simple view: a theme plays for real while you hover it */
+.simple-pick video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--d-3) var(--ease); pointer-events: none }
+.simple-pick video.ready { opacity: 1 }
+.simple-watch { position: absolute; right: 10px; top: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: var(--r-pill); background: rgb(10 12 11 / .72); color: var(--fg); font-size: var(--t-xs); font-weight: 600; backdrop-filter: blur(6px); opacity: .85; transition: opacity var(--d-1) }
+.simple-card:hover .simple-watch, .simple-watch:focus-visible, .simple-watch.on { opacity: 1 }
+.simple-card.watching { box-shadow: inset 0 0 0 1px var(--accent-line), var(--shadow-2) }
+.simple-card.active.watching { box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-2) }
