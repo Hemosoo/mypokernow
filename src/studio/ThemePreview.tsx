@@ -2,6 +2,7 @@ import { memo, useMemo, type CSSProperties } from 'react';
 import { artOptions, cardDataUrl } from '../rendering/cards';
 import { lighten, rgba, svgDataUrl } from '../rendering/color';
 import { dogPortrait } from '../rendering/puppy-art';
+import { catPortrait } from '../rendering/cat-art';
 import { landscapeTableUrl } from '../skin/table-art';
 import type { CardIdentity, Theme } from '../types';
 
@@ -13,8 +14,10 @@ import type { CardIdentity, Theme } from '../types';
 const FLOP: CardIdentity[] = [{ rank: 'A', suit: 'spades' }, { rank: 'K', suit: 'hearts' }, { rank: '7', suit: 'diamonds' }];
 const HAND: CardIdentity[] = [{ rank: 'Q', suit: 'clubs' }, { rank: 'Q', suit: 'hearts' }];
 
-function puppyBadge(trim: string): string {
-  return svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -16 32 32" width="64" height="64"><circle r="15" fill="${trim}"/><circle r="13.6" fill="#fff8ec"/><g transform="translate(0 .6) scale(.86)">${dogPortrait('J', '#5b3a24', '#fff8ec')}</g></svg>`);
+/** The companion's face in a little medallion: the puppy or the cat. */
+function companionBadge(trim: string, kind: 'puppy' | 'cat'): string {
+  const face = kind === 'cat' ? `<g transform="translate(0 1.4) scale(.82)">${catPortrait('J', '#3c3e45', '#fff8ec')}</g>` : `<g transform="translate(0 .6) scale(.86)">${dogPortrait('J', '#5b3a24', '#fff8ec')}</g>`;
+  return svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -16 32 32" width="64" height="64"><circle r="15" fill="${trim}"/><circle r="13.6" fill="#fff8ec"/>${face}</svg>`);
 }
 
 /** Cache table art by its inputs: drawing it is the costly part, and themes share rooms. */
@@ -54,7 +57,7 @@ export const ThemePreview = memo(function ThemePreview({ theme, detail = 'full',
         <span className="tp-back right"><img src={cards.back} alt="" draggable={false} /><img src={cards.back} alt="" draggable={false} /></span>
       </>}
     </span>
-    {theme.companion && detail === 'full' && <img className="tp-pup" src={puppyBadge(theme.table.trimColor)} alt="" draggable={false} />}
+    {theme.companion && detail === 'full' && <img className="tp-pup" src={companionBadge(theme.table.trimColor, theme.companion.kind)} alt="" draggable={false} />}
   </span>;
 });
 

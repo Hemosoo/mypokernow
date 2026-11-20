@@ -38,29 +38,50 @@ function room(spec: RoomSpec): Theme {
 }
 
 /**
- * The house rooms. Each has its own palette, deck, emblem and pace: Monte Carlo
- * is the signature choreography, Obsidian is restrained, Rouge is theatrical
- * and Riviera is fluid. Neon, Sakura, Arcade, Rain District, Breach, Puppy and
- * Cat Café add their own felt, deck, chips and ambience as well.
+ * Classic comes in five colourways. Each is a whole look (felt, rail, trim, deck,
+ * back, emblem and pace), so choosing one changes the table completely, but they
+ * share one theme: they were separate rooms once, and too alike to stand apart.
  */
-export const builtInThemes: Theme[] = [
-  room({ id: 'room-monte-carlo', name: 'Monte Carlo', description: 'Green worsted felt, a gold inlay and classic serif cards.', felt: '#0e5a41', rail: '#1c1613', trim: '#d4b274', room: '#0a0e0c',
+export interface Colourway { id: string; name: string; note: string; look: Pick<Theme, 'card' | 'table' | 'board' | 'animations'> }
+const classic = (id: string, name: string, note: string, spec: Omit<RoomSpec, 'id' | 'name' | 'description'>): Colourway => {
+  const { card, table, board, animations } = room({ ...spec, id: 'room-monte-carlo', name: 'Classic', description: '' });
+  return { id, name, note, look: { card, table, board, animations } };
+};
+export const CLASSIC_COLOURWAYS: Colourway[] = [
+  classic('emerald', 'Emerald', 'Green felt, a gold inlay and engraved serif cards; the signature effects.', { felt: '#0e5a41', rail: '#1c1613', trim: '#d4b274', room: '#0a0e0c',
     back: '#0c3a2c', backStyle: 'crosshatch', face: 'classic', paper: '#fbf7ec', red: '#b8242f', black: '#16181b', edge: '#e6dcc4', emblem: 'spade', glow: '#f2d08a' }),
-  room({ id: 'room-obsidian', name: 'Obsidian', description: 'Charcoal felt and brushed silver, with clean modern cards.', felt: '#20252b', rail: '#0d0e10', trim: '#cfd5dd', room: '#060708',
+  classic('obsidian', 'Obsidian', 'Charcoal felt, brushed silver and flat modern cards; restrained effects.', { felt: '#20252b', rail: '#0d0e10', trim: '#cfd5dd', room: '#060708',
     back: '#101216', backStyle: 'solid', face: 'modern', paper: '#f7f7f5', red: '#c92b3c', black: '#111316', edge: '#d9dce0', emblem: 'crown', glow: '#e9eef5',
     animations: ['deal.dealer-flick', 'flop.triple-spread', 'reveal.turnover', 'reveal.turnover'], radius: 4 }),
-  room({ id: 'room-rouge', name: 'Rouge', description: 'Deep claret felt, warm gold and a laurel emblem.', felt: '#6a1626', rail: '#201210', trim: '#e2bd7c', room: '#0c0607',
+  classic('claret', 'Claret', 'Deep red felt, warm gold and a laurel emblem; theatrical effects.', { felt: '#6a1626', rail: '#201210', trim: '#e2bd7c', room: '#0c0607',
     back: '#4b0f1b', backStyle: 'crosshatch', face: 'classic', paper: '#fcf6ea', red: '#a81c2a', black: '#191415', edge: '#ead9bd', emblem: 'laurel', glow: '#ffd995',
     animations: ['deal.orbit', 'flop.triple-orbit', 'reveal.slam', 'reveal.showdown'] }),
-  room({ id: 'room-riviera', name: 'Riviera', description: 'Midnight-blue felt with a rose-gold inlay.', felt: '#133a60', rail: '#10171f', trim: '#dea97f', room: '#05080d',
+  classic('midnight', 'Midnight', 'Midnight-blue felt and a rose-gold inlay; fluid effects.', { felt: '#133a60', rail: '#10171f', trim: '#dea97f', room: '#05080d',
     back: '#0e2d4d', backStyle: 'diamonds', face: 'modern', paper: '#f8f7f3', red: '#c2303d', black: '#101821', edge: '#dcdfe4', emblem: 'spade', glow: '#ffcfa6',
     animations: ['deal.pitch', 'flop.cascade', 'reveal.squeeze', 'reveal.spotlight'], radius: 9 }),
+  classic('sakura', 'Sakura', 'Dusk-blue felt, cherry wood, falling petals and gentle reveals.', { felt: '#2d3c5a', rail: '#2b1a1c', trim: '#e9b2bf', room: '#110c12',
+    back: '#8e3a55', backStyle: 'petals', face: 'sakura', paper: '#fcf5ef', red: '#c23c5c', black: '#2a2a3e', edge: '#ecd8d3', emblem: 'blossom', glow: '#ffd0dc',
+    motif: 'sakura', animations: ['deal.pitch', 'flop.cascade', 'reveal.turnover', 'reveal.squeeze'], radius: 10 }),
+];
+const lookKey = (theme: Pick<Theme, 'card' | 'table' | 'board' | 'animations'>): string => JSON.stringify([theme.card, theme.table, theme.board, theme.animations]);
+/** Which Classic colourway a theme is wearing, if it is wearing one exactly. */
+export const colourwayOf = (theme: Pick<Theme, 'card' | 'table' | 'board' | 'animations'>): Colourway | undefined =>
+  CLASSIC_COLOURWAYS.find((colourway) => lookKey(colourway.look) === lookKey(theme));
+/** A theme dressed in a colourway; everything else about it stays. */
+export const withColourway = (theme: Theme, colourway: Colourway): Theme => ({ ...theme, ...structuredClone(colourway.look) });
+
+/**
+ * The house rooms: Classic in its colourways, then the rooms with a world of
+ * their own. Neon, Arcade, Rain District, Breach, Puppy and Cat Café each add
+ * their own felt, deck, chips, ambience and effects.
+ */
+export const builtInThemes: Theme[] = [
+  { ...room({ id: 'room-monte-carlo', name: 'Classic', description: 'Classic felt and cards in five colourways: Emerald, Obsidian, Claret, Midnight and Sakura.',
+    felt: '#0e5a41', rail: '#1c1613', trim: '#d4b274', room: '#0a0e0c', back: '#0c3a2c', backStyle: 'crosshatch', face: 'classic', paper: '#fbf7ec', red: '#b8242f',
+    black: '#16181b', edge: '#e6dcc4', emblem: 'spade', glow: '#f2d08a' }), ...structuredClone(CLASSIC_COLOURWAYS[0]!.look) },
   room({ id: 'room-neon', name: 'Neon', description: 'Night-city felt with a lit grid, glowing cards and digital reveals.', felt: '#121a3a', rail: '#07070d', trim: '#43e3ff', room: '#05040c',
     back: '#140d2e', backStyle: 'circuit', face: 'neon', paper: '#0c0e18', red: '#ff4f9a', black: '#63e6ff', edge: '#313a66', emblem: 'bolt', glow: '#8af4ff',
     motif: 'neon', animations: ['deal.storm', 'flop.crystal-spread', 'reveal.fragment-assembly', 'reveal.crystallization'], radius: 6 }),
-  room({ id: 'room-sakura', name: 'Sakura', description: 'Dusk-blue felt, cherry wood, falling petals and gentle reveals.', felt: '#2d3c5a', rail: '#2b1a1c', trim: '#e9b2bf', room: '#110c12',
-    back: '#8e3a55', backStyle: 'petals', face: 'sakura', paper: '#fcf5ef', red: '#c23c5c', black: '#2a2a3e', edge: '#ecd8d3', emblem: 'blossom', glow: '#ffd0dc',
-    motif: 'sakura', animations: ['deal.pitch', 'flop.cascade', 'reveal.turnover', 'reveal.squeeze'], radius: 10 }),
   room({ id: 'room-arcade', name: 'Arcade', description: 'Pixel cards, a dithered blue felt and stepped, sprite-style moves.', felt: '#1a3fae', rail: '#2a1a4a', trim: '#ffcc1a', room: '#06060f',
     back: '#2337c9', backStyle: 'pixel', face: 'pixel', paper: '#ffffff', red: '#e4202e', black: '#141414', edge: '#141414', emblem: 'coin', glow: '#ffe36b',
     motif: 'arcade', animations: ['deal.pixel', 'flop.pixel', 'reveal.pixel', 'reveal.pixel'], radius: 0 }),
@@ -90,15 +111,15 @@ puppyTheme.card = { ...puppyTheme.card, borderRadius: 9, aura: { enabled: true, 
 builtInThemes.push(puppyTheme);
 
 /**
- * Cat Café: the tabby's room. Soft teal felt with paw prints and yarn, warm wood,
+ * Cat Café: the cat's room. Soft teal felt with paw prints and yarn, warm wood,
  * a cat deck, and a cat who flicks, bats, pushes and pounces the cards into place.
  */
 export const catTheme: Theme = {
-  ...room({ id: 'room-cat', name: 'Cat Café', description: 'A 3D tabby who bats a yarn ball across the flop.', felt: '#2f6668', rail: '#5e3c28', trim: '#f0b46a', room: '#130e0b',
+  ...room({ id: 'room-cat', name: 'Cat Café', description: 'A 3D grey tabby who bats a yarn ball across the flop.', felt: '#2f6668', rail: '#5e3c28', trim: '#f0b46a', room: '#130e0b',
     back: '#b4574f', backStyle: 'yarn', face: 'cat', paper: '#fffaf2', red: '#c4374a', black: '#2b2422', edge: '#ecdcc4', emblem: 'yarn', glow: '#ffd9a0', motif: 'cat', radius: 9 }),
   animations: { deal: { preset: 'deal.cat', parameters: {} }, flop: { preset: 'flop.cat', parameters: {} },
     turn: { preset: 'turn.cat', parameters: {} }, river: { preset: 'river.cat', parameters: {} } },
-  companion: { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', collar: 'sapphire', catCoat: 'tabby', eyes: 'green' },
+  companion: { kind: 'cat', animations: true, intensity: 'normal', scale: 'medium', collar: 'sapphire', catCoat: 'grey', eyes: 'amber' },
 };
 catTheme.card = { ...catTheme.card, aura: { enabled: true, color: '#ffd9a0', strength: 0.45 } };
 builtInThemes.push(catTheme);
@@ -108,13 +129,27 @@ export const ROOMS_SINCE_V4: string[] = ['room-puppy'];
 export const ROOMS_SINCE_V5: string[] = ['room-neon', 'room-sakura'];
 /** Rooms added with library version 6. */
 export const ROOMS_SINCE_V6: string[] = ['room-arcade', 'room-rain', 'room-breach', 'room-cat'];
+/**
+ * Rooms folded into Classic with library version 7, and the colourway each became.
+ * An untouched copy goes; one its owner changed stays, as their own theme.
+ */
+export const RETIRED_ROOMS: Record<string, string> = { 'room-obsidian': 'obsidian', 'room-rouge': 'claret', 'room-riviera': 'midnight', 'room-sakura': 'sakura' };
+/** When every built-in room was last changed; a room still carrying it has never been edited. */
+export const BUILT_IN_TIMESTAMP = timestamp;
 export const isBuiltIn = (id: string): boolean => builtInThemes.some((theme) => theme.id === id);
+/** A built-in exactly as shipped (for Classic: in any of its colourways). */
+export const isOriginal = (theme: Theme): boolean => {
+  const original = builtInTheme(theme.id);
+  if (!original) return false;
+  const same = lookKey(original) === lookKey(theme) && JSON.stringify(original.companion ?? null) === JSON.stringify(theme.companion ?? null);
+  return same || (theme.id === 'room-monte-carlo' && Boolean(colourwayOf(theme)));
+};
 export const builtInTheme = (id: string): Theme | undefined => builtInThemes.find((theme) => theme.id === id);
 
 export const DEFAULT_THEME_ID = builtInThemes[0]!.id;
 export function createDefaultTheme(): Theme { return structuredClone(builtInThemes[0]!); }
 export function createDefaultLibrary(): Library {
-  return { version: 6, settings: { enabled: true, reducedMotion: false, speed: 1, activeThemeId: DEFAULT_THEME_ID, effects: defaultEffects(), favorites: [], recent: [] }, themes: structuredClone(builtInThemes) };
+  return { version: 7, settings: { enabled: true, reducedMotion: false, speed: 1, activeThemeId: DEFAULT_THEME_ID, effects: defaultEffects(), favorites: [], recent: [] }, themes: structuredClone(builtInThemes) };
 }
 
 /** Identifiers and timestamp of the three themes shipped before the rooms existed. */

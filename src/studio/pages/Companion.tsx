@@ -75,7 +75,7 @@ export function CompanionPage({ studio }: { studio: Studio }) {
         {kind === 'cat' ? <>
         <div className="field"><span className="label" id="cat-coat-label">Coat</span>
           <div className="swatch-row" role="radiogroup" aria-labelledby="cat-coat-label">
-            {(Object.keys(CAT_COATS) as CatCoat[]).map((coat) => {
+            {(Object.keys(CAT_COATS) as CatCoat[]).filter((coat) => coat !== 'bluegrey').map((coat) => {
               const on = (companion.catCoat ?? 'tabby') === coat, colors = CAT_COATS[coat];
               return <button type="button" role="radio" key={coat} aria-checked={on} className={`swatch ${on ? 'on' : ''}`} onClick={() => set({ catCoat: coat })}
                 style={{ '--a': colors.fur, '--b': colors.cream, '--c': colors.stripe ?? colors.patchA ?? colors.fur } as CSSProperties}><i aria-hidden="true" />{colors.name}</button>;

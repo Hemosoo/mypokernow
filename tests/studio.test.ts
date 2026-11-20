@@ -44,6 +44,10 @@ test('Studio plays every effect through the engine, saves choices, and manages t
  try {
   await act(async()=>{root.render(createElement(App));await wait(30);});await act(async()=>{await wait(30);});
   const nav=(label:string)=>clickText('.rail-item span',label);
+  // First run asks how to start; the full studio is one choice.
+  assert.match(document.querySelector('.welcome')!.textContent!,/Just pick a theme.*Customize everything/);
+  await clickText('.welcome-choice b','Customize everything');
+  assert.ok(!document.querySelector('.welcome'),'The choice is made once');
   const tryLabel=(id:string)=>`[aria-label="Try ${presetName(getPreset(id)!)} on the table"]`;
   // The studio opens on Discover: the looping before-and-after, and no preview table running behind it.
   assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Discover');
@@ -53,7 +57,7 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   assert.match(document.querySelector('.power')!.textContent!,/Preview only/,'A browser preview says it does not reach PokerNow');
   await clickText('.hero-actions .primary-button','Browse themes');
   assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Themes');
-  assert.equal(document.querySelectorAll('.theme-card').length,11,'Eleven built-in themes, the new rooms and the Cat Café included');
+  assert.equal(document.querySelectorAll('.theme-card').length,7,'Seven built-in themes: Classic and its colourways, then the rooms with a world of their own');
 
   // Effects: event tabs, then cards for that moment, each with its own poster.
   await nav('Effects');
@@ -114,32 +118,37 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   await act(async()=>{await wait(600);});
   await key({key:'k',ctrlKey:true});
   const search=document.querySelector<HTMLInputElement>('.menu input');assert.ok(search,'Command menu opens');
-  await type(search,'rouge');
+  await type(search,'neon');
   await key({key:'Enter'},search);
   assert.ok(!document.querySelector('.menu'),'Running a command closes the menu');
   const inUse=()=>document.querySelector('.switcher-text b')!.textContent;
-  assert.equal(inUse(),'Rouge');
-  await click('[aria-label="Undo"]');assert.equal(inUse(),'Monte Carlo','Undo restores the previous theme');
-  await click('[aria-label="Redo"]');assert.equal(inUse(),'Rouge','Redo applies it again');
+  assert.equal(inUse(),'Neon');
+  await click('[aria-label="Undo"]');assert.equal(inUse(),'Classic','Undo restores the previous theme');
+  await click('[aria-label="Redo"]');assert.equal(inUse(),'Neon','Redo applies it again');
   await act(async()=>{await wait(600);});
 
   // Themes: preview without applying, then apply; new, duplicate, delete with confirmation; built-ins cannot be deleted.
   await nav('Themes');
-  await click('[aria-label="Preview Obsidian on the table"]');
-  assert.match(document.querySelector('.stage-banner')!.textContent!,/Obsidian.*Not applied/);
-  await save();assert.equal(stored().settings.activeThemeId,'room-rouge','Previewing does not apply');
+  await click('[aria-label="Preview Arcade on the table"]');
+  assert.match(document.querySelector('.stage-banner')!.textContent!,/Arcade.*Not applied/);
+  await save();assert.equal(stored().settings.activeThemeId,'room-neon','Previewing does not apply');
   await clickText('.stage-banner .primary-button','Use this theme');
-  await save();assert.equal(stored().settings.activeThemeId,'room-obsidian');
+  await save();assert.equal(stored().settings.activeThemeId,'room-arcade');
+  // Classic's colourways: one click dresses Classic and puts it in use.
+  await click('[aria-label="Classic colourway"] [aria-label="Claret"]');
+  await save();assert.equal(stored().settings.activeThemeId,'room-monte-carlo');
+  assert.equal(stored().themes.find(t=>t.id==='room-monte-carlo')!.table.feltColor,'#6a1626','Classic wears Claret');
+  assert.equal(document.querySelector('[aria-label="Classic colourway"] [aria-checked="true"]')?.getAttribute('aria-label'),'Claret');
   const count=()=>document.querySelectorAll('.theme-card').length;
   await clickText('.head-actions .primary-button','New theme');
   assert.equal(document.querySelector('.rail-item[aria-current="page"]')!.textContent!.trim(),'Appearance','A new theme opens Appearance');
-  await nav('Themes');assert.equal(count(),12);
-  await clickText('.current .secondary-button','Duplicate');assert.equal(count(),13);
-  await click('[aria-label="More actions for Monte Carlo"]');
+  await nav('Themes');assert.equal(count(),8);
+  await clickText('.current .secondary-button','Duplicate');assert.equal(count(),9);
+  await click('[aria-label="More actions for Classic"]');
   assert.ok(!document.querySelector('.card-menu .danger'),'Built-in themes cannot be deleted');
   await click('[aria-label="More actions for My theme"]');
-  await clickText('.card-menu button','Delete…');assert.equal(count(),13,'Delete asks first');
-  await clickText('.confirm .danger-button','Delete');assert.equal(count(),12);
+  await clickText('.card-menu button','Delete…');assert.equal(count(),9,'Delete asks first');
+  await clickText('.confirm .danger-button','Delete');assert.equal(count(),8);
   await save();assert.ok(!stored().themes.some(t=>t.name==='My theme'));
 
   // Appearance: faces, backs and table colours reach the preview artwork; undo puts them back.
@@ -204,6 +213,29 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   await clickText('.mode b','Balanced');
   await save();assert.equal(stored().settings.effects.winSize,'loud','A performance mode leaves the win size alone');
   assert.ok(!document.querySelector('.save-status.s-failed'));
+  // Simple view: one page of tables, Classic's colourways, and importing a theme an AI wrote.
+  await clickText('.simple-switch','Simple view');
+  assert.ok(document.querySelector('.simple')&&!document.querySelector('.rail'),'Simple view is one page, without the studio');
+  await save();assert.equal(stored().settings.mode,'simple');
+  await click('.simple [aria-label="Classic colourway"] [aria-label="Midnight"]');
+  await save();assert.equal(stored().settings.activeThemeId,'room-monte-carlo');assert.equal(stored().themes.find(t=>t.id==='room-monte-carlo')!.table.feltColor,'#133a60');
+  await click('.simple-import');
+  assert.match(document.querySelector('.import-dialog')!.textContent!,/Make one with AI.*Copy the prompt/);
+  const code=document.querySelector<HTMLTextAreaElement>('#theme-code')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value')!.set!.call(code,'Sure! {"name":"Deep Sea","card":{"face":"neon","back":"circuit","backColor":"#0a2a3a","faceColor":"#06141c","redColor":"#ff6fb5","blackColor":"#7ff3ff","borderColor":"#1d4a5a"},"table":{"feltColor":"#0b3550","railColor":"#04121a","backgroundColor":"#020a10","trimColor":"#5cf2ff","motif":"neon"}} Enjoy!');code.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});await settle();
+  await clickText('.import-dialog .primary-button','Import and use');
+  await act(async()=>{await wait(50);});
+  assert.ok(!document.querySelector('.import-dialog'),'A good theme closes the dialog');
+  await save();assert.equal(stored().themes.find(t=>t.id===stored().settings.activeThemeId)!.name,'Deep Sea','The imported theme is in use');
+  assert.ok([...document.querySelectorAll('.simple-card b')].some(b=>b.textContent!.startsWith('Deep Sea')),'It joins the page');
+  await click('.simple-import');
+  await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value')!.set!.call(code.isConnected?code:document.querySelector('#theme-code')!,'{"name":"Bad","card":{"face":"glitter"}}');document.querySelector('#theme-code')!.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});await settle();
+  await clickText('.import-dialog .primary-button','Import and use');await act(async()=>{await wait(50);});
+  assert.match(document.querySelector('.import-error')!.textContent!,/card\.face/,'A refusal names the field');
+  await click('.import-dialog [aria-label="Close"]');
+  await clickText('.simple-bar .ghost-button','Customize');
+  assert.ok(document.querySelector('.rail'),'Customize returns to the full studio');
+  await nav('Settings');
   await click('[aria-label="Enable customization in settings"]');
   await nav('Effects');
   const beforeDisabled=runs.length;await clickText('.player-streets button','Flop');
@@ -215,7 +247,7 @@ test('Studio plays every effect through the engine, saves choices, and manages t
   root=createRoot(document.getElementById('root')!);await act(async()=>{root.render(createElement(App));});await save();
   assert.ok(document.querySelector('.recovery-banner'));assert.equal(localStorage.getItem(KEY),broken,'Invalid data was overwritten without recovery');
   await click('.recovery-banner .primary-button');await save();
-  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(stored().version,6);
+  assert.ok(!document.querySelector('.recovery-banner'));assert.equal(stored().version,7);
 
   // Uploaded assets can take longer than a frame. A preview waits for the exact resolved theme, then plays.
   await act(async()=>root.unmount());

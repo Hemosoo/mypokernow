@@ -57,14 +57,14 @@
 html, body { margin: 0; height: 100% }
 body { background: var(--bg); color: var(--fg); font: var(--t-md)/1.45 var(--sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale }
 #root { height: 100% }
-:where(.studio) :where(button, input, select, textarea) { font: inherit; color: inherit }
-:where(.studio) :where(button) { cursor: pointer; border: 0; background: none; padding: 0 }
-:where(.studio) :where(button:disabled) { cursor: not-allowed; opacity: .42 }
-:where(.studio) :where(h1, h2, h3, h4, p, ol, ul, dl, dd, figure) { margin: 0 }
+:where(.studio, .simple, .welcome, .modal-backdrop) :where(button, input, select, textarea) { font: inherit; color: inherit }
+:where(.studio, .simple, .welcome, .modal-backdrop) :where(button) { cursor: pointer; border: 0; background: none; padding: 0 }
+:where(.studio, .simple, .welcome, .modal-backdrop) :where(button:disabled) { cursor: not-allowed; opacity: .42 }
+:where(.studio, .simple, .welcome, .modal-backdrop) :where(h1, h2, h3, h4, p, ol, ul, dl, dd, figure) { margin: 0 }
 :where(.studio) :where(ol, ul) { padding: 0; list-style: none }
-:where(.studio) :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm) }
-:where(.studio) ::selection { background: var(--accent); color: var(--accent-ink) }
-:where(.studio) img { display: block; max-width: 100% }
+:where(.studio, .simple, .welcome, .modal-backdrop) :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm) }
+:where(.studio, .simple, .welcome, .modal-backdrop) ::selection { background: var(--accent); color: var(--accent-ink) }
+:where(.studio, .simple, .welcome, .modal-backdrop) img { display: block; max-width: 100% }
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
 .kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; font: 600 var(--t-xs)/1 var(--sans); color: var(--fg-2); background: var(--bg-deep) }
 .tag { display: inline-flex; align-items: center; margin-left: var(--s-2); padding: 2px 7px; border-radius: var(--r-pill); font: 600 var(--t-xs)/1.3 var(--sans); letter-spacing: .02em; text-transform: none; color: var(--fg-2); background: var(--raise); vertical-align: middle }
@@ -720,3 +720,80 @@ body { background: var(--bg); color: var(--fg); font: var(--t-md)/1.45 var(--san
 @media (prefers-reduced-motion: reduce) {
   :where(.studio) *, :where(.studio) *::before, :where(.studio) *::after { animation-duration: .001s !important; transition-duration: .001s !important }
 }
+
+/* Classic's colourways */
+.colourways { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s-2) }
+.colourways button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: var(--r-pill); font-size: var(--t-xs); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow var(--d-1) }
+.colourways button:hover { box-shadow: inset 0 0 0 1px var(--accent-line) }
+.colourways button.on { color: var(--fg); box-shadow: inset 0 0 0 1.5px var(--accent) }
+.colourways i { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--felt) 0 54%, var(--trim) 56% 70%, var(--felt) 72%); box-shadow: 0 0 0 1px rgb(0 0 0 / .4) }
+.colourways.compact { gap: 4px; margin-top: 6px }
+.colourways.compact button { padding: 2px; border-radius: 50% }
+.colourways.compact i { width: 16px; height: 16px }
+
+/* ───────────────────────────────── first run: how would you like to start? */
+.welcome { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: var(--s-6) max(16px, env(safe-area-inset-left, 0px)); background: radial-gradient(ellipse at 50% 20%, rgb(232 185 108 / .1), transparent 60%), rgb(6 8 7 / .92); backdrop-filter: blur(10px); overflow-y: auto; animation: fade var(--d-3) var(--ease) }
+@keyframes fade { from { opacity: 0 } }
+.welcome-card { width: min(860px, 100%); display: grid; gap: var(--s-5); text-align: center }
+.welcome-brand { display: inline-flex; align-items: center; gap: var(--s-2); justify-self: center; font-weight: 600; letter-spacing: .02em; color: var(--fg-2) }
+.welcome-brand .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-ink) }
+.welcome h1 { margin: 0; font: 700 clamp(28px, 4.4vw, 44px)/1.1 var(--serif); text-wrap: balance }
+.welcome-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) }
+.welcome-choice { display: grid; gap: var(--s-2); justify-items: center; padding: var(--s-5) var(--s-5) var(--s-6); border-radius: var(--r-xl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); text-align: center; transition: transform var(--d-2) var(--ease), box-shadow var(--d-2) }
+.welcome-choice:hover, .welcome-choice:focus-visible { transform: translateY(-2px); box-shadow: inset 0 0 0 1.5px var(--accent), var(--shadow-2) }
+.welcome-choice b { font: 700 var(--t-xl)/1.2 var(--serif) }
+.welcome-choice small { color: var(--fg-2); font-size: var(--t-md); max-width: 34ch; line-height: 1.45 }
+.welcome-art { display: flex; justify-content: center; align-items: center; height: 120px; width: 100%; margin-bottom: var(--s-2) }
+.welcome-art.fan .tp { width: 150px; flex: none; margin: 0 -26px; box-shadow: var(--shadow-2); border-radius: var(--r-md); overflow: hidden }
+.welcome-art.fan .tp:nth-child(1) { transform: rotate(-8deg) translateY(6px) }
+.welcome-art.fan .tp:nth-child(2) { z-index: 1 }
+.welcome-art.fan .tp:nth-child(3) { transform: rotate(8deg) translateY(6px) }
+.welcome-art.studio-art { gap: var(--s-4); color: var(--accent) }
+.welcome-art.studio-art svg { padding: 12px; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--accent-soft) }
+.welcome-note { margin: 0; color: var(--fg-3); font-size: var(--t-sm) }
+@media (max-width: 640px) { .welcome-choices { grid-template-columns: minmax(0, 1fr) } .welcome-art { height: 96px } }
+
+/* ───────────────────────────────── simple view: one page of tables */
+.simple { min-height: 100%; font: var(--t-md)/1.45 var(--sans); color: var(--fg); background: radial-gradient(ellipse at 50% -10%, rgb(232 185 108 / .08), transparent 55%), var(--bg) }
+.simple-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding-block: 12px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); background: rgb(13 17 16 / .86); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line-soft) }
+.simple-tools { display: flex; align-items: center; gap: var(--s-2) }
+.simple-main { max-width: 1180px; margin: 0 auto; padding-block: var(--s-8) var(--s-12); padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); display: grid; gap: var(--s-6) }
+.simple-hero h1 { margin: 0; font: 700 clamp(30px, 4vw, 46px)/1.08 var(--serif) }
+.simple-hero p { margin: var(--s-2) 0 0; color: var(--fg-2); font-size: var(--t-lg); max-width: 60ch }
+.simple-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s-4); align-items: start }
+.simple-card { position: relative; display: grid; border-radius: var(--r-lg); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-soft); overflow: hidden; transition: box-shadow var(--d-2), transform var(--d-2) var(--ease) }
+.simple-card:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px var(--line), var(--shadow-2) }
+.simple-card.active { box-shadow: inset 0 0 0 2px var(--accent) }
+.simple-pick { position: relative; display: block; width: 100% }
+.simple-pick .tp { display: block; width: 100%; aspect-ratio: 16 / 10 }
+.simple-info { display: grid; gap: 3px; padding: 12px 14px 14px }
+.simple-info b { display: flex; align-items: center; gap: var(--s-2); font: 700 var(--t-lg)/1.25 var(--serif) }
+.simple-info small { color: var(--fg-2); font-size: var(--t-sm); line-height: 1.4 }
+.simple-info .tag { font: 600 11px/1 var(--sans); padding: 3px 6px; border-radius: 6px; background: var(--raise); color: var(--fg-2) }
+.simple-import { display: grid; place-content: center; justify-items: center; gap: var(--s-2); min-height: 220px; padding: var(--s-5); border-radius: var(--r-lg); color: var(--fg-2); text-align: center; box-shadow: inset 0 0 0 1.5px var(--line); border: 0; background: repeating-linear-gradient(135deg, transparent 0 10px, rgb(255 255 255 / .015) 10px 20px) }
+.simple-import:hover, .simple-import:focus-visible { color: var(--fg); box-shadow: inset 0 0 0 1.5px var(--accent-line) }
+.simple-import b { font: 700 var(--t-lg)/1.2 var(--serif); color: var(--fg) }
+.simple-import small { max-width: 28ch; font-size: var(--t-sm) }
+@media (max-width: 560px) { .simple-bar .power-text small { display: none } .simple-main { padding-block: var(--s-5) var(--s-10) } }
+
+/* ───────────────────────────────── import dialog */
+.modal-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: var(--s-5) max(16px, env(safe-area-inset-left, 0px)); background: rgb(0 0 0 / .6); backdrop-filter: blur(4px); overflow-y: auto }
+.dialog { width: min(640px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: var(--r-xl); background: var(--panel); box-shadow: var(--shadow-pop); animation: drop var(--d-3) var(--ease) }
+.dialog-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 12px; background: var(--panel) }
+.dialog-head h2 { margin: 0; font: 700 var(--t-2xl)/1.1 var(--serif) }
+.import-part { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: 16px 20px; border-top: 1px solid var(--line-soft) }
+.import-part.stacked { display: grid; justify-content: stretch; gap: var(--s-2) }
+.import-part h3 { display: flex; align-items: center; gap: var(--s-2); margin: 0; font-size: var(--t-lg); font-weight: 600 }
+.import-part p, .import-part li { margin: 0; color: var(--fg-2); font-size: var(--t-sm); line-height: 1.5 }
+.import-part ol { margin: 0; padding-left: 1.3em; display: grid; gap: 2px }
+.import-part textarea { width: 100%; min-height: 140px; resize: vertical; padding: 10px 12px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--bg-deep); color: var(--fg); font: 13px/1.5 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace }
+.import-part textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px }
+.import-part .primary-button { justify-self: start }
+.import-error { color: var(--danger) !important; background: var(--danger-soft); padding: 8px 10px; border-radius: var(--r-sm) }
+.import-part.ai { background: linear-gradient(180deg, var(--accent-soft), transparent) }
+.import-part.ai h3 svg { color: var(--accent) }
+.import-part details summary { cursor: pointer; color: var(--fg-2); font-size: var(--t-sm) }
+.import-part .prompt { margin: var(--s-2) 0 0; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--r-md); background: var(--bg-deep); color: var(--fg-2); font: 12px/1.5 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; white-space: pre-wrap }
+@media (max-width: 560px) { .import-part { flex-direction: column; align-items: stretch } }
+.simple-switch { white-space: nowrap }
+@media (max-width: 940px) { .simple-switch { display: none } }

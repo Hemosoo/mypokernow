@@ -58,7 +58,11 @@ try {
  await evaluate('globalThis.__assembly.clear()');
  const go=(label)=>`[...document.querySelectorAll(".rail-item")].find(x=>x.textContent.trim()===${JSON.stringify(label)}).click()`;
  const effectsTab=go('Effects');
- await call('Page.navigate',{url:studioUrl});await until('document.querySelectorAll(".before-after video").length===2',15000);
+ await call('Page.navigate',{url:studioUrl});
+ // First run asks how to start; the full studio is one of the two choices.
+ await until('!!document.querySelector(".welcome")',15000);
+ await evaluate(`[...document.querySelectorAll('.welcome-choice')].find(b=>b.textContent.includes('Customize everything')).click()`);
+ await until('document.querySelectorAll(".before-after video").length===2',15000);
  // Discover opens on the before-and-after comparison: both clips play, looped, in step, with no live table behind them.
  const comparison=await evaluate(`(async()=>{const [b,a]=document.querySelectorAll('.before-after video');const t=performance.now();while(performance.now()-t<8000&&!(a.currentTime>1.5&&b.currentTime>1.5))await new Promise(r=>setTimeout(r,100));return {a:a.currentTime,b:b.currentTime,loop:a.loop&&b.loop,paused:a.paused||b.paused};})()`);
  assert.ok(comparison.a>1.5&&!comparison.paused&&comparison.loop,'The comparison plays on its own, looped: '+JSON.stringify(comparison));
@@ -101,7 +105,7 @@ try {
  await evaluate(go('Themes'));await sleep(400);
  await evaluate(`document.querySelector('[aria-label="Preview Neon on the table"]').click()`);
  await until(`!!document.querySelector('.stage-banner')&&document.querySelector('.live-table-frame').contentWindow.__pncReplica.theme.id==='room-neon'`,8000);
- assert.equal(await evaluate(`document.querySelector('.switcher-text b').textContent`),'Monte Carlo','Previewing does not apply');
+ assert.equal(await evaluate(`document.querySelector('.switcher-text b').textContent`),'Classic','Previewing does not apply');
  await evaluate(`document.querySelector('.stage-banner .ghost-button').click()`);await sleep(300);
  // The companion acts on request on the live table.
  await evaluate(`document.querySelector('[aria-label="Use Puppy"]').click()`);await sleep(300);
@@ -144,7 +148,7 @@ try {
  await evaluate(go('Companion'));await sleep(400);
  await evaluate(`[...document.querySelectorAll('.swatch')].find(b=>b.textContent==='Midnight').click()`);await sleep(400);
  await evaluate(go('Themes'));await sleep(300);
- await evaluate(`document.querySelector('[aria-label="Use Monte Carlo"]').click()`);await sleep(400);
+ await evaluate(`document.querySelector('[aria-label="Use Classic"]').click()`);await sleep(400);
  await call('Page.reload');await until('document.querySelectorAll(".rail-item").length===7');await evaluate(effectsTab);await until('document.querySelectorAll(".fx-card").length>0');await sleep(300);
  // Reload selects the studio's initial street, so return to the saved shuffled turn.
  await evaluate(`document.querySelectorAll('.event-tab')[2].click()`);await sleep(150);

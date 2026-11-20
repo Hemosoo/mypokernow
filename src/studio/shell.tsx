@@ -46,6 +46,7 @@ export function TopBar({ studio, saveStatus, canUndo, canRedo, onUndo, onRedo, o
     </a>
     <ThemeSwitcher studio={studio} />
     <div className="topbar-tools">
+      <button type="button" className="ghost-button simple-switch" onClick={() => studio.setting('mode', 'simple')} title="Just pick a theme: one page of ready-made tables">Simple view</button>
       <button type="button" className="search" onClick={onSearch} aria-label="Search the studio" aria-keyshortcuts="Meta+K Control+K /"><Icon name="search" size={16} /><span>Search</span><Kbd>⌘K</Kbd></button>
       <div className="history" role="group" aria-label="History">
         <button type="button" className="icon-button" onClick={onUndo} disabled={!canUndo} aria-label="Undo" title="Undo (⌘Z)" aria-keyshortcuts="Meta+Z Control+Z"><Icon name="undo" size={17} /></button>
@@ -71,7 +72,7 @@ function ThemeSwitcher({ studio }: { studio: Studio }) {
   const recent = library.settings.recent.map((id) => library.themes.find((item) => item.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item) && item!.id !== theme.id).slice(0, 3);
   const choose = (id: string) => { studio.applyTheme(id); setOpen(false); button.current?.focus(); };
   const option = (item: typeof theme) => <button type="button" role="menuitemradio" aria-checked={item.id === theme.id} key={item.id} className={`switcher-item ${item.id === theme.id ? 'on' : ''}`} onClick={() => choose(item.id)}>
-    <ThemeDot theme={item} size={26} /><span>{item.name}<small>{isBuiltIn(item.id) ? 'Built-in' : 'Yours'}{item.companion ? ' · Puppy' : ''}</small></span>{item.id === theme.id && <Icon name="check" size={15} />}</button>;
+    <ThemeDot theme={item} size={26} /><span>{item.name}<small>{isBuiltIn(item.id) ? 'Built-in' : 'Yours'}{item.companion ? (item.companion.kind === 'cat' ? ' · Cat' : ' · Puppy') : ''}</small></span>{item.id === theme.id && <Icon name="check" size={15} />}</button>;
   return <div className="switcher">
     <button ref={button} type="button" className="switcher-button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}
       onKeyDown={(event) => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); window.setTimeout(() => popover.current?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus(), 0); } }}>

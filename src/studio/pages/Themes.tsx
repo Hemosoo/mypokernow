@@ -1,12 +1,23 @@
 import { useRef, useState } from 'react';
-import { builtInTheme, isBuiltIn } from '../../themes/defaults';
+import { CLASSIC_COLOURWAYS, colourwayOf, isBuiltIn, isOriginal } from '../../themes/defaults';
 import type { Theme } from '../../types';
-import { assignmentLabel, sameLook } from '../catalog';
+import { assignmentLabel } from '../catalog';
 import type { Studio } from '../studio-types';
 import { ThemePreview } from '../ThemePreview';
 import { Icon, moveFocus, useDismiss } from '../ui';
 
-const modified = (theme: Theme): boolean => { const original = builtInTheme(theme.id); return Boolean(original && !sameLook(original, theme)); };
+const modified = (theme: Theme): boolean => isBuiltIn(theme.id) && !isOriginal(theme);
+
+/** Classic's colourways as a row of felt-and-trim swatches. */
+export function Colourways({ theme, studio, compact = false }: { theme: Theme; studio: Pick<Studio, 'useColourway'>; compact?: boolean }) {
+  const current = colourwayOf(theme)?.id;
+  return <div className={`colourways ${compact ? 'compact' : ''}`} role="radiogroup" aria-label={`${theme.name} colourway`}>
+    {CLASSIC_COLOURWAYS.map((item) => <button type="button" role="radio" key={item.id} aria-checked={current === item.id} className={current === item.id ? 'on' : ''}
+      title={`${item.name}: ${item.note}`} aria-label={item.name} onClick={() => studio.useColourway(item.id)}
+      style={{ '--felt': item.look.table.feltColor, '--trim': item.look.table.trimColor } as React.CSSProperties}>
+      <i aria-hidden="true" />{!compact && <span>{item.name}</span>}</button>)}
+  </div>;
+}
 
 export function ThemesPage({ studio }: { studio: Studio }) {
   const { library, theme } = studio;
@@ -52,7 +63,8 @@ function CurrentTheme({ studio }: { studio: Studio }) {
         onBlur={(event) => { const name = event.target.value.trim(); if (name) studio.renameTheme(theme.id, name); setEditing(false); }}
         onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value = theme.name; event.currentTarget.blur(); } }} />
         : <h3>{theme.name}<button type="button" className="icon-button tiny" aria-label="Rename this theme" title="Rename" onClick={() => setEditing(true)}><Icon name="pencil" size={14} /></button></h3>}
-      <p className="current-meta">{own ? 'Your theme' : changed ? 'Built-in, with your changes' : 'Built-in'}{theme.companion ? ' · with the puppy' : ''}</p>
+      <p className="current-meta">{own ? 'Your theme' : changed ? 'Built-in, with your changes' : 'Built-in'}{theme.companion ? ` · with the ${theme.companion.kind}` : ''}{colourwayOf(theme) ? ` · ${colourwayOf(theme)!.name}` : ''}</p>
+      {theme.id === 'room-monte-carlo' && <Colourways theme={theme} studio={studio} />}
       <p className="current-effects"><Icon name="spark" size={14} />{effects.join(' · ')}</p>
       <div className="button-row">
         <button type="button" className="primary-button" onClick={() => studio.goTo('appearance')}><Icon name="brush" size={15} />Customize</button>
@@ -87,7 +99,8 @@ function ThemeCard({ item, studio, active }: { item: Theme; studio: Studio; acti
         onBlur={(event) => { const name = event.target.value.trim(); if (name) studio.renameTheme(item.id, name); setRenaming(false); }}
         onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value = item.name; event.currentTarget.blur(); } }} />
         : <b title={item.description}>{item.name}</b>}
-      <small>{own ? 'Yours' : changed ? 'Edited' : item.description || 'Built-in'}</small>
+      <small>{own ? 'Yours' : changed ? 'Edited' : item.id === 'room-monte-carlo' ? `${colourwayOf(item)?.name ?? 'Custom'} · 5 colourways` : item.description || 'Built-in'}</small>
+      {item.id === 'room-monte-carlo' && <Colourways theme={item} studio={studio} compact />}
     </div>
     <div className="theme-actions">
       {!active && <button type="button" className="secondary-button small" onClick={() => studio.applyTheme(item.id)} aria-label={`Use ${item.name}`}>Use</button>}
