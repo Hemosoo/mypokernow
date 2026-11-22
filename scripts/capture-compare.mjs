@@ -85,7 +85,8 @@ async function record({ key, room }) {
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/f%05d.jpg`,
     '-vf', 'scale=1024:576:flags=lanczos,format=yuv420p', '-c:v', 'libvpx-vp9', '-crf', '36', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2', '-an',
     `${OUT}/compare-${key}.webm`], { stdio: 'inherit' });
-  const poster = String((marks.flop ?? 0) + 90).padStart(5, '0');
+  // A settled moment after the flop, once even the slowest companion has finished.
+  const poster = String(Math.min(total - 1, (marks.flop ?? 0) + 211)).padStart(5, '0');
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', `${dir}/f${poster}.jpg`, '-vf', 'scale=1024:576:flags=lanczos', '-quality', '82', `${OUT}/compare-${key}.webp`], { stdio: 'inherit' });
   return { key, total, marks };
 }
