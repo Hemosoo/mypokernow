@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
  * The same hand recorded twice, frame for frame, one clip on each side of a
  * divider. Both loop, muted, in step.
  *
- * Out of the box this is an illustration: the scripted hand on the replica
- * table, once with no theme and once with the Puppy theme, and it is labelled as
- * such. Running scripts/capture-pokernow.mjs on a real PokerNow table writes
+ * Out of the box this is a recreation: the scripted hand on the replica table,
+ * once in PokerNow's standard look (rebuilt from measurements of a live table,
+ * with the screen around it) and once with the Puppy theme
+ * (scripts/capture-compare.mjs), and it is labelled as such. Running scripts/capture-pokernow.mjs on a real PokerNow table writes
  * media/compare.json with two recordings of one real hand (one browser without
  * the extension, one with it), and those are shown instead.
  */
@@ -106,14 +107,14 @@ export function BeforeAfter({ active, onChapter, seek, source = ILLUSTRATION }: 
     onPointerDown={(event) => { box.current?.setPointerCapture(event.pointerId); setDragging(true); at(event); }}
     onPointerMove={(event) => { if (dragging) at(event); }} onPointerUp={() => setDragging(false)} onPointerCancel={() => setDragging(false)}>
     <video ref={(element) => { before.current = element; muted(element); }} className="ba-before" src={source.plain} poster={source.plainPoster}
-      muted loop playsInline autoPlay={!reduce} preload="auto" aria-label={source.source === 'pokernow' ? 'A hand on PokerNow without the extension' : 'An illustration of a hand on a plain table'} />
+      muted loop playsInline autoPlay={!reduce} preload="auto" aria-label={source.source === 'pokernow' ? 'A hand on PokerNow without the extension' : 'A hand on a recreation of PokerNow’s standard table'} />
     <video ref={(element) => { after.current = element; muted(element); }} className="ba-after" src={source.themed} poster={source.themedPoster}
       muted loop playsInline autoPlay={!reduce} preload="auto" aria-label={`The same hand with the ${source.themeName} theme`} />
     {source.source === 'pokernow' ? <span className="ba-tag ba-tag-before">PokerNow</span>
-      : <span className="ba-tag ba-tag-before" title="A stand-in drawn by the extension, not PokerNow’s own artwork">Plain table · illustration</span>}
+      : <span className="ba-tag ba-tag-before" title="Recreated from PokerNow’s standard table, not a screen recording">PokerNow · recreated</span>}
     <span className="ba-tag ba-tag-after">{source.themeName} theme</span>
     <span className="ba-handle" role="slider" tabIndex={0} aria-label="Comparison divider" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(split)}
-      aria-valuetext={`${Math.round(split)}% plain table`} onKeyDown={key}>
+      aria-valuetext={`${Math.round(split)}% PokerNow`} onKeyDown={key}>
       <span className="ba-knob"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6-6 6 6 6M15 6l6 6-6 6" /></svg></span>
     </span>
     {!playing && <button type="button" className="ba-play" onPointerDown={(event) => event.stopPropagation()} onClick={() => setPlaying(true)}>Play the comparison</button>}

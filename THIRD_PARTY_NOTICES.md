@@ -12,6 +12,12 @@ Versions and copyright statements were read directly from each bundled font’s 
   SHA-256: `e0c764a8e9e1cce92163c55bac4b2ad6cd4cf8c696ce2289ab5c41565e65b7e2`
 - `playfair-display-italic.woff2`, version 1.203. Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name "Playfair Display".
   SHA-256: `54af24bd0f911f0fd7399d5445ea2023ff501d6a69f2d728f1213072f977ab14`
+- `abril-fatface.woff2` (Latin subset as served by Google Fonts), version 1.001. Copyright (c) 2011, TypeTogether (www.type-together.com), with Reserved Font Names "Abril" and "Abril Fatface"
+  SHA-256: `edf7a1f3bc22e815ea426b102fa0493d20af482b242066e689a1263ebb2eeb68`
+- `mulish.woff2` (Latin subset as served by Google Fonts), version 3.603. Copyright 2016 The Mulish Project Authors (https://github.com/googlefonts/mulish)
+  SHA-256: `8d1d33d6beea5a722b8f336d79c61c07405949457e37b5e65454c72dc10aba1a`
+
+`abril-fatface.woff2` and `mulish.woff2` are used only by the plain replica table (the studio's preview and before-and-after recordings), which recreates PokerNow's standard look; both are licensed under the SIL Open Font License 1.1 below.
 
 ## Inter license
 

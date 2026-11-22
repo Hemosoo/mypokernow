@@ -1,6 +1,7 @@
 import './replica.css';
 import { Scenario, type Street } from './scenario';
 import { fitReplica } from './markup';
+import { addChrome } from './chrome';
 import { Runtime } from '../runtime';
 import { builtInThemes, createDefaultLibrary } from '../themes/defaults';
 import { validateTheme } from '../themes/schema';
@@ -18,9 +19,16 @@ const params = new URLSearchParams(location.search);
 const embedded = params.get('embed') === '1';
 if (embedded) document.documentElement.classList.add('replica-embedded');
 
+// The plain table's type: the open-source typefaces PokerNow's table uses (see THIRD_PARTY_NOTICES).
+const fonts = document.createElement('style');
+fonts.textContent = '@font-face{font-family:"PNC Replica Serif";src:url(./fonts/abril-fatface.woff2) format("woff2")}'
+  + '@font-face{font-family:"PNC Replica Sans";src:url(./fonts/mulish.woff2) format("woff2");font-weight:200 1000}';
+document.head.append(fonts);
+
 const root = document.getElementById('main-container')!;
 const scenario = new Scenario(root, Number(params.get('players')) || 6);
 scenario.prepare(embedded ? 'turn' : 'river');
+if (params.get('chrome') === '1') addChrome(root);
 let settings: Settings = createDefaultLibrary().settings;
 type AnimationListener = (handle: AnimationHandle, event?: VisualEvent) => void;
 let animationListener: AnimationListener | undefined;
