@@ -58,7 +58,7 @@ export function Discover({ studio }: { studio: Studio }) {
           {compare.chapters.length > 0 && <div className="chapter-buttons" role="group" aria-label="Jump to a moment">
             {compare.chapters.map((item, index) => <button type="button" key={item.label} className={chapter === index ? 'on' : ''} aria-pressed={chapter === index} onClick={() => setSeek({ frame: item.frame, at: Date.now() })}>{item.label}</button>)}
           </div>}
-          <p aria-live="polite">{chapter >= 0 && compare.chapters[chapter] ? compare.chapters[chapter]!.text : compare.source === 'pokernow' ? 'A real hand on PokerNow, recorded twice at once: without the extension, and with it.' : 'An illustration on a stand-in table. Blinds go in and the hand begins.'}</p>
+          <p aria-live="polite">{chapter >= 0 && compare.chapters[chapter] ? compare.chapters[chapter]!.text : compare.source === 'pokernow' ? 'A real hand on PokerNow, recorded twice at once: without the extension, and with it.' : 'PokerNow’s standard table, recreated, beside the Puppy theme. Blinds go in and the hand begins.'}</p>
         </div>
       </div>
     </section>
